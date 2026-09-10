@@ -6,7 +6,7 @@
 
 フェーズ1：R1ブラウザモックのP0が動作します。`site/` をローカルHTTPサーバー経由で開くと、6時代を選択・再生できます。起動手順は[P0ブラウザモック実装報告](docs/reports/P0_BROWSER_MOCK_IMPLEMENTATION.md)にあります。
 
-同じページに、R2「生命圏の比較」がブラウザ拡張として加わっています。画面上部の切替で、6時代の観察と、生命圏に関わる4つの比較条件のA/B比較を行き来できます。
+同じページに、R2「生命圏の比較」がブラウザ拡張として加わっています。画面上部の切替で、6時代の観察と、生命圏に関わる4つの比較条件のA/B比較を行き来できます。R2-P0は人によるブラウザレビューを完了しました（[R2-P0レビュー報告](docs/reports/R2_P0_HUMAN_REVIEW.md)）。
 
 人によるモックレビューは未実施で、Unityプロジェクトは未着手です。文書の仕様・優先度はレビュー用の初案のままです。
 
@@ -49,6 +49,7 @@ docs/
   design/STORYBOARD.md
   design/BROWSER_MOCK_SPEC.md
   reports/P0_BROWSER_MOCK_IMPLEMENTATION.md
+  reports/R2_P0_HUMAN_REVIEW.md
 site/
   index.html                       画面構造（R1・R2の両パネル）
   styles.css                       R1のCSSのみの象徴的地球とレイアウト
@@ -75,3 +76,4 @@ site/
 - [P0ブラウザモック実装報告](docs/reports/P0_BROWSER_MOCK_IMPLEMENTATION.md)
 - [R2要件](docs/requirements/REQUIREMENTS_R2.md)
 - [R2実装順序](docs/planning/IMPLEMENTATION_ORDER_R2.md)
+- [R2-P0レビュー報告](docs/reports/R2_P0_HUMAN_REVIEW.md)
