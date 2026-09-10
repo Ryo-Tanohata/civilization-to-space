@@ -1,0 +1,175 @@
+{
+  "schemaVersion": "1.0.0",
+  "catalogTitle": "Earth Through Time",
+  "disclaimer": "これは科学的な将来予測でも精密な地球科学モデルでもなく、地球の長い変化を象徴的に体験するための初期プロトタイプです。年代・分布・順序の厳密さを保証しません。",
+  "parameterNote": "visualの数値は0〜1に正規化した象徴表現の演出強度であり、気温・海水量・森林面積・人口などの観測値や予測値ではありません。satelliteCountは表示する衛星の個数を示す象徴的な整数です。",
+  "eraOrder": ["Hadean", "EarlyOcean", "Snowball", "GreenEarth", "Information", "Future"],
+  "eras": [
+    {
+      "id": "Hadean",
+      "displayName": "マグマの地球",
+      "rangeLabel": "地球形成の初期（象徴）",
+      "sortOrder": 1,
+      "summary": "熱い地表と冷却を入口に、地球の長い変化をたどりはじめます。海も氷もまだ描かれず、赤く発光する地球として象徴的に表しています。",
+      "visual": {
+        "earthColor": "#7a2412",
+        "emissionColor": "#ff6a2a",
+        "oceanLevel": 0,
+        "cloudDensity": 0.05,
+        "iceCoverage": 0,
+        "vegetation": 0,
+        "volcanicActivity": 0.95,
+        "cityLights": 0,
+        "satelliteCount": 0
+      },
+      "presentation": {
+        "caption": "暗い赤の地表に橙の亀裂と淡い発光が広がる、象徴的な地球",
+        "storyboardCut": "カット1 マグマ",
+        "tags": ["熱の輝き：強", "海：なし", "氷：なし", "植生：なし"]
+      },
+      "events": ["冷却を示す光の変化が現れる"],
+      "status": "象徴表現案・出典未検証"
+    },
+    {
+      "id": "EarlyOcean",
+      "displayName": "海の誕生",
+      "rangeLabel": "初期の海の成立（象徴）",
+      "sortOrder": 2,
+      "summary": "水の層が地球をおおい、見え方が大きく変わります。青い面と薄い雲で、海を持つ地球を象徴的に表しています。",
+      "visual": {
+        "earthColor": "#1f3b57",
+        "emissionColor": "#2f6f93",
+        "oceanLevel": 0.85,
+        "cloudDensity": 0.45,
+        "iceCoverage": 0.04,
+        "vegetation": 0,
+        "volcanicActivity": 0.25,
+        "cityLights": 0,
+        "satelliteCount": 0
+      },
+      "presentation": {
+        "caption": "青い海面と薄い雲の層に、暗い陸の輪郭が見える象徴的な地球",
+        "storyboardCut": "カット2 海",
+        "tags": ["海の強調：高", "熱の輝き：弱", "雲：中", "植生：なし"]
+      },
+      "events": ["水の層が現れ、地表の見え方が変わる"],
+      "status": "象徴表現案・出典未検証"
+    },
+    {
+      "id": "Snowball",
+      "displayName": "全球凍結の時代",
+      "rangeLabel": "大規模な凍結を示す時代（象徴）",
+      "sortOrder": 3,
+      "summary": "強い寒冷化を、白くおおわれた地球として表しています。氷の広がりは象徴であり、実際の分布・厚さ・期間を示すものではありません。",
+      "visual": {
+        "earthColor": "#8fa8b4",
+        "emissionColor": "#4d7f96",
+        "oceanLevel": 0.5,
+        "cloudDensity": 0.2,
+        "iceCoverage": 0.9,
+        "vegetation": 0,
+        "volcanicActivity": 0.1,
+        "cityLights": 0,
+        "satelliteCount": 0
+      },
+      "presentation": {
+        "caption": "白と淡い青の氷におおわれた、象徴的な地球",
+        "storyboardCut": "カット3 氷河",
+        "tags": ["氷の強調：高", "雲：弱", "輝き：弱", "海：中"]
+      },
+      "events": ["氷が視覚的に地球全体へ広がる"],
+      "status": "象徴表現案・出典未検証"
+    },
+    {
+      "id": "GreenEarth",
+      "displayName": "森林と陸上生態系",
+      "rangeLabel": "陸上生態系の広がり（象徴）",
+      "sortOrder": 4,
+      "summary": "緑を通して陸上の生態系の存在を表しています。青い海と緑の陸、薄い雲を重ねた象徴的な地球であり、植生分布の正確さは対象外です。",
+      "visual": {
+        "earthColor": "#1d4363",
+        "emissionColor": "#3f8f6a",
+        "oceanLevel": 0.9,
+        "cloudDensity": 0.4,
+        "iceCoverage": 0.1,
+        "vegetation": 0.85,
+        "volcanicActivity": 0.05,
+        "cityLights": 0,
+        "satelliteCount": 0
+      },
+      "presentation": {
+        "caption": "青い海に緑の陸が広がり、薄い雲がかかる象徴的な地球",
+        "storyboardCut": "カット4 緑",
+        "tags": ["植生の強調：高", "海：高", "氷：弱", "雲：中"]
+      },
+      "events": ["陸の緑が現れ、生態系の広がりを示す"],
+      "status": "象徴表現案・出典未検証"
+    },
+    {
+      "id": "Information",
+      "displayName": "情報・地球規模接続",
+      "rangeLabel": "人類の活動から情報化へ（象徴）",
+      "sortOrder": 5,
+      "summary": "人類の活動と文明の登場を入口に、地球規模の接続へ視点を移します。光点と線は通信網の実データではなく、つながりの象徴表現です。",
+      "visual": {
+        "earthColor": "#173d5c",
+        "emissionColor": "#5fa8c9",
+        "oceanLevel": 0.9,
+        "cloudDensity": 0.35,
+        "iceCoverage": 0.08,
+        "vegetation": 0.6,
+        "volcanicActivity": 0,
+        "cityLights": 0.9,
+        "satelliteCount": 3
+      },
+      "presentation": {
+        "caption": "青緑の地球に光点と接続線が並び、周回する衛星が見える象徴的な地球",
+        "storyboardCut": "カット5・6 人類と情報化",
+        "tags": ["接続表現：高", "都市光：高", "植生：中", "熱の輝き：なし"]
+      },
+      "events": [
+        "人類の活動と文明が地球の見え方を変える",
+        "拠点と接続が現れ、遠くの活動がつながる"
+      ],
+      "status": "象徴表現案・出典未検証"
+    },
+    {
+      "id": "Future",
+      "displayName": "未来の分岐",
+      "rangeLabel": "未確定の未来（仮想）",
+      "sortOrder": 6,
+      "summary": "未来は一つに決まった結末ではありません。ここでは条件の異なる複数の姿を比べるための入口として、同じ地球を仮想的に表しています。",
+      "visual": {
+        "earthColor": "#14415a",
+        "emissionColor": "#7fd6c2",
+        "oceanLevel": 0.88,
+        "cloudDensity": 0.3,
+        "iceCoverage": 0.06,
+        "vegetation": 0.7,
+        "volcanicActivity": 0,
+        "cityLights": 0.7,
+        "satelliteCount": 3
+      },
+      "presentation": {
+        "caption": "同じ地球に、案ごとに異なる緑と光を重ねた仮想的な地球",
+        "storyboardCut": "カット7 未来分岐",
+        "tags": ["仮想シナリオ", "案別の植生・接続・光", "確率・実現年を示さない"],
+        "futureNote": "Futureは固定された予測ではなく、条件の異なる複数の未来を比較するための入口です。次の候補はR1 P0では読み取り専用の表示であり、選択・分岐のロジックは実装していません。優劣・発生確率・実現年は示しません。",
+        "scenarioCandidates": [
+          {
+            "id": "Cooperation",
+            "name": "協働と保全",
+            "assumption": "人間とAI／ロボットの協働を環境保全にも向ける仮定です。緑と穏やかな接続を強調しますが、成果を保証するものではありません。"
+          },
+          {
+            "id": "Adaptation",
+            "name": "資源制約への適応",
+            "assumption": "資源制約の下で活動範囲と分担を調整する仮定です。光点を絞り拠点間の関係を強調しますが、失敗の結末を意味するものではありません。"
+          }
+        ]
+      },
+      "events": ["異なる仮定どうしを見比べる入口となる"],
+      "status": "仮想シナリオ案"
+    }
+  ]
+}

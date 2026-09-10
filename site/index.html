@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="6つの時代を観察する、象徴的な地球のブラウザモック。">
+  <title>Earth Through Time</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="masthead">
+    <p class="eyebrow">CIVILIZATION TO SPACE / R1</p>
+    <h1 id="catalog-title">Earth Through Time</h1>
+    <p id="disclaimer">これは科学的予測ではなく、象徴的な初期プロトタイプである</p>
+  </header>
+  <main>
+    <noscript><p class="notice">このモックの表示と操作にはJavaScriptが必要です。ブラウザでJavaScriptを有効にしてください。</p></noscript>
+    <section id="error" class="notice" role="alert" hidden>
+      <h2>時代データを読み込めません</h2>
+      <p id="error-detail"></p>
+      <button id="retry" type="button">再読み込み</button>
+    </section>
+    <p id="loading" role="status">時代データを読み込んでいます…</p>
+    <section class="observation" aria-label="地球と時代の情報">
+      <figure>
+        <div id="planet" class="planet" role="img" aria-label="読み込み前の象徴的な地球">
+          <div class="globe" aria-hidden="true">
+            <span class="ocean"></span><span class="land"></span><span class="vegetation"></span>
+            <span class="volcano"></span><span class="ice"></span><span class="clouds"></span>
+            <span class="cities"></span><span class="shade"></span>
+          </div>
+          <div class="satellites" aria-hidden="true"><i></i><i></i><i></i></div>
+        </div>
+        <figcaption>色と模様は象徴表現です。実際の地理・分布を示しません。<span id="parameter-note" class="muted"></span></figcaption>
+      </figure>
+      <article aria-labelledby="era-name">
+        <p id="era-id" class="eyebrow">— / 06</p>
+        <h2 id="era-name">地球の変化を観察する</h2>
+        <p id="range-label" class="muted"></p>
+        <p id="summary"></p>
+        <ul id="tags" class="tags" aria-label="表現タグ"></ul>
+        <section id="events-section" hidden><h3>代表イベント（象徴）</h3><ul id="events"></ul></section>
+        <p class="quality">データ品質：<span id="quality-status">未読込</span></p>
+        <p id="visual-warning" class="notice" role="status" hidden>視覚データが不足しているため、中立の地球に簡略化して表示しています。</p>
+        <section id="future" hidden aria-labelledby="future-heading">
+          <h3 id="future-heading">将来シナリオ候補・読み取り専用</h3>
+          <p id="future-intro"></p>
+          <dl id="scenarios"></dl>
+        </section>
+      </article>
+    </section>
+    <section class="timeline" aria-labelledby="timeline-heading">
+      <div class="timeline-heading"><h2 id="timeline-heading">時代をたどる</h2><p id="playback-status" role="status" aria-live="polite">停止中</p></div>
+      <fieldset id="controls" disabled>
+        <legend class="sr-only">時代の選択と再生</legend>
+        <div id="era-buttons" class="era-buttons" role="group" aria-label="6つの時代を直接選択"></div>
+        <label for="era-slider">時代スライダー <span id="slider-label"></span></label>
+        <input id="era-slider" type="range" min="0" max="5" step="1" value="0" aria-describedby="timeline-note">
+        <p id="timeline-note" class="muted">6段階は時代の順序を表し、実年代の長さには比例しません。</p>
+        <div class="transport">
+          <button id="previous" type="button">前の時代</button>
+          <button id="play" class="primary" type="button" aria-pressed="false">再生</button>
+          <button id="next" type="button">次の時代</button>
+          <label for="speed">再生速度</label>
+          <select id="speed"><option value="0.5">0.5x（8秒）</option><option value="1" selected>1x（4秒）</option><option value="2">2x（2秒）</option></select>
+        </div>
+      </fieldset>
+    </section>
+  </main>
+  <footer>EARTH THROUGH TIME <span>観察する・選ぶ・考える</span></footer>
+</body>
+</html>
