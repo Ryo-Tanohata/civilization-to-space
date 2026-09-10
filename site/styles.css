@@ -8,9 +8,10 @@ h3 { font-size: 1rem; }
 .eyebrow { color: #a9c7dd; font-size: .875rem; letter-spacing: .1em; }
 .masthead { border-bottom: 1px solid #34475c; padding-bottom: 20px; }
 #disclaimer, .muted, figcaption, .quality { color: #b7c7d8; }
-.observation { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "figure identity" "figure details"; align-items: start; column-gap: 40px; padding: 32px 0; }
+.observation { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "figure identity" "figure details"; grid-template-rows: min-content auto; align-items: start; column-gap: 40px; padding: 32px 0; }
 .era-identity { grid-area: identity; min-width: 0; }
-.observation > figure { grid-area: figure; align-self: center; }
+/* 地球は上端で固定する。時代ごとに解説の高さが変わっても位置を跳ねさせない */
+.observation > figure { grid-area: figure; align-self: start; }
 .era-details { grid-area: details; }
 figure { margin: 0; min-width: 0; }
 figcaption { font-size: .875rem; text-align: center; margin-top: 24px; }
@@ -68,5 +69,5 @@ footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #34475c; col
 /* タブレット以下：1列にし、絵コンテの小画面配置（時代名 → 地球 → 解説）へ切り替える */
 @media (max-width: 760px) { body { padding: 24px 18px; } .observation { grid-template-columns: minmax(0, 1fr); grid-template-areas: "identity" "figure" "details"; row-gap: 12px; padding: 12px 0 24px; } .observation > figure { align-self: auto; } .planet { max-width: 260px; } .era-buttons { grid-template-columns: repeat(2, minmax(0, 1fr)); } h2 { font-size: 1.45rem; } .transport { gap: 8px; } .transport button { flex: 1 1 auto; } }
 /* スマホ：縦の占有を詰め、操作列を折り返さない3分割グリッドにする */
-@media (max-width: 600px) { body { padding: 20px 16px; } h1 { font-size: 1.65rem; } h2 { font-size: 1.3rem; } .masthead { padding-bottom: 14px; } .observation { row-gap: 6px; padding: 8px 0 20px; } .planet { width: 66%; max-width: 200px; margin: 8px auto 16px; } figcaption { margin-top: 12px; font-size: .8125rem; } .quality { margin-top: 12px; } .tags { gap: 6px; } .page-note { margin-top: 20px; font-size: .75rem; } .era-buttons { gap: 6px; margin-bottom: 16px; } .era-buttons button { padding: 8px; } .timeline { padding-top: 18px; } .transport { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 8px; align-items: center; } .primary { min-width: 0; padding: 8px 10px; } .transport label[for="speed"] { grid-column: 1 / 2; } .transport #speed { grid-column: 2 / -1; } }
+@media (max-width: 600px) { body { padding: 20px 16px; } h1 { font-size: 1.65rem; } h2 { font-size: 1.3rem; } .masthead { padding-bottom: 14px; } .observation { row-gap: 6px; padding: 8px 0 20px; } .planet { width: 66%; max-width: 200px; margin: 8px auto 16px; } figcaption { margin-top: 12px; font-size: .8125rem; } .quality { margin-top: 12px; } .tags { gap: 6px; } .page-note { margin-top: 20px; font-size: .75rem; } .era-buttons { gap: 6px; margin-bottom: 16px; } .era-buttons button { padding: 8px; } .timeline { padding-top: 18px; } .transport { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 8px; align-items: stretch; } .primary { min-width: 0; padding: 8px 10px; } .transport label[for="speed"] { grid-column: 1 / 2; align-self: center; } .transport #speed { grid-column: 2 / -1; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
