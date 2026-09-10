@@ -62,7 +62,8 @@
 #r2-panel #r2-table { width: 100%; border-collapse: collapse; font-size: .875rem; }
 #r2-panel #r2-caption { text-align: left; padding-bottom: 10px; color: #b7c7d8; font-size: .875rem; }
 #r2-panel #r2-table th, #r2-panel #r2-table td { border: 1px solid #34475c; padding: 10px; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
-#r2-panel #r2-table thead th { background: #152538; color: #d6e4f0; font-size: .8125rem; white-space: nowrap; }
+/* 見出しはJSが「基準A：<条件名>」に差し替えるため折り返しを許す。禁止すると狭い画面で表がはみ出す */
+#r2-panel #r2-table thead th { background: #152538; color: #d6e4f0; font-size: .8125rem; }
 #r2-panel #r2-table tbody th { background: #101d2c; font-weight: 700; }
 #r2-panel .r2-word { display: block; }
 #r2-panel .r2-num { display: block; margin-top: 3px; font-size: .8125rem; color: #b7c7d8; font-variant-numeric: tabular-nums; }
@@ -89,9 +90,12 @@
   #r2-panel .r2-options { gap: 6px; }
   #r2-panel .r2-option { padding: 8px; font-size: .8125rem; }
   #r2-panel .r2-globe { width: 58%; max-width: 168px; }
-  #r2-panel #r2-table { font-size: .8125rem; }
-  #r2-panel #r2-table th, #r2-panel #r2-table td { padding: 7px 6px; }
+  /* 4列を画面内に収める。列幅を固定し、長い語は折り返させる */
+  #r2-panel #r2-table { font-size: .8125rem; table-layout: fixed; }
+  #r2-panel #r2-table th, #r2-panel #r2-table td { padding: 6px 5px; }
   #r2-panel #r2-table thead th { font-size: .75rem; }
+  #r2-panel #r2-table th:first-child, #r2-panel #r2-table td:first-child { width: 28%; }
+  #r2-panel #r2-table th:nth-child(n+2), #r2-panel #r2-table td:nth-child(n+2) { width: 24%; }
   #r2-panel .r2-num, #r2-panel .r2-diff-dir { font-size: .75rem; }
 }
 
