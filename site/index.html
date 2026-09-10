@@ -23,6 +23,11 @@
     </section>
     <p id="loading" role="status">時代データを読み込んでいます…</p>
     <section class="observation" aria-label="地球と時代の情報">
+      <header class="era-identity">
+        <p id="era-id" class="eyebrow">— / 06</p>
+        <h2 id="era-name">地球の変化を観察する</h2>
+        <p id="range-label" class="muted"></p>
+      </header>
       <figure>
         <div id="planet" class="planet" role="img" aria-label="読み込み前の象徴的な地球">
           <div class="globe" aria-hidden="true">
@@ -32,12 +37,9 @@
           </div>
           <div class="satellites" aria-hidden="true"><i></i><i></i><i></i></div>
         </div>
-        <figcaption>色と模様は象徴表現です。実際の地理・分布を示しません。<span id="parameter-note" class="muted"></span></figcaption>
+        <figcaption>色と模様は象徴表現です。実際の地理・分布を示しません。</figcaption>
       </figure>
-      <article aria-labelledby="era-name">
-        <p id="era-id" class="eyebrow">— / 06</p>
-        <h2 id="era-name">地球の変化を観察する</h2>
-        <p id="range-label" class="muted"></p>
+      <article class="era-details" aria-labelledby="era-name">
         <p id="summary"></p>
         <ul id="tags" class="tags" aria-label="表現タグ"></ul>
         <section id="events-section" hidden><h3>代表イベント（象徴）</h3><ul id="events"></ul></section>
@@ -67,6 +69,7 @@
         </div>
       </fieldset>
     </section>
+    <p id="parameter-note" class="muted page-note"></p>
   </main>
   <footer>EARTH THROUGH TIME <span>観察する・選ぶ・考える</span></footer>
 </body>
