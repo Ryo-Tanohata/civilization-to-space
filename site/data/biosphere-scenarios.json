@@ -1,0 +1,157 @@
+{
+  "schemaVersion": "r2-1.0.0",
+  "title": "生命圏の比較条件",
+  "disclaimer": "これは科学的な観測でも将来予測でもありません。生命圏に関わる条件の違いを、象徴的に見比べるための固定データです。",
+  "valueNote": "象徴値0〜100。実測値・予測値ではありません。温度・濃度・面積・種数のいずれでもなく、比較のために設計した0・25・50・75・100の5段階です。高い値が望ましいという意味はありません。",
+  "orderNote": "4件の比較条件は、時代順・進歩順・難易度順ではありません。並びに意味はなく、どれかが到達点でも失敗でもありません。",
+  "interchangeNote": "このファイルはブラウザR2専用です。Unityとの共通交換形式の候補ではなく、R1の site/data/earth-eras.json とはスキーマ系列を分けています。",
+  "axisNote": "時代はR1の時間軸、比較条件はR2の固定状態セットです。比較条件を選んでもR1の6時代は増減しません。",
+  "diffNote": "差は象徴値の差であり、効果量や優劣ではありません。段階の差がそのまま影響の大きさを表すこともありません。",
+  "omissionNote": "地域差、時間遅れ、複数要因の相互作用を省略しています。ひとつの変数だけが動くという想定も、現実の対応関係も保証しません。",
+  "variables": [
+    {
+      "id": "oxygenationStage",
+      "displayName": "酸素化の段階",
+      "definition": "大気と海に酸素が行き渡っている度合いを象徴的に表した段階です。",
+      "range": "0〜100（0・25・50・75・100の5段階）",
+      "lowLabel": "酸素はほとんど行き渡っていない",
+      "midLabel": "酸素が行き渡りつつある",
+      "highLabel": "酸素が広く行き渡っている",
+      "limitation": "実際の酸素濃度、分圧、深度分布、地域差、変化の速さを表しません。",
+      "bandLabels": ["なし", "わずか", "中くらい", "多い", "とても多い"],
+      "moreWord": "多い",
+      "lessWord": "少ない"
+    },
+    {
+      "id": "liquidOceanPresence",
+      "displayName": "液体の海の表現",
+      "definition": "凍っていない海がどれだけ表に出ているかを象徴的に表した度合いです。",
+      "range": "0〜100（0・25・50・75・100の5段階）",
+      "lowLabel": "液体の海がほとんど見えない",
+      "midLabel": "液体の海が部分的に見える",
+      "highLabel": "液体の海が広く見えている",
+      "limitation": "実際の海水量、水深、塩分、海流、面積比を表しません。",
+      "bandLabels": ["なし", "わずか", "中くらい", "広い", "ほぼ全面"],
+      "moreWord": "広い",
+      "lessWord": "狭い"
+    },
+    {
+      "id": "relativeWarmth",
+      "displayName": "冷暖の相対状態",
+      "definition": "4件の比較条件どうしを見比べたときの、暖かさの相対的な位置づけです。",
+      "range": "0〜100（0・25・50・75・100の5段階）",
+      "lowLabel": "この4件の中では冷たい側",
+      "midLabel": "この4件の中では中間",
+      "highLabel": "この4件の中では暖かい側",
+      "limitation": "摂氏温度でも平均気温でもありません。絶対的な暖かさや気候値を表しません。",
+      "bandLabels": ["とても冷たい", "冷たい", "中くらい", "暖かい", "とても暖かい"],
+      "moreWord": "暖かい",
+      "lessWord": "冷たい"
+    },
+    {
+      "id": "iceCover",
+      "displayName": "氷の被覆表現",
+      "definition": "地表が氷におおわれている様子を象徴的に表した度合いです。",
+      "range": "0〜100（0・25・50・75・100の5段階）",
+      "lowLabel": "氷はほとんど描かれない",
+      "midLabel": "氷が部分的に描かれる",
+      "highLabel": "氷が広く描かれる",
+      "limitation": "実際の氷床面積、厚さ、緯度分布、継続期間を表しません。",
+      "bandLabels": ["なし", "わずか", "中くらい", "広い", "ほぼ全面"],
+      "moreWord": "広い",
+      "lessWord": "狭い"
+    },
+    {
+      "id": "photosynthesisActivity",
+      "displayName": "光合成活動の表現",
+      "definition": "光合成を行う生命の活発さを象徴的に表した度合いです。",
+      "range": "0〜100（0・25・50・75・100の5段階）",
+      "lowLabel": "光合成の活動はほとんど描かれない",
+      "midLabel": "光合成の活動が部分的に描かれる",
+      "highLabel": "光合成の活動が広く描かれる",
+      "limitation": "生産量、種数、生物量、季節変化を表しません。海と陸のどちらで起きているかも区別しません。",
+      "bandLabels": ["なし", "わずか", "中くらい", "多い", "とても多い"],
+      "moreWord": "多い",
+      "lessWord": "少ない"
+    },
+    {
+      "id": "landVegetation",
+      "displayName": "陸上植生の表現",
+      "definition": "陸の上に植物が広がっている様子を象徴的に表した度合いです。",
+      "range": "0〜100（0・25・50・75・100の5段階）",
+      "lowLabel": "陸に植生はほとんど描かれない",
+      "midLabel": "陸の一部に植生が描かれる",
+      "highLabel": "陸に植生が広く描かれる",
+      "limitation": "森林面積、植生の種類、根の深さ、土壌の状態を表しません。",
+      "bandLabels": ["なし", "わずか", "中くらい", "広い", "ほぼ全面"],
+      "moreWord": "広い",
+      "lessWord": "狭い"
+    }
+  ],
+  "conditions": [
+    {
+      "id": "bio_ocean",
+      "displayName": "海洋中心・低酸素化",
+      "summary": "海が広く表に出ている一方で、酸素はまだほとんど行き渡っていない状態です。陸の上に植生は描かれません。",
+      "relatedEraId": "EarlyOcean",
+      "designRationale": "酸素が乏しい条件を比較の起点として置くために設計しました。到達前の未熟な状態という意味ではありません。",
+      "quality": "象徴表現案・出典未検証",
+      "values": {
+        "oxygenationStage": 0,
+        "liquidOceanPresence": 100,
+        "relativeWarmth": 75,
+        "iceCover": 0,
+        "photosynthesisActivity": 25,
+        "landVegetation": 0
+      }
+    },
+    {
+      "id": "bio_oxygenation",
+      "displayName": "酸素化の移行",
+      "summary": "海は広いままで、酸素が行き渡りつつある状態です。光合成の活動が目立ちますが、陸の植生はまだ描かれません。",
+      "relatedEraId": "EarlyOcean",
+      "designRationale": "酸素の行き渡り方だけが大きく違う条件を用意し、1変数の違いを見比べられるようにしました。時代の次の段階を表すものではありません。",
+      "quality": "象徴表現案・出典未検証",
+      "values": {
+        "oxygenationStage": 50,
+        "liquidOceanPresence": 100,
+        "relativeWarmth": 50,
+        "iceCover": 25,
+        "photosynthesisActivity": 75,
+        "landVegetation": 0
+      }
+    },
+    {
+      "id": "bio_ice",
+      "displayName": "寒冷・氷の制約",
+      "summary": "氷がほぼ全面をおおい、液体の海がわずかしか見えない状態です。光合成の活動は描かれません。",
+      "relatedEraId": "Snowball",
+      "designRationale": "冷える方向へ振り切った条件を置くために設計しました。他の条件より劣った状態を表すものではありません。",
+      "quality": "象徴表現案・出典未検証",
+      "values": {
+        "oxygenationStage": 25,
+        "liquidOceanPresence": 25,
+        "relativeWarmth": 0,
+        "iceCover": 100,
+        "photosynthesisActivity": 0,
+        "landVegetation": 0
+      }
+    },
+    {
+      "id": "bio_land",
+      "displayName": "陸上植生の広がり",
+      "summary": "陸の上に植生が広く描かれ、光合成の活動も広がっている状態です。液体の海と酸素も広く描かれます。",
+      "relatedEraId": "GreenEarth",
+      "designRationale": "陸の植生という別の軸を持つ条件を用意しました。他の3件の到達点や完成形という意味ではありません。",
+      "quality": "象徴表現案・出典未検証",
+      "values": {
+        "oxygenationStage": 75,
+        "liquidOceanPresence": 75,
+        "relativeWarmth": 75,
+        "iceCover": 25,
+        "photosynthesisActivity": 100,
+        "landVegetation": 100
+      }
+    }
+  ]
+}

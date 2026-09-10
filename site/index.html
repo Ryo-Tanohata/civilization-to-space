@@ -6,7 +6,9 @@
   <meta name="description" content="6つの時代を観察する、象徴的な地球のブラウザモック。">
   <title>Earth Through Time</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="r2.css">
   <script src="app.js" defer></script>
+  <script src="r2.js" defer></script>
 </head>
 <body>
   <header class="masthead">
@@ -22,6 +24,11 @@
       <button id="retry" type="button">再読み込み</button>
     </section>
     <p id="loading" role="status">時代データを読み込んでいます…</p>
+    <nav id="view-switch" aria-label="表示の切替">
+      <button id="to-r1" type="button" aria-pressed="true">地球の時代</button>
+      <button id="to-r2" type="button" aria-pressed="false">生命圏の比較</button>
+    </nav>
+    <div id="r1-panel">
     <section class="observation" aria-label="地球と時代の情報">
       <header class="era-identity">
         <p id="era-id" class="eyebrow">— / 06</p>
@@ -70,6 +77,58 @@
       </fieldset>
     </section>
     <p id="parameter-note" class="muted page-note"></p>
+    </div>
+    <section id="r2-panel" hidden aria-labelledby="r2-heading">
+      <h2 id="r2-heading" tabindex="-1">生命圏の比較</h2>
+      <p id="r2-lead" class="muted"></p>
+      <ul id="r2-notes" class="r2-notes" aria-label="R2の読み方に関する注記"></ul>
+      <p id="r2-loading" role="status">比較条件データを読み込んでいます…</p>
+      <section id="r2-error" class="notice" role="status" hidden tabindex="-1">
+        <h3>比較条件データを読み込めません</h3>
+        <p id="r2-error-detail"></p>
+        <button id="r2-retry" type="button">再読み込み</button>
+      </section>
+      <div id="r2-body" hidden>
+        <div class="r2-pickers">
+          <fieldset id="r2-baseline-set">
+            <legend>基準A</legend>
+            <div id="r2-baseline-options" class="r2-options"></div>
+          </fieldset>
+          <fieldset id="r2-comparison-set">
+            <legend>比較B</legend>
+            <div id="r2-comparison-options" class="r2-options"></div>
+          </fieldset>
+        </div>
+        <div class="r2-globes">
+          <figure class="r2-figure">
+            <figcaption class="r2-side"><span class="r2-role">基準A</span><span id="r2-a-name" class="r2-name"></span></figcaption>
+            <div id="r2-a-globe" class="r2-globe" role="img" aria-label="基準Aの象徴的な地球">
+              <span class="r2-ocean" aria-hidden="true"></span><span class="r2-land" aria-hidden="true"></span><span class="r2-veg" aria-hidden="true"></span><span class="r2-ice" aria-hidden="true"></span><span class="r2-shade" aria-hidden="true"></span><span class="r2-oxy" aria-hidden="true"></span>
+            </div>
+            <p id="r2-a-summary" class="muted"></p>
+          </figure>
+          <figure class="r2-figure">
+            <figcaption class="r2-side"><span class="r2-role">比較B</span><span id="r2-b-name" class="r2-name"></span></figcaption>
+            <div id="r2-b-globe" class="r2-globe" role="img" aria-label="比較Bの象徴的な地球">
+              <span class="r2-ocean" aria-hidden="true"></span><span class="r2-land" aria-hidden="true"></span><span class="r2-veg" aria-hidden="true"></span><span class="r2-ice" aria-hidden="true"></span><span class="r2-shade" aria-hidden="true"></span><span class="r2-oxy" aria-hidden="true"></span>
+            </div>
+            <p id="r2-b-summary" class="muted"></p>
+          </figure>
+        </div>
+        <p class="muted r2-globe-note">地球の色と模様は象徴表現です。実在の分布・面積・濃度・将来予測を示しません。雲・火山・都市光・衛星はR2の比較対象外のため描いていません。</p>
+        <div class="r2-table-wrap">
+          <table id="r2-table">
+            <caption id="r2-caption"></caption>
+            <thead>
+              <tr><th scope="col">比較変数</th><th scope="col" id="r2-th-a">基準A</th><th scope="col" id="r2-th-b">比較B</th><th scope="col">差（B−A）</th></tr>
+            </thead>
+            <tbody id="r2-tbody"></tbody>
+          </table>
+        </div>
+        <p id="r2-limitations-heading" class="r2-sub">各変数が表していないもの</p>
+        <dl id="r2-limitations" aria-labelledby="r2-limitations-heading"></dl>
+      </div>
+    </section>
   </main>
   <footer>EARTH THROUGH TIME <span>観察する・選ぶ・考える</span></footer>
 </body>
