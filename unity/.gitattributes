@@ -1,0 +1,14 @@
+# Unityプロジェクト配下の扱い。site/ と docs/ には影響しない。
+*.cs      text diff=csharp eol=lf
+*.shader  text eol=lf
+*.json    text eol=lf
+*.md      text eol=lf
+*.asmdef  text eol=lf
+*.meta    text eol=lf
+
+# UnityのYAML資産。差分は読めるが自動マージは禁止する。
+# 行単位のマージはfileIDの整合を壊すため、衝突時は生成し直す。
+*.unity   text eol=lf -merge
+*.prefab  text eol=lf -merge
+*.asset   text eol=lf -merge
+*.mat     text eol=lf -merge

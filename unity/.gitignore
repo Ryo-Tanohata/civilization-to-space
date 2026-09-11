@@ -1,0 +1,57 @@
+# Unity 2022.3 の生成物。このファイルは unity/ 配下にのみ効く。
+# site/ と docs/ へ影響しないことを、パターンではなく配置で保証している。
+
+# 再生成可能なローカルキャッシュ・中間出力
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+
+# 絶対パスとユーザー名を含む。Publicリポジトリでは特に除外する。
+[Ll]ogs/
+UserSettings/
+
+# プロファイラ・レコーダの巨大出力
+[Mm]emoryCaptures/
+[Rr]ecordings/
+
+# Unityが .cs から再生成するIDEプロジェクト
+*.csproj
+*.sln
+*.unityproj
+*.user
+.vsconfig
+.vs/
+.idea/
+
+# 旧IDE・デバッガの生成物
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# 配布・診断成果物
+sysinfo.txt
+*.apk
+*.aab
+*.app
+*.unitypackage
+
+# Asset Store ツールの残骸
+Assets/AssetStoreTools*
+
+# OSのゴミファイル
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 以下は絶対に無視しない（参考。除外パターンを追加する際の注意）
+#   Assets/**/*.meta          GUIDの正本。欠けると参照が全滅する
+#   ProjectSettings/**        これが無いとcloneしても同じ設定で開けない
+#   Packages/manifest.json    依存の正本
+#   Packages/packages-lock.json
+#   Assets/StreamingAssets/** 交換データのコピー本体
