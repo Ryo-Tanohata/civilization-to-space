@@ -13,7 +13,7 @@ Civilization to Space Simulatorは探索的・象徴的シミュレーターで�
 
 ## Git・GitHubの安全
 
-リモートの正本はRyo-Tanohata/civilization-to-space。Privateを維持する。originが https://github.com/Ryo-Tanohata/civilization-to-space.git と一致することを確認する。GitHub認証とコミット作者は別であり、AIの身元で設定しない。作者設定は実行時にユーザーの指示を確認し、個人メールを本規則へ記録しない。
+リモートの正本はRyo-Tanohata/civilization-to-space。GitHub Pagesでの公開のためPublicである。コミットした内容とコミット履歴は誰でも閲覧できる前提で扱い、公開範囲の変更には明示承認が必要。originが https://github.com/Ryo-Tanohata/civilization-to-space.git と一致することを確認する。GitHub認証とコミット作者は別であり、AIの身元で設定しない。作者設定は実行時にユーザーの指示を確認し、個人メールを本規則へ記録しない。
 
 commit、push、PR、外部公開、GitHub設定・権限変更には明示承認が必要。ステージングも勝手に行わない。強制push、破壊的reset、clean、無関係な履歴の結合で問題を回避しない。所有者・ACLや広範なsafe.directory例外を変更しない。認証エラー時は秘密情報を出力せず停止する。
 

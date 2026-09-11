@@ -26,7 +26,7 @@ R2のブラウザ実装はR1のUnity最小再現より先に進めています�
 
 ## 進め方
 
-要件定義 → 計画 → 設計 → ブラウザモック → レビュー → Unity実装 → 検証 → 報告。各段階で小さく確認できる成果物を残します。GitHubのPrivateリポジトリをリモートの正本とし、ローカルの未コミット変更はレビュー中の案として扱います。commit・push・PR・公開には個別の明示承認が必要です。
+要件定義 → 計画 → 設計 → ブラウザモック → レビュー → Unity実装 → 検証 → 報告。各段階で小さく確認できる成果物を残します。GitHubのPublicリポジトリをリモートの正本とし、ローカルの未コミット変更はレビュー中の案として扱います。commit・push・PR・公開には個別の明示承認が必要です。
 
 ## 制作体制
 
@@ -37,6 +37,7 @@ R2のブラウザ実装はR1のUnity最小再現より先に進めています�
 ```text
 README.md
 AGENTS.md
+.github/workflows/pages.yml        site/をGitHub Pagesへ配信
 docs/
   requirements/REQUIREMENTS_R1.md
   requirements/REQUIREMENTS_R2.md
@@ -61,6 +62,12 @@ site/
 ```
 
 `site/` は外部ライブラリ・CDN・npm・Node.js・外部APIに依存せず、ローカルHTTPサーバーとブラウザだけで動作します。unity/（Unity）、blender/（制作素材）は将来の承認後に作成します。
+
+## 公開
+
+`main` の `site/` を [Pages配信ワークフロー](.github/workflows/pages.yml) がGitHub Pagesへ公開します。`docs/` の要件・設計文書は配信対象に含みません。`site/` 内の参照はすべて相対パスのため、プロジェクトページのサブパスでもそのまま動作します。
+
+配信を有効にするには、リポジトリのSettings → PagesでSourceを「GitHub Actions」に設定します。公開URLはワークフロー実行結果のdeployステップに表示されます。
 
 ## 文書一覧
 
