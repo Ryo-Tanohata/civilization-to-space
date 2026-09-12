@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
@@ -64,6 +65,16 @@ namespace CivilizationToSpace.View
         private RectTransform controlRoot;
         private RectTransform playbackRoot;
         private RectTransform headerRoot;
+        private RectTransform bottomStack;
+        private RectTransform formationRow;
+        private RectTransform eraRow;
+        private RectTransform moonRow;
+
+        /// <summary>長押しで出す説明。1つを使い回し、出す場所だけ変える。</summary>
+        private RectTransform tooltipRoot;
+        private Text tooltipTitle;
+        private Text tooltipBody;
+        private LongPressInfo tooltipOwner;
         private Text viewHint;
         private Button descriptionButton;
 
@@ -82,10 +93,12 @@ namespace CivilizationToSpace.View
 
             BuildHeader(root, catalogTitle, disclaimer, parameterNote);
             BuildInfoPanel(root);
-            BuildPlaybackBar(root);
-            BuildControlBar(root);
-            BuildViewHint(root);
+
+            // 下側は1本の積み重ねにする。帯ごとに位置を数値で決めていたため、
+            // 段階ボタンが3行に増えると必ず重なる。
+            BuildBottomStack(root);
             BuildErrorPanel(root);
+            BuildTooltip(root);
 
             // 部品がそろってから既定の表示にする。先に呼ぶと、
             // まだ作られていない部品に指定が効かない。
@@ -114,10 +127,11 @@ namespace CivilizationToSpace.View
                 for (var i = 0; i < formation.Stages.Count; i++)
                 {
                     var target = i;
-                    var button = UiFactory.CreateButton(
-                        controlRoot, "Formation" + (i + 1), 14, FormationButtonColor, TextColor);
-                    button.GetComponentInChildren<Text>().text = formation.Stages[i].DisplayName;
-                    button.onClick.AddListener(delegate { timeline.Select(target); });
+                    var stage = formation.Stages[i];
+                    var button = UiFactory.CreateIconButton(
+                        formationRow, "Formation" + (i + 1), StageIcons.Formation(stage), FormationButtonColor);
+                    AttachStageInfo(button, stage.DisplayName, stage.Summary,
+                        delegate { timeline.Select(target); });
                     eraButtons.Add(button);
                 }
             }
@@ -125,10 +139,11 @@ namespace CivilizationToSpace.View
             for (var i = 0; i < timeline.EraCount; i++)
             {
                 var target = timeline.EraOffset + i;
-                var button = UiFactory.CreateButton(
-                    controlRoot, "Era" + (i + 1), 15, ButtonColor, TextColor);
-                button.GetComponentInChildren<Text>().text = timeline.At(i).DisplayName;
-                button.onClick.AddListener(delegate { timeline.Select(target); });
+                var era = timeline.At(i);
+                var button = UiFactory.CreateIconButton(
+                    eraRow, "Era" + (i + 1), StageIcons.Era(era.Visual), ButtonColor);
+                AttachStageInfo(button, era.DisplayName, era.Summary,
+                    delegate { timeline.Select(target); });
                 eraButtons.Add(button);
             }
 
@@ -138,16 +153,14 @@ namespace CivilizationToSpace.View
                 for (var i = 0; i < moon.Phases.Count; i++)
                 {
                     var target = timeline.EraOffset + timeline.EraCount + i;
-                    var button = UiFactory.CreateButton(
-                        controlRoot, "Moon" + (i + 1), 14, MoonButtonColor, TextColor);
-                    button.GetComponentInChildren<Text>().text = moon.Phases[i].DisplayName;
-                    button.onClick.AddListener(delegate { timeline.Select(target); });
+                    var phase = moon.Phases[i];
+                    var button = UiFactory.CreateIconButton(
+                        moonRow, "Moon" + (i + 1), StageIcons.Moon(phase), MoonButtonColor);
+                    AttachStageInfo(button, phase.DisplayName, phase.Summary,
+                        delegate { timeline.Select(target); });
                     eraButtons.Add(button);
                 }
             }
-
-            previousButton.transform.SetAsFirstSibling();
-            nextButton.transform.SetAsLastSibling();
 
             previousButton.onClick.AddListener(timeline.Previous);
             nextButton.onClick.AddListener(timeline.Next);
@@ -440,7 +453,9 @@ namespace CivilizationToSpace.View
         {
             var header = UiFactory.CreateRect(root, "Header");
             headerRoot = header;
-            UiFactory.TopLeft(header, 20f, 14f, UiFactory.ReferenceResolution.x * (1f - UiFactory.SidePanelWidthFraction) - 40f, 96f);
+            // 幅を参照解像度から計算すると、縦長の画面では実際の横幅より広くなり、
+            // 右の説明パネルの下へ文字が潜り込む。割合で決めて重ならないようにする。
+            UiFactory.TopLeftColumn(header, UiFactory.SidePanelWidthFraction, 20f, 14f);
             UiFactory.AddVerticalLayout(header, 0, 4f);
 
             UiFactory.CreateText(header, "Title", 24, TextColor, TextAnchor.UpperLeft, FontStyle.Bold)
@@ -476,12 +491,27 @@ namespace CivilizationToSpace.View
             qualityText = UiFactory.CreateText(content, "Quality", 13, DimTextColor, TextAnchor.UpperLeft, FontStyle.Normal);
         }
 
-        /// <summary>再生・速度・動き・視点リセットとスライダーの帯。</summary>
-        private void BuildPlaybackBar(RectTransform root)
+        /// <summary>
+        /// 画面の下側。案内・再生の帯・段階ボタンを1本に積む。
+        ///
+        /// 帯ごとに下端からの距離を数値で決めていたが、段階ボタンが3行に増えると
+        /// 必ず重なる。積み重ねにすれば、行が増えても上へ伸びるだけで重ならない。
+        /// </summary>
+        private void BuildBottomStack(RectTransform root)
         {
-            var bar = UiFactory.CreatePanel(root, "PlaybackBar", BarColor);
+            bottomStack = UiFactory.BottomStack(UiFactory.CreateRect(root, "BottomStack"), 20f, 18f, 8f);
+
+            BuildViewHint(bottomStack);
+            BuildPlaybackBar(bottomStack);
+            BuildStageArea(bottomStack);
+        }
+
+        /// <summary>再生・速度・動き・視点リセットとスライダーの帯。</summary>
+        private void BuildPlaybackBar(RectTransform parent)
+        {
+            var bar = UiFactory.CreatePanel(parent, "PlaybackBar", BarColor);
             playbackRoot = bar.rectTransform;
-            UiFactory.BottomBar(playbackRoot, 52f, 24f, 88f);
+            playbackRoot.gameObject.AddComponent<LayoutElement>().preferredHeight = 52f;
             UiFactory.AddHorizontalLayout(playbackRoot, 8, 8f);
 
             playButton = UiFactory.CreateButton(playbackRoot, "Play", 15, ButtonColor, TextColor);
@@ -515,33 +545,169 @@ namespace CivilizationToSpace.View
         /// 視点操作の説明。3Dの操作は見ただけでは分からないため常設する。
         /// R1要件のAC-06が求める「操作名が認識できる」を、これで満たす。
         /// </summary>
-        private void BuildViewHint(RectTransform root)
+        private void BuildViewHint(RectTransform parent)
         {
             var hint = UiFactory.CreateText(
-                root, "ViewHint", 13, DimTextColor, TextAnchor.LowerLeft, FontStyle.Normal);
-            hint.rectTransform.anchorMin = new Vector2(0f, 0f);
-            hint.rectTransform.anchorMax = new Vector2(0f, 0f);
-            hint.rectTransform.pivot = new Vector2(0f, 0f);
-            hint.rectTransform.anchoredPosition = new Vector2(26f, 146f);
-            hint.rectTransform.sizeDelta = new Vector2(620f, 22f);
-            hint.text = "地球の上をドラッグすると視点が回り、ホイールで寄ります。視点の操作では再生は止まりません。";
+                parent, "ViewHint", 13, DimTextColor, TextAnchor.LowerLeft, FontStyle.Normal);
+            hint.rectTransform.gameObject.AddComponent<LayoutElement>().preferredHeight = 36f;
+            hint.text = "地球の上をドラッグ（指でなぞる）すると視点が回り、ホイールか指2本の間隔で寄ります。" +
+                        "下の丸いボタンは長押しすると名前と説明が出ます。視点の操作では再生は止まりません。";
             viewHint = hint;
         }
 
-        private void BuildControlBar(RectTransform root)
+        /// <summary>
+        /// 段階ボタン。形成過程・時代・月への展開の3行に分ける。
+        ///
+        /// 1行に15個並べると、狭い画面では1個あたりが指より細くなり、
+        /// 名前も1文字ずつ縦に折り返されて読めない。3行に分ければ1個を大きく取れる。
+        /// もともと3つの群れなので、分けたほうが並びの意味とも合う。
+        /// </summary>
+        private void BuildStageArea(RectTransform parent)
         {
-            var bar = UiFactory.CreatePanel(root, "ControlBar", BarColor);
+            var bar = UiFactory.CreatePanel(parent, "ControlBar", BarColor);
             controlRoot = bar.rectTransform;
-            UiFactory.BottomBar(controlRoot, 60f, 24f, 20f);
-            UiFactory.AddHorizontalLayout(controlRoot, 8, 8f);
+            UiFactory.AddVerticalLayout(controlRoot, 8, 6f);
 
-            previousButton = UiFactory.CreateButton(controlRoot, "Previous", 15, ButtonColor, TextColor);
+            // 横長の画面では15個が1行に収まる。縦長では収まらないので群れごとに分ける。
+            // 分けるほど下側が高くなり、地球の見える範囲が狭くなるため、収まるなら1行にする。
+            if (Screen.width >= Screen.height * WideAspect)
+            {
+                var single = CreateStageRow(controlRoot, "StageRow");
+                formationRow = single;
+                eraRow = single;
+                moonRow = single;
+            }
+            else
+            {
+                formationRow = CreateStageRow(controlRoot, "FormationRow");
+                eraRow = CreateStageRow(controlRoot, "EraRow");
+                moonRow = CreateStageRow(controlRoot, "MoonRow");
+            }
+
+            var nav = UiFactory.CreateRect(controlRoot, "NavRow");
+            var navLayout = nav.gameObject.AddComponent<HorizontalLayoutGroup>();
+            navLayout.spacing = 8f;
+            navLayout.childAlignment = TextAnchor.MiddleCenter;
+            navLayout.childControlWidth = true;
+            navLayout.childControlHeight = true;
+            navLayout.childForceExpandWidth = false;
+            navLayout.childForceExpandHeight = true;
+            nav.gameObject.AddComponent<LayoutElement>().preferredHeight = 44f;
+
+            previousButton = UiFactory.CreateButton(nav, "Previous", 15, ButtonColor, TextColor);
             previousButton.GetComponentInChildren<Text>().text = "前へ";
-            UiFactory.SetWidth(previousButton.gameObject, 88f, 0f);
+            UiFactory.SetWidth(previousButton.gameObject, 110f, 0f);
 
-            nextButton = UiFactory.CreateButton(controlRoot, "Next", 15, ButtonColor, TextColor);
+            nextButton = UiFactory.CreateButton(nav, "Next", 15, ButtonColor, TextColor);
             nextButton.GetComponentInChildren<Text>().text = "次へ";
-            UiFactory.SetWidth(nextButton.gameObject, 88f, 0f);
+            UiFactory.SetWidth(nextButton.gameObject, 110f, 0f);
+        }
+
+        /// <summary>段階ボタン1行ぶんの入れ物。中央に寄せ、幅は引き伸ばさない。</summary>
+        private static RectTransform CreateStageRow(RectTransform parent, string name)
+        {
+            var row = UiFactory.CreateRect(parent, name);
+            var layout = row.gameObject.AddComponent<HorizontalLayoutGroup>();
+            layout.spacing = 6f;
+            layout.childAlignment = TextAnchor.MiddleCenter;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = false;
+            layout.childForceExpandHeight = true;
+            return row;
+        }
+
+        /// <summary>段階ボタン1個の大きさ。指で押せる下限（約44）を下回らせない。</summary>
+        private const float StageButtonSize = 52f;
+
+        /// <summary>この縦横比より横長なら、段階ボタンを1行に並べる。</summary>
+        private const float WideAspect = 1.3f;
+
+        /// <summary>絵だけのボタンに、名前と説明と押したときの動きを結びつける。</summary>
+        private void AttachStageInfo(Button button, string title, string body, Action activate)
+        {
+            var element = UiFactory.SetWidth(button.gameObject, StageButtonSize, 0f);
+            element.preferredHeight = StageButtonSize;
+
+            var info = button.gameObject.AddComponent<LongPressInfo>();
+            info.Title = title;
+            info.Body = body;
+            info.Activate = activate;
+            info.Show = ShowTooltip;
+            info.Hide = HideTooltip;
+        }
+
+        /// <summary>
+        /// 長押しで出す説明。1つを使い回し、押されたボタンの上へ移す。
+        /// ボタンごとに持たせると、15個ぶんの文字が常に画面の外に積まれる。
+        /// </summary>
+        private void BuildTooltip(RectTransform root)
+        {
+            var panel = UiFactory.CreatePanel(root, "Tooltip", PanelColor);
+            tooltipRoot = panel.rectTransform;
+            tooltipRoot.anchorMin = new Vector2(0.5f, 0f);
+            tooltipRoot.anchorMax = new Vector2(0.5f, 0f);
+            tooltipRoot.pivot = new Vector2(0.5f, 0f);
+            tooltipRoot.sizeDelta = new Vector2(340f, 0f);
+
+            UiFactory.AddVerticalLayout(tooltipRoot, 12, 4f);
+            UiFactory.AddContentHeight(tooltipRoot);
+
+            tooltipTitle = UiFactory.CreateText(
+                tooltipRoot, "Title", 16, TextColor, TextAnchor.UpperLeft, FontStyle.Bold);
+            tooltipBody = UiFactory.CreateText(
+                tooltipRoot, "Body", 13, DimTextColor, TextAnchor.UpperLeft, FontStyle.Normal);
+
+            tooltipRoot.gameObject.SetActive(false);
+        }
+
+        private void ShowTooltip(LongPressInfo info)
+        {
+            if (info == null || tooltipRoot == null)
+            {
+                return;
+            }
+
+            tooltipOwner = info;
+            tooltipTitle.text = info.Title;
+            tooltipBody.text = info.Body;
+            tooltipRoot.gameObject.SetActive(true);
+
+            // 文字を入れてから位置を決める。先に測ると前回の大きさのままになる。
+            LayoutRebuilder.ForceRebuildLayoutImmediate(tooltipRoot);
+
+            var canvasRect = tooltipRoot.parent as RectTransform;
+            var button = info.transform as RectTransform;
+            if (canvasRect == null || button == null)
+            {
+                return;
+            }
+
+            var top = button.TransformPoint(new Vector3(0f, button.rect.yMax, 0f));
+            var local = canvasRect.InverseTransformPoint(top);
+
+            // 画面の端では内側へ寄せる。はみ出すと読めない。
+            var half = tooltipRoot.rect.width * 0.5f;
+            var limit = canvasRect.rect.width * 0.5f - 8f;
+            var x = limit > half ? Mathf.Clamp(local.x, -limit + half, limit - half) : 0f;
+
+            tooltipRoot.anchoredPosition = new Vector2(x, local.y - canvasRect.rect.yMin + 10f);
+        }
+
+        private void HideTooltip(LongPressInfo info)
+        {
+            // 別のボタンが先に出し直していたら、古いほうの指示では消さない。
+            if (tooltipOwner != null && info != null && tooltipOwner != info)
+            {
+                return;
+            }
+
+            tooltipOwner = null;
+
+            if (tooltipRoot != null)
+            {
+                tooltipRoot.gameObject.SetActive(false);
+            }
         }
 
         private void BuildErrorPanel(RectTransform root)
