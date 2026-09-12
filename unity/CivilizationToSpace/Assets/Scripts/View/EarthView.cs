@@ -339,10 +339,7 @@ namespace CivilizationToSpace.View
             for (var i = 0; i < SatellitePoolSize; i++)
             {
                 var angle = 360f / SatellitePoolSize * i;
-                var satellite = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                satellite.name = "Satellite" + (i + 1);
-                satellite.hideFlags = createdFlags;
-                SafeDestroy(satellite.GetComponent<Collider>());
+                var satellite = PrimitiveMeshes.Create(PrimitiveType.Sphere, "Satellite" + (i + 1), createdFlags);
                 satellite.transform.SetParent(ring.transform, false);
                 satellite.transform.localPosition =
                     Quaternion.Euler(0f, angle, 0f) * new Vector3(BaseRadius * 1.45f, 0f, 0f);
@@ -366,10 +363,7 @@ namespace CivilizationToSpace.View
         /// <summary>作った球を返す。呼び出し側が後から出し入れできるようにする。</summary>
         private GameObject CreateSphere(Transform parent, string name, float radiusScale, Material material)
         {
-            var sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            sphere.name = name;
-            sphere.hideFlags = createdFlags;
-            SafeDestroy(sphere.GetComponent<Collider>());
+            var sphere = PrimitiveMeshes.Create(PrimitiveType.Sphere, name, createdFlags);
             sphere.transform.SetParent(parent != null ? parent : transform, false);
             sphere.transform.localScale = Vector3.one * (BaseRadius * 2f * radiusScale);
             sphere.GetComponent<Renderer>().sharedMaterial = material;

@@ -256,24 +256,13 @@ namespace CivilizationToSpace.View
 
         /// <summary>
         /// 組み込みのメッシュを借りる。
-        /// プリミティブを1つ作って、メッシュだけ受け取り、入れ物は捨てる。
+        /// 種類ごとに1つ覚えておく仕組みは <see cref="PrimitiveMeshes"/> が持っている。
+        /// 自前でプリミティブを作ると、当たり判定を付けようとして
+        /// そのたびにコンソールへエラーが出る（Physics は削られている）。
         /// </summary>
         private static Mesh BorrowMesh(PrimitiveType type)
         {
-            var temporary = GameObject.CreatePrimitive(type);
-            var filter = temporary.GetComponent<MeshFilter>();
-            var mesh = filter != null ? filter.sharedMesh : null;
-
-            if (Application.isPlaying)
-            {
-                Object.Destroy(temporary);
-            }
-            else
-            {
-                Object.DestroyImmediate(temporary);
-            }
-
-            return mesh;
+            return PrimitiveMeshes.Get(type);
         }
     }
 }

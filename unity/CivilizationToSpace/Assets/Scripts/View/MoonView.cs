@@ -174,10 +174,7 @@ namespace CivilizationToSpace.View
             surfaceMaterial.SetFloat("_Metallic", 0f);
             surfaceMaterial.mainTexture = BakeSurface(flags);
 
-            var sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            sphere.name = "MoonSurface";
-            sphere.hideFlags = flags;
-            SafeDestroy(sphere.GetComponent<Collider>());
+            var sphere = PrimitiveMeshes.Create(PrimitiveType.Sphere, "MoonSurface", flags);
             sphere.transform.SetParent(spin, false);
             sphere.transform.localScale = Vector3.one * (MoonRadius * 2f);
             sphere.GetComponent<Renderer>().sharedMaterial = surfaceMaterial;
@@ -469,10 +466,7 @@ namespace CivilizationToSpace.View
             Transform parent, HideFlags flags, string name, PrimitiveType shape,
             Vector3 position, Quaternion rotation, Vector3 scale)
         {
-            var part = GameObject.CreatePrimitive(shape);
-            part.name = name;
-            part.hideFlags = flags;
-            SafeDestroy(part.GetComponent<Collider>());
+            var part = PrimitiveMeshes.Create(shape, name, flags);
             part.transform.SetParent(parent, false);
             part.transform.localPosition = position;
             part.transform.localRotation = rotation;
@@ -485,10 +479,7 @@ namespace CivilizationToSpace.View
             HideFlags flags, string name, PrimitiveType shape,
             Vector3 position, Quaternion rotation, Vector3 scale)
         {
-            var part = GameObject.CreatePrimitive(shape);
-            part.name = name;
-            part.hideFlags = flags;
-            SafeDestroy(part.GetComponent<Collider>());
+            var part = PrimitiveMeshes.Create(shape, name, flags);
             part.transform.SetParent(station, false);
             part.transform.localPosition = position;
             part.transform.localRotation = rotation;
@@ -508,10 +499,7 @@ namespace CivilizationToSpace.View
 
             for (var i = 0; i < TransferPoolSize; i++)
             {
-                var item = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-                item.name = "Transfer" + (i + 1);
-                item.hideFlags = flags;
-                SafeDestroy(item.GetComponent<Collider>());
+                var item = PrimitiveMeshes.Create(PrimitiveType.Capsule, "Transfer" + (i + 1), flags);
                 item.transform.SetParent(transform, false);
                 item.transform.localScale = new Vector3(0.11f, 0.22f, 0.11f);
                 item.GetComponent<Renderer>().sharedMaterial = material;
@@ -547,10 +535,7 @@ namespace CivilizationToSpace.View
                     Mathf.Sin(latitude),
                     Mathf.Cos(latitude) * Mathf.Sin(longitude)).normalized;
 
-                var item = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                item.name = "Facility" + (i + 1);
-                item.hideFlags = flags;
-                SafeDestroy(item.GetComponent<Collider>());
+                var item = PrimitiveMeshes.Create(PrimitiveType.Cube, "Facility" + (i + 1), flags);
                 item.transform.SetParent(spin, false);
                 item.transform.localPosition = direction * (MoonRadius * 1.01f);
                 item.transform.localRotation = Quaternion.LookRotation(direction) * Quaternion.Euler(90f, 0f, 0f);
@@ -605,23 +590,6 @@ namespace CivilizationToSpace.View
             texture.SetPixels32(pixels);
             texture.Apply(true, false);
             return texture;
-        }
-
-        private static void SafeDestroy(Object target)
-        {
-            if (target == null)
-            {
-                return;
-            }
-
-            if (Application.isPlaying)
-            {
-                Destroy(target);
-            }
-            else
-            {
-                DestroyImmediate(target);
-            }
         }
     }
 }

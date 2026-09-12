@@ -544,10 +544,7 @@ namespace CivilizationToSpace.View
 
             for (var i = 0; i < SwarmPoolSize; i++)
             {
-                var item = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                item.name = "Planetesimal" + (i + 1);
-                item.hideFlags = flags;
-                SafeDestroy(item.GetComponent<Collider>());
+                var item = PrimitiveMeshes.Create(PrimitiveType.Cube, "Planetesimal" + (i + 1), flags);
                 item.transform.SetParent(swarmRoot, false);
                 item.transform.localScale = Vector3.one * (earthRadius * (0.05f + (i % 4) * 0.018f));
                 item.transform.localRotation = Random.rotation;
@@ -568,10 +565,7 @@ namespace CivilizationToSpace.View
 
             for (var i = 0; i < DebrisPoolSize; i++)
             {
-                var item = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                item.name = "Debris" + (i + 1);
-                item.hideFlags = flags;
-                SafeDestroy(item.GetComponent<Collider>());
+                var item = PrimitiveMeshes.Create(PrimitiveType.Cube, "Debris" + (i + 1), flags);
                 item.transform.SetParent(debrisRoot, false);
 
                 // 輪として散らす。等間隔にすると人工物に見えるため、半径と高さをばらす。
@@ -601,10 +595,7 @@ namespace CivilizationToSpace.View
             impactorStart = new Vector3(
                 earthRadius * 3.0f, earthRadius * 1.1f, -earthRadius * 0.8f);
 
-            impactor = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            impactor.name = "GiantImpactor";
-            impactor.hideFlags = flags;
-            SafeDestroy(impactor.GetComponent<Collider>());
+            impactor = PrimitiveMeshes.Create(PrimitiveType.Sphere, "GiantImpactor", flags);
             impactor.transform.SetParent(impactorRoot, false);
             impactorScale = Vector3.one * (earthRadius * 1.0f);
             impactor.transform.localScale = impactorScale;
@@ -634,10 +625,7 @@ namespace CivilizationToSpace.View
 
             for (var i = 0; i < FlashPoolSize; i++)
             {
-                var item = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                item.name = "Flash" + (i + 1);
-                item.hideFlags = flags;
-                SafeDestroy(item.GetComponent<Collider>());
+                var item = PrimitiveMeshes.Create(PrimitiveType.Sphere, "Flash" + (i + 1), flags);
                 item.transform.SetParent(flashRoot, false);
                 item.GetComponent<Renderer>().sharedMaterial = flashMaterial;
                 item.SetActive(false);
@@ -654,23 +642,6 @@ namespace CivilizationToSpace.View
             material.SetFloat("_Metallic", 0f);
             material.SetColor("_EmissionColor", color * glow);
             return material;
-        }
-
-        private static void SafeDestroy(Object target)
-        {
-            if (target == null)
-            {
-                return;
-            }
-
-            if (Application.isPlaying)
-            {
-                Destroy(target);
-            }
-            else
-            {
-                DestroyImmediate(target);
-            }
         }
     }
 }
