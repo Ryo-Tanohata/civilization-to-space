@@ -1,0 +1,104 @@
+{
+  "schemaVersion": "formation-1.0.0",
+  "title": "地球ができるまで",
+  "disclaimer": "これは仮説に基づく象徴表現です。月の成り立ちについてはジャイアントインパクト説を採っていますが、決着した事実ではありません。年代・順序・規模・回数の厳密さを保証せず、出典も検証していません。",
+  "interchangeNote": "このファイルはUnityのR1-P1で追加した形成過程用です。ブラウザは読み込みません。site/data/earth-eras.json とはスキーマ系列を分けています。",
+  "parameterNote": "bodyScale・swarm・impactor・debris の数値は0〜1に正規化した象徴表現の演出強度であり、質量・個数・速度・衝突エネルギーの見積もりではありません。",
+  "status": "仮説に基づく象徴表現案・出典未検証",
+  "stageOrder": [
+    "Accretion",
+    "ProtoEarth",
+    "GiantImpact",
+    "MoonForms"
+  ],
+  "stages": [
+    {
+      "id": "Accretion",
+      "displayName": "微惑星の集積",
+      "sortOrder": 1,
+      "summary": "小さな天体が数多くぶつかり、ひとつの塊が育っていく段階を表しています。個数も速さも象徴であり、実際の回数や規模を示しません。",
+      "visual": {
+        "bodyScale": 0.45,
+        "swarm": 1,
+        "impactor": 0,
+        "debris": 0,
+        "moon": 0
+      },
+      "presentation": {
+        "caption": "ぶつかりながら育つ塊を表しています。",
+        "tags": [
+          "衝突：多い",
+          "塊の大きさ：小さい",
+          "月：まだない"
+        ]
+      },
+      "status": "仮説に基づく象徴表現案・出典未検証"
+    },
+    {
+      "id": "ProtoEarth",
+      "displayName": "原始地球",
+      "sortOrder": 2,
+      "summary": "ぶつかる天体が減り、熱を持った大きな塊になった段階です。表面の状態や内部の構造は示しません。",
+      "visual": {
+        "bodyScale": 0.85,
+        "swarm": 0.3,
+        "impactor": 0,
+        "debris": 0,
+        "moon": 0
+      },
+      "presentation": {
+        "caption": "熱を持った大きな塊を表しています。",
+        "tags": [
+          "衝突：減る",
+          "塊の大きさ：大きい",
+          "月：まだない"
+        ]
+      },
+      "status": "仮説に基づく象徴表現案・出典未検証"
+    },
+    {
+      "id": "GiantImpact",
+      "displayName": "巨大衝突（仮説）",
+      "sortOrder": 3,
+      "summary": "大きな天体がぶつかったとする仮説の段階です。ジャイアントインパクト説は月の成り立ちの有力な説ですが、決着した事実ではありません。衝突の規模・角度・時期は示しません。",
+      "visual": {
+        "bodyScale": 0.95,
+        "swarm": 0.15,
+        "impactor": 1,
+        "debris": 0.55,
+        "moon": 0
+      },
+      "presentation": {
+        "caption": "大きな天体が近づく様子を表しています。仮説であり、確定した出来事ではありません。",
+        "tags": [
+          "仮説：ジャイアントインパクト説",
+          "破片：広がる",
+          "月：まだない"
+        ]
+      },
+      "status": "仮説に基づく象徴表現案・出典未検証"
+    },
+    {
+      "id": "MoonForms",
+      "displayName": "月の形成（仮説）",
+      "sortOrder": 4,
+      "summary": "散らばった破片から月ができたとする仮説の段階です。破片がどれだけ残り、どう集まったかは示しません。",
+      "visual": {
+        "bodyScale": 1,
+        "swarm": 0.05,
+        "impactor": 0,
+        "debris": 0.35,
+        "moon": 1
+      },
+      "presentation": {
+        "caption": "破片から月ができたとする仮説を表しています。",
+        "tags": [
+          "仮説：ジャイアントインパクト説",
+          "破片：残る",
+          "月：現れる"
+        ]
+      },
+      "status": "仮説に基づく象徴表現案・出典未検証"
+    }
+  ]
+}
