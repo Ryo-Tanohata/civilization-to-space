@@ -20,8 +20,11 @@ namespace CivilizationToSpace.Core
 
         private static readonly string[] SupportedSchemaVersions = { "moon-1.0.0" };
 
-        /// <summary>段階の必須件数。</summary>
-        private const int RequiredPhaseCount = 4;
+        /// <summary>
+        /// 段階の必須件数。地球を回る拠点の段階を先頭へ足したため、4から5になった。
+        /// 件数を固定しているのは、段階の抜けを読み込み時に気づけるようにするためである。
+        /// </summary>
+        private const int RequiredPhaseCount = 5;
 
         public sealed class Result
         {
@@ -234,7 +237,8 @@ namespace CivilizationToSpace.Core
                 tags,
                 Ratio(visual.Member("transfer")),
                 Ratio(visual.Member("facility")),
-                Ratio(visual.Member("surfaceLights")));
+                Ratio(visual.Member("surfaceLights")),
+                Ratio(visual.Member("orbitStation")));
         }
 
         /// <summary>比率は欠損・型不正・範囲外を0へ寄せる。時代データの縮退と同じ考え方である。</summary>

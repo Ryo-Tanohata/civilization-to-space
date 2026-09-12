@@ -22,9 +22,18 @@ namespace CivilizationToSpace.View
         /// <summary>ホイール1目盛りあたりの寄りの割合。</summary>
         private const float ZoomPerNotch = 0.12f;
 
+        /// <summary>
+        /// 2本指の間隔が画面の高さ1つ分変わったときに、どれだけ寄るか。
+        /// ホイールと同じ感覚になるよう、指を広げると寄り、狭めると引く。
+        /// </summary>
+        private const float ZoomPerScreenHeightPinch = 1.6f;
+
         private EarthFraming framing;
         private bool dragging;
         private Vector3 lastPointer;
+
+        private bool pinching;
+        private float lastPinchDistance;
 
         private void Awake()
         {
@@ -38,8 +47,63 @@ namespace CivilizationToSpace.View
                 return;
             }
 
+            // 2本指のときは、つまむ操作を優先する。
+            // Unityは1本目の指をマウスとしても渡すため、先に指の状態を見ないと
+            // つまみながら視点が回ってしまう。
+            if (HandlePinch())
+            {
+                dragging = false;
+                return;
+            }
+
             HandleDrag();
             HandleZoom();
+        }
+
+        /// <summary>
+        /// 2本指の間隔で寄り引きする。触った本数が2本未満になるまで、他の操作は行わない。
+        /// つまみ始めが両方ともUIの上なら何もしない。
+        /// </summary>
+        /// <returns>つまむ操作を扱ったなら真。</returns>
+        private bool HandlePinch()
+        {
+            if (Input.touchCount < 2)
+            {
+                pinching = false;
+                return false;
+            }
+
+            var first = Input.GetTouch(0);
+            var second = Input.GetTouch(1);
+            var distance = Vector2.Distance(first.position, second.position);
+
+            if (!pinching)
+            {
+                // 両方の指がUIの上から始まったときは、つまむ操作にしない。
+                // ボタンを押したつもりが寄り引きするのを防ぐ。
+                if (IsTouchOverUi(first) && IsTouchOverUi(second))
+                {
+                    return false;
+                }
+
+                // 指を置いた直後は間隔の差が取れないので、基準だけ覚えて次のフレームから動かす。
+                pinching = true;
+                lastPinchDistance = distance;
+                return true;
+            }
+
+            var delta = distance - lastPinchDistance;
+            lastPinchDistance = distance;
+
+            if (Mathf.Approximately(delta, 0f))
+            {
+                return true;
+            }
+
+            var height = Mathf.Max(1, Screen.height);
+            framing.Zoom *= 1f - (delta / height) * ZoomPerScreenHeightPinch;
+            framing.Apply();
+            return true;
         }
 
         private void HandleDrag()
@@ -100,6 +164,12 @@ namespace CivilizationToSpace.View
         private static bool IsPointerOverUi()
         {
             return EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
+        }
+
+        /// <summary>その指がUIの上にあるか。指ごとに見分けるため、指の番号で問い合わせる。</summary>
+        private static bool IsTouchOverUi(Touch touch)
+        {
+            return EventSystem.current != null && EventSystem.current.IsPointerOverGameObject(touch.fingerId);
         }
     }
 }

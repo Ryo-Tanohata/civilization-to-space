@@ -32,6 +32,19 @@ namespace CivilizationToSpace.View
         /// <summary>月面に置く拠点の持ち数。</summary>
         private const int FacilityPoolSize = 14;
 
+        /// <summary>
+        /// 地球を回る拠点の軌道半径。地球の半径（2.2）より外、月の軌道（5.6）よりずっと内側に置く。
+        /// 実際の高度の比ではない。低い軌道を回っていることだけを示す。
+        ///
+        /// 月の距離を約10分の1へ縮めているのと同じ理由で、ここも見やすさを優先している。
+        /// 地表すれすれに置くと拠点が地球へ重なって見分けられないため、
+        /// R1の人工衛星の輪（3.19）より外へ出し、背景の黒の上を通るようにした。
+        /// </summary>
+        private const float StationOrbitRadius = 3.5f;
+
+        /// <summary>地球を回る拠点の速さ。月より速く回して、近くを回っていることを示す。</summary>
+        private const float StationDegreesPerSecond = 26f;
+
         private static readonly Color32 Regolith = new Color32(0x8C, 0x88, 0x82, 0xFF);
         private static readonly Color32 Mare = new Color32(0x5A, 0x59, 0x58, 0xFF);
         private static readonly Color32 FacilityColor = new Color32(0xC8, 0xD2, 0xDC, 0xFF);
@@ -54,6 +67,11 @@ namespace CivilizationToSpace.View
         private float transferAmount;
         private float facilityAmount;
         private float lightAmount;
+        private float stationAmount;
+
+        private Transform stationOrbit;
+        private Transform station;
+        private Material stationMaterial;
 
         /// <summary>月の中心。カメラの引きがこの位置を見る。</summary>
         public Vector3 MoonCenter
@@ -125,7 +143,7 @@ namespace CivilizationToSpace.View
             spinObject.transform.SetParent(body, false);
             spin = spinObject.transform;
 
-            surfaceMaterial = new Material(Shader.Find("Standard"));
+            surfaceMaterial = StandardMaterials.CreateOpaque(false);
             surfaceMaterial.hideFlags = flags;
             surfaceMaterial.SetFloat("_Glossiness", 0.04f);
             surfaceMaterial.SetFloat("_Metallic", 0f);
@@ -141,6 +159,7 @@ namespace CivilizationToSpace.View
 
             BuildFacilities(flags);
             BuildTransfers(flags);
+            BuildStation(flags);
 
             Apply(null);
         }
@@ -151,6 +170,9 @@ namespace CivilizationToSpace.View
             transferAmount = phase != null ? (float)phase.Transfer : 0f;
             facilityAmount = phase != null ? (float)phase.Facility : 0f;
             lightAmount = phase != null ? (float)phase.SurfaceLights : 0f;
+            stationAmount = phase != null ? (float)phase.OrbitStation : 0f;
+
+            ApplyStation();
 
             var visibleTransfers = Mathf.RoundToInt(transferAmount * TransferPoolSize);
             for (var i = 0; i < transfers.Length; i++)
@@ -185,7 +207,40 @@ namespace CivilizationToSpace.View
                 spin.Rotate(Vector3.up, SpinDegreesPerSecond * Time.deltaTime, Space.Self);
             }
 
+            if (stationOrbit != null && stationAmount > 0f)
+            {
+                stationOrbit.Rotate(Vector3.up, StationDegreesPerSecond * Time.deltaTime, Space.Self);
+            }
+
             MoveTransfers();
+        }
+
+        /// <summary>
+        /// 地球を回る拠点の見え方を、段階の値へ合わせる。
+        /// 月面の施設とは別に、月へ向かう前から置かれる。
+        /// </summary>
+        private void ApplyStation()
+        {
+            if (station == null)
+            {
+                return;
+            }
+
+            var on = stationAmount > 0.01f;
+            station.gameObject.SetActive(on);
+            if (!on)
+            {
+                return;
+            }
+
+            // 段階が進むほど大きく見せる。上限は、内側の板の端が地球の表面へ触れない大きさに収める。
+            // 板の端は中心から 0.47 の位置にあり、地球の表面までは 3.5-2.2=1.3 ある。
+            station.localScale = Vector3.one * Mathf.Lerp(1f, 1.35f, stationAmount);
+
+            if (stationMaterial != null)
+            {
+                stationMaterial.SetColor("_EmissionColor", (Color)FacilityGlow * (stationAmount * 1.1f));
+            }
         }
 
         /// <summary>
@@ -229,15 +284,80 @@ namespace CivilizationToSpace.View
             }
         }
 
+        /// <summary>
+        /// 地球を回る拠点を組む。進む向きへ伸びた胴体と、横木の両端に張った板でできている。
+        ///
+        /// 実在の宇宙ステーションの再現ではない。寸法・軌道高度・乗員数・電力を一切持たず、
+        /// 「人が滞在する場所が地球の軌道にある」ことだけを示す象徴的な形である。
+        /// 横木は軌道の半径の向き（内外）へ伸ばす。進む向きへ伸ばすと、
+        /// どの角度から見ても細い線にしか見えない時があるためである。
+        /// </summary>
+        private void BuildStation(HideFlags flags)
+        {
+            var orbitObject = new GameObject("StationOrbit");
+            orbitObject.hideFlags = flags;
+            orbitObject.transform.SetParent(transform, false);
+            // 月の軌道（12度）と別の傾きにして、二つが重なって見えないようにする。
+            orbitObject.transform.localRotation = Quaternion.Euler(-26f, 0f, 8f);
+            stationOrbit = orbitObject.transform;
+
+            var stationObject = new GameObject("OrbitStation");
+            stationObject.hideFlags = flags;
+            stationObject.transform.SetParent(stationOrbit, false);
+            stationObject.transform.localPosition = new Vector3(StationOrbitRadius, 0f, 0f);
+            station = stationObject.transform;
+
+            stationMaterial = StandardMaterials.CreateOpaque(true);
+            stationMaterial.hideFlags = flags;
+            stationMaterial.color = FacilityColor;
+            stationMaterial.SetFloat("_Glossiness", 0.55f);
+            stationMaterial.SetFloat("_Metallic", 0.7f);
+            stationMaterial.EnableKeyword("_EMISSION");
+            stationMaterial.SetColor("_EmissionColor", Color.black);
+
+            // 胴体。進む向き（Z）へ寝かせる。円柱の長い軸はYなので、X軸まわりに90度倒す。
+            AddStationPart(flags, "Hull", PrimitiveType.Cylinder,
+                Vector3.zero, Quaternion.Euler(90f, 0f, 0f), new Vector3(0.10f, 0.26f, 0.10f));
+
+            // 板をつなぐ横木。
+            AddStationPart(flags, "Truss", PrimitiveType.Cube,
+                Vector3.zero, Quaternion.identity, new Vector3(0.62f, 0.03f, 0.03f));
+
+            // 両端の板。太陽電池の代わりで、発電量を表さない。
+            for (var i = 0; i < 2; i++)
+            {
+                AddStationPart(flags, "Panel" + (i + 1), PrimitiveType.Cube,
+                    new Vector3(i == 0 ? 0.30f : -0.30f, 0f, 0f), Quaternion.identity,
+                    new Vector3(0.34f, 0.012f, 0.20f));
+            }
+
+            stationObject.SetActive(false);
+        }
+
+        /// <summary>拠点の部品をひとつ足す。当たり判定は要らないので外す。</summary>
+        private void AddStationPart(
+            HideFlags flags, string name, PrimitiveType shape,
+            Vector3 position, Quaternion rotation, Vector3 scale)
+        {
+            var part = GameObject.CreatePrimitive(shape);
+            part.name = name;
+            part.hideFlags = flags;
+            SafeDestroy(part.GetComponent<Collider>());
+            part.transform.SetParent(station, false);
+            part.transform.localPosition = position;
+            part.transform.localRotation = rotation;
+            part.transform.localScale = scale;
+            part.GetComponent<Renderer>().sharedMaterial = stationMaterial;
+        }
+
         private void BuildTransfers(HideFlags flags)
         {
             transfers = new GameObject[TransferPoolSize];
             transferOffsets = new float[TransferPoolSize];
 
-            var material = new Material(Shader.Find("Standard"));
+            var material = StandardMaterials.CreateOpaque(true);
             material.hideFlags = flags;
             material.color = TransferColor;
-            material.EnableKeyword("_EMISSION");
             material.SetColor("_EmissionColor", (Color)TransferColor * 0.5f);
 
             for (var i = 0; i < TransferPoolSize; i++)
@@ -260,7 +380,7 @@ namespace CivilizationToSpace.View
         {
             facilities = new GameObject[FacilityPoolSize];
 
-            facilityMaterial = new Material(Shader.Find("Standard"));
+            facilityMaterial = StandardMaterials.CreateOpaque(true);
             facilityMaterial.hideFlags = flags;
             facilityMaterial.color = FacilityColor;
             facilityMaterial.SetFloat("_Glossiness", 0.2f);

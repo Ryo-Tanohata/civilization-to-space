@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Globalization;
 using System.Text;
 using CivilizationToSpace.Core;
 using UnityEngine;
@@ -368,14 +369,24 @@ namespace CivilizationToSpace.View
                 return "停止中 ・ " + position;
             }
 
-            var seconds = Mathf.RoundToInt(playback.StepSeconds);
             return "再生中 " + FormatSpeed(playback.Speed) +
-                   "（1時代あたり約" + seconds + "秒）・ " + position;
+                   "（1時代あたり約" + FormatSeconds(playback.StepSeconds) + "秒）・ " + position;
         }
 
         private static string FormatSpeed(float speed)
         {
             return (Mathf.Approximately(speed, 0.5f) ? "0.5" : Mathf.RoundToInt(speed).ToString()) + "x";
+        }
+
+        /// <summary>
+        /// 1段階あたりの秒数の表し方。8倍では0.5秒になり、
+        /// 整数へ丸めると「約0秒」になってしまうため、1秒未満は小数で出す。
+        /// </summary>
+        private static string FormatSeconds(float seconds)
+        {
+            return seconds < 1f
+                ? seconds.ToString("0.0", CultureInfo.InvariantCulture)
+                : Mathf.RoundToInt(seconds).ToString(CultureInfo.InvariantCulture);
         }
 
         private static string BuildEvents(IReadOnlyList<string> events)

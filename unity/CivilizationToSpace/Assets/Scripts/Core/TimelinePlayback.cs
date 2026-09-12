@@ -3,13 +3,17 @@ using System;
 namespace CivilizationToSpace.Core
 {
     /// <summary>
-    /// 時系列の自動再生。判定は site/app.js と1対1に対応させる。
+    /// 時系列の自動再生。判定は site/app.js と対応させる。
     ///
     /// - 1時代あたり 4秒 ÷ 速度
     /// - 最後の時代へ達したら自動的に止まる
     /// - 最後の時代で再生を始めると、最初の時代へ戻してから再生する
     /// - 手で時代を変えたら止まる
     /// - 速度を変えても再生状態は保ち、その時点から計時し直す
+    ///
+    /// 選べる速度だけはブラウザモックと一致しない。モックは 0.5/1/2 のままで、
+    /// こちらは 4倍・8倍を足している。段階が15まで増え、通しで見ると
+    /// 1倍では1分を超えるためである。上の判定そのものは変えていない。
     ///
     /// R2-P1はこのクラスの IsPlaying と RequestStop だけに依存する。
     /// それ以外を公開しない。static も Singleton も作らない。
@@ -19,7 +23,11 @@ namespace CivilizationToSpace.Core
         /// <summary>1倍のときの1時代あたりの秒数。</summary>
         public const float BaseStepSeconds = 4f;
 
-        private static readonly float[] AllowedSpeeds = { 0.5f, 1f, 2f };
+        /// <summary>
+        /// 選べる速度。8倍では1段階0.5秒になり、通しで約8秒になる。
+        /// これより速くすると、段階が切り替わったことを目で追えない。
+        /// </summary>
+        private static readonly float[] AllowedSpeeds = { 0.5f, 1f, 2f, 4f, 8f };
         private const float DefaultSpeed = 1f;
 
         private readonly EraTimeline timeline;

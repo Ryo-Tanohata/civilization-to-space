@@ -39,8 +39,26 @@ namespace CivilizationToSpace.View
         /// <summary>塊が次の大きさになるまでの時間（秒）。</summary>
         private const float GrowSeconds = 1.4f;
 
-        /// <summary>ぶつかった跡の光が消えるまでの時間（秒）。</summary>
+        /// <summary>ぶつかった跡の光が消えるまでの時間（秒）。集積の小さな光に使う。</summary>
         private const float FlashSeconds = 0.32f;
+
+        /// <summary>
+        /// 巨大衝突の光が消えるまでの時間（秒）。集積の光より長く残す。
+        /// 一瞬で消えると、ぶつかったことに気づけないためである。
+        /// </summary>
+        private const float ImpactFlashSeconds = 0.7f;
+
+        /// <summary>ぶつかった天体が地球へ沈み込んで見えなくなるまでの時間（秒）。</summary>
+        private const float SinkSeconds = 0.36f;
+
+        /// <summary>ぶつかった衝撃で地球が揺れている時間（秒）。</summary>
+        private const float ShakeSeconds = 0.9f;
+
+        /// <summary>揺れの大きさ。地球の半径を1としたときの倍率。</summary>
+        private const float ShakeAmplitude = 0.085f;
+
+        /// <summary>揺れの速さ（1秒あたりの往復回数）。</summary>
+        private const float ShakeFrequency = 7.5f;
 
         private static readonly Color32 RockColor = new Color32(0x77, 0x6B, 0x60, 0xFF);
         private static readonly Color32 HotRockColor = new Color32(0xC8, 0x6A, 0x38, 0xFF);
@@ -63,6 +81,9 @@ namespace CivilizationToSpace.View
         private GameObject[] flashes;
         private float[] flashLife;
         private float[] flashSize;
+
+        /// <summary>それぞれの光の寿命。薄くしていく割合を出すのに使う。</summary>
+        private float[] flashMaxLife;
         private Material flashMaterial;
 
         private MotionSettings motion;
@@ -76,6 +97,15 @@ namespace CivilizationToSpace.View
 
         private Vector3 impactorStart;
         private bool impactHappened;
+
+        /// <summary>ぶつかった位置。沈み込みと揺れの向きに使う。</summary>
+        private Vector3 impactPoint;
+
+        /// <summary>ぶつかってからの経過秒。沈み込みと揺れの進み具合に使う。</summary>
+        private float sinceImpact;
+
+        /// <summary>ぶつかる前の衝突天体の大きさ。沈み込みで縮めるときの基準。</summary>
+        private Vector3 impactorScale;
 
         /// <summary>地球と衝突天体が画面へ入るために必要な半径。</summary>
         public float FramedRadius
@@ -119,6 +149,15 @@ namespace CivilizationToSpace.View
             stage = next;
             elapsed = 0f;
             impactHappened = false;
+            sinceImpact = 0f;
+
+            // 前の段階の揺れと沈み込みを持ち越さない。
+            if (earth != null)
+            {
+                earth.localPosition = Vector3.zero;
+            }
+
+            impactor.transform.localScale = impactorScale;
 
             var swarmAmount = next != null ? (float)next.Swarm : 0f;
             var visibleSwarm = Mathf.RoundToInt(swarmAmount * SwarmPoolSize);
@@ -162,6 +201,13 @@ namespace CivilizationToSpace.View
             if (motion != null && motion.Reduced)
             {
                 ApplyScale(1f);
+
+                // 揺れの途中で動きを減らしても、地球がずれたまま止まらないようにする。
+                if (earth != null)
+                {
+                    earth.localPosition = Vector3.zero;
+                }
+
                 return;
             }
 
@@ -176,6 +222,17 @@ namespace CivilizationToSpace.View
 
             MoveSwarm();
             MoveImpactor();
+
+            // ぶつかったあとの時計は、沈み込みと揺れの両方が使う。
+            // 沈み込みの中で進めると、沈み終わって隠れた時点で時計が止まり、
+            // 揺れが終わらなくなる。
+            if (impactHappened)
+            {
+                sinceImpact += Time.deltaTime;
+            }
+
+            SinkImpactor();
+            ShakeEarth();
             MoveDebris();
             UpdateFlashes();
         }
@@ -251,10 +308,92 @@ namespace CivilizationToSpace.View
                 return;
             }
 
+            // ここが接触の瞬間。以前はすぐ消していたため、ぶつかった感じが出ていなかった。
+            // 沈み込みと揺れを始め、光を強めに出す。
             impactHappened = true;
-            impactor.SetActive(false);
-            SpawnFlash(contact, earthRadius * 0.5f);
-            BurstDebris(contact);
+            impactPoint = contact;
+            sinceImpact = 0f;
+
+            // contact はぶつかる天体の「中心」であり、地表より自分の半径ぶん外にある。
+            // 光をそこへ置くと、地球の横で光っているように見えてしまう。
+            // 光と輪と破片は、実際に触れた地表の点から出す。
+            var surfacePoint = impactorStart.normalized * (earthRadius * CurrentScale());
+
+            SpawnFlash(surfacePoint, earthRadius * 0.55f, ImpactFlashSeconds);
+            SpawnImpactRing(surfacePoint);
+            BurstDebris(surfacePoint);
+        }
+
+        /// <summary>
+        /// ぶつかった天体を地球へ沈ませ、縮めて見えなくする。
+        /// 一瞬で消すと「当たった」ではなく「消えた」に見えるため、短く見せる。
+        /// </summary>
+        private void SinkImpactor()
+        {
+            if (impactor == null || !impactHappened || !impactor.activeSelf)
+            {
+                return;
+            }
+
+            var t = Mathf.Clamp01(sinceImpact / SinkSeconds);
+
+            // 地表からさらに内側へ、自分の半径ぶんだけ潜らせる。
+            var depth = earthRadius * 0.5f * t;
+            impactor.transform.localPosition = impactPoint - impactPoint.normalized * depth;
+            impactor.transform.localScale = impactorScale * (1f - t);
+            impactor.transform.Rotate(Vector3.one, 90f * Time.deltaTime, Space.Self);
+
+            if (t >= 1f)
+            {
+                impactor.SetActive(false);
+                impactor.transform.localScale = impactorScale;
+            }
+        }
+
+        /// <summary>
+        /// ぶつかった衝撃で地球を揺らす。ぶつかった向きへ押されてから、
+        /// だんだん収まる。動きを減らしているときは呼ばれない。
+        /// </summary>
+        private void ShakeEarth()
+        {
+            if (earth == null || !impactHappened)
+            {
+                return;
+            }
+
+            var t = sinceImpact / ShakeSeconds;
+            if (t >= 1f)
+            {
+                earth.localPosition = Vector3.zero;
+                return;
+            }
+
+            // 減衰する振動。最初が大きく、終わりへ向けて0に戻る。
+            var damping = 1f - t;
+            var wave = Mathf.Sin(sinceImpact * ShakeFrequency * Mathf.PI * 2f);
+            var push = -impactPoint.normalized;
+            earth.localPosition = push * (wave * damping * damping * earthRadius * ShakeAmplitude);
+        }
+
+        /// <summary>ぶつかった場所のまわりに、光をいくつか散らす。</summary>
+        private void SpawnImpactRing(Vector3 origin)
+        {
+            var normal = origin.normalized;
+            var side = Vector3.Cross(normal, Vector3.up);
+            if (side.sqrMagnitude < 0.001f)
+            {
+                side = Vector3.Cross(normal, Vector3.forward);
+            }
+
+            side.Normalize();
+            var other = Vector3.Cross(normal, side);
+
+            for (var i = 0; i < 5; i++)
+            {
+                var angle = i * (Mathf.PI * 2f / 5f);
+                var offset = (side * Mathf.Cos(angle) + other * Mathf.Sin(angle)) * (earthRadius * 0.42f);
+                SpawnFlash(origin + offset, earthRadius * 0.26f, ImpactFlashSeconds * 0.75f);
+            }
         }
 
         /// <summary>ぶつかった場所から破片を出し、輪へ広げる。</summary>
@@ -303,7 +442,14 @@ namespace CivilizationToSpace.View
         private void Settle()
         {
             impactHappened = true;
+            sinceImpact = ShakeSeconds;   // 揺れを終わった状態にする
             impactor.SetActive(false);
+            impactor.transform.localScale = impactorScale;
+            if (earth != null)
+            {
+                earth.localPosition = Vector3.zero;
+            }
+
 
             var amount = stage != null ? (float)stage.Debris : 0f;
             var visible = Mathf.RoundToInt(amount * DebrisPoolSize);
@@ -323,6 +469,15 @@ namespace CivilizationToSpace.View
 
         private void SpawnFlash(Vector3 localPosition, float size)
         {
+            SpawnFlash(localPosition, size, FlashSeconds);
+        }
+
+        /// <summary>
+        /// 光をひとつ出す。寿命を渡せるようにしてあるのは、
+        /// 集積の小さな光と、巨大衝突の光で、残る長さを変えたいためである。
+        /// </summary>
+        private void SpawnFlash(Vector3 localPosition, float size, float life)
+        {
             for (var i = 0; i < flashes.Length; i++)
             {
                 if (flashes[i].activeSelf)
@@ -334,7 +489,8 @@ namespace CivilizationToSpace.View
                 flashSize[i] = size;
                 flashes[i].transform.localScale = Vector3.one * size;
                 flashes[i].SetActive(true);
-                flashLife[i] = FlashSeconds;
+                flashLife[i] = life;
+                flashMaxLife[i] = life;
                 return;
             }
         }
@@ -358,7 +514,8 @@ namespace CivilizationToSpace.View
 
                 // 膨らませながら薄くする。倍率を掛け続けると際限なく大きくなるため、
                 // 生まれたときの大きさを基準に決める。
-                var t = 1f - flashLife[i] / FlashSeconds;
+                var life = flashMaxLife[i] > 0f ? flashMaxLife[i] : FlashSeconds;
+                var t = 1f - flashLife[i] / life;
                 flashes[i].transform.localScale = Vector3.one * (flashSize[i] * (1f + t * 1.6f));
 
                 var fade = 1f - t;
@@ -449,7 +606,8 @@ namespace CivilizationToSpace.View
             impactor.hideFlags = flags;
             SafeDestroy(impactor.GetComponent<Collider>());
             impactor.transform.SetParent(impactorRoot, false);
-            impactor.transform.localScale = Vector3.one * (earthRadius * 1.0f);
+            impactorScale = Vector3.one * (earthRadius * 1.0f);
+            impactor.transform.localScale = impactorScale;
             impactor.transform.localPosition = impactorStart;
             impactor.GetComponent<Renderer>().sharedMaterial = material;
             impactor.SetActive(false);
@@ -460,8 +618,9 @@ namespace CivilizationToSpace.View
             flashes = new GameObject[FlashPoolSize];
             flashLife = new float[FlashPoolSize];
             flashSize = new float[FlashPoolSize];
+            flashMaxLife = new float[FlashPoolSize];
 
-            flashMaterial = new Material(Shader.Find("Standard"));
+            flashMaterial = StandardMaterials.CreateFadeEmissive();
             flashMaterial.hideFlags = flags;
             flashMaterial.SetFloat("_Mode", 3f);
             flashMaterial.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
@@ -488,12 +647,11 @@ namespace CivilizationToSpace.View
 
         private static Material CreateRockMaterial(Color color, float glow, HideFlags flags)
         {
-            var material = new Material(Shader.Find("Standard"));
+            var material = StandardMaterials.CreateOpaque(true);
             material.hideFlags = flags;
             material.color = color;
             material.SetFloat("_Glossiness", 0.06f);
             material.SetFloat("_Metallic", 0f);
-            material.EnableKeyword("_EMISSION");
             material.SetColor("_EmissionColor", color * glow);
             return material;
         }

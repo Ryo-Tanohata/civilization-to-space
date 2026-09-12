@@ -20,7 +20,8 @@ namespace CivilizationToSpace.Core
             IReadOnlyList<string> tags,
             double transfer,
             double facility,
-            double surfaceLights)
+            double surfaceLights,
+            double orbitStation)
         {
             Id = id;
             DisplayName = displayName;
@@ -32,6 +33,7 @@ namespace CivilizationToSpace.Core
             Transfer = transfer;
             Facility = facility;
             SurfaceLights = surfaceLights;
+            OrbitStation = orbitStation;
         }
 
         public string Id { get; }
@@ -50,6 +52,12 @@ namespace CivilizationToSpace.Core
 
         /// <summary>月面の明かりの多さ。</summary>
         public double SurfaceLights { get; }
+
+        /// <summary>
+        /// 地球を回る拠点の育ち具合。0で無く、1で本来の大きさ。
+        /// 月面の施設とは別のもので、月へ向かう前から置かれる。
+        /// </summary>
+        public double OrbitStation { get; }
     }
 
     /// <summary>検証済みの月への展開。段階は sortOrder の昇順で並ぶ。</summary>
