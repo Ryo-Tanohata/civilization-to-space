@@ -26,7 +26,7 @@ namespace CivilizationToSpace.Core
             {
                 // 交換契約はUTF-8テキストとして読むことを定めている。
                 // SHA-256は読んだバイト列そのものに対して測るため、いったんバイトで受ける。
-                bytes = File.ReadAllBytes(path);
+                bytes = StreamingBytes.Read(path);
             }
             catch (Exception)
             {

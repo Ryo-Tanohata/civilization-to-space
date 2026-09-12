@@ -51,7 +51,7 @@ namespace CivilizationToSpace.Core
             byte[] bytes;
             try
             {
-                bytes = File.ReadAllBytes(path);
+                bytes = StreamingBytes.Read(path);
             }
             catch (Exception)
             {
