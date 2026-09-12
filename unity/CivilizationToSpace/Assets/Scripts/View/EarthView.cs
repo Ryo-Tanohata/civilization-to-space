@@ -104,16 +104,54 @@ namespace CivilizationToSpace.View
             cloudSpin = cloudObject.transform;
 
             cloudMaterial = CreateSurfaceMaterial(true, 2, false);
-            CreateSphere(cloudSpin, "Clouds", 1.050f, cloudMaterial);
+            var clouds = CreateSphere(cloudSpin, "Clouds", 1.050f, cloudMaterial);
 
             atmosphereMaterial = CreateBlended(
                 FallbackColor,
                 3,
                 UnityEngine.Rendering.BlendMode.SrcAlpha,
-                UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-            CreateSphere(transform, "Atmosphere", 1.075f, atmosphereMaterial);
+                UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha,
+                false);
+            var atmosphere = CreateSphere(transform, "Atmosphere", 1.075f, atmosphereMaterial);
+
+            HideShellsWhereBlendingIsUnavailable(clouds, atmosphere);
 
             BuildSatellites();
+        }
+
+        /// <summary>
+        /// 雲と大気の殻を、WebGLでは出さない。
+        ///
+        /// **これは回避策であって原因の修復ではない。**
+        /// WebGLビルドでは、この2つの殻の半透明が効かず、不透明な球として描かれる。
+        /// いちばん外側の大気が地表を完全に覆うため、地球が単色の球に見えていた。
+        /// 実機のブラウザで、殻を外すと地表の絵が正しく出ることを確かめたうえで、
+        /// 「単色の球」より「雲と大気が無い地球」の方が良いと判断して外している。
+        ///
+        /// 原因はStandardの半透明の枝がビルドに残らないことだと見ているが、
+        /// 確定できていない。次の2つを試したが、どちらでも直らなかった。
+        ///   1. 実行時に行き着くキーワードの組み合わせ（_ALPHABLEND_ON、_EMISSION、
+        ///      _NORMALMAP の全組み合わせ）を雛形の材質として資産へ置く
+        ///   2. 専用の半透明シェーダーへ移す（描き方は変わったが見え方を揃えられなかった）
+        ///
+        /// 本筋の直し方は、雲を地表の絵へ焼き込んでしまうことだと思われる。
+        /// そうすれば半透明の殻そのものが要らなくなる。PlanetSurfaceBaker 側の仕事になる。
+        ///
+        /// Editorと他の環境では今までどおり出す。見え方は変えない。
+        /// </summary>
+        private static void HideShellsWhereBlendingIsUnavailable(GameObject clouds, GameObject atmosphere)
+        {
+#if UNITY_WEBGL && !UNITY_EDITOR
+            if (clouds != null)
+            {
+                clouds.SetActive(false);
+            }
+
+            if (atmosphere != null)
+            {
+                atmosphere.SetActive(false);
+            }
+#endif
         }
 
         /// <summary>
@@ -287,10 +325,9 @@ namespace CivilizationToSpace.View
         {
             satellites = new GameObject[SatellitePoolSize];
 
-            var material = new Material(Shader.Find("Standard"));
+            var material = StandardMaterials.CreateOpaque(true);
             material.hideFlags = createdFlags;
             material.color = new Color(0.78f, 0.83f, 0.88f);
-            material.EnableKeyword("_EMISSION");
             material.SetColor("_EmissionColor", new Color(0.35f, 0.37f, 0.40f));
 
             var ring = new GameObject("Satellites");
@@ -326,7 +363,8 @@ namespace CivilizationToSpace.View
             }
         }
 
-        private void CreateSphere(Transform parent, string name, float radiusScale, Material material)
+        /// <summary>作った球を返す。呼び出し側が後から出し入れできるようにする。</summary>
+        private GameObject CreateSphere(Transform parent, string name, float radiusScale, Material material)
         {
             var sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             sphere.name = name;
@@ -335,6 +373,7 @@ namespace CivilizationToSpace.View
             sphere.transform.SetParent(parent != null ? parent : transform, false);
             sphere.transform.localScale = Vector3.one * (BaseRadius * 2f * radiusScale);
             sphere.GetComponent<Renderer>().sharedMaterial = material;
+            return sphere;
         }
 
         /// <summary>
@@ -348,8 +387,13 @@ namespace CivilizationToSpace.View
                     Color.white,
                     queueOffset,
                     UnityEngine.Rendering.BlendMode.SrcAlpha,
-                    UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha)
-                : new Material(Shader.Find("Standard"));
+                    UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha,
+                    emissive)
+                // 発光する地表の材質には、生成後に AssignSurface が
+                // 凹凸の絵と _NORMALMAP を足す。雛形もそれに合わせて選ぶ。
+                : emissive
+                    ? StandardMaterials.CreateOpaqueSurface()
+                    : StandardMaterials.CreateOpaque(false);
 
             material.hideFlags = createdFlags;
             material.SetFloat("_Glossiness", 0.08f);
@@ -376,13 +420,20 @@ namespace CivilizationToSpace.View
             return material;
         }
 
+        /// <param name="surface">
+        /// 地表の層なら真。地表の層は生成後に発光と凹凸の絵を貼るため、
+        /// 雛形もその組み合わせに合わせる必要がある。雲と大気は偽。
+        /// </param>
         private Material CreateBlended(
             Color color,
             int queueOffset,
             UnityEngine.Rendering.BlendMode source,
-            UnityEngine.Rendering.BlendMode destination)
+            UnityEngine.Rendering.BlendMode destination,
+            bool surface)
         {
-            var material = new Material(Shader.Find("Standard"));
+            var material = surface
+                ? StandardMaterials.CreateFadeSurface()
+                : StandardMaterials.CreateFade();
             material.hideFlags = createdFlags;
             material.SetFloat("_Mode", 2f);
             material.SetInt("_SrcBlend", (int)source);
