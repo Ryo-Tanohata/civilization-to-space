@@ -219,13 +219,14 @@ namespace CivilizationToSpace.EditorTools
             }
 
             var era = timeline.Current;
+            var label = timeline.TailIndex >= 0 ? "Moon" + (timeline.TailIndex + 1) : era.Id;
             if (timeline.Index != nextIndex)
             {
                 Debug.LogError("[Capture] 選択が反映されていません。要求 " + nextIndex + " / 実際 " + timeline.Index);
                 failed = true;
             }
 
-            Save(camera, Path.Combine(directory, Pad2(nextIndex + 1) + "-" + era.Id + ".png"));
+            Save(camera, Path.Combine(directory, Pad2(nextIndex + 1) + "-" + label + ".png"));
             nextIndex++;
             selected = false;
         }

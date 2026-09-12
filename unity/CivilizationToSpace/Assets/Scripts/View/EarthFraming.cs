@@ -38,9 +38,19 @@ namespace CivilizationToSpace.View
         public const float MaximumZoom = 2.4f;
 
         /// <summary>
+        /// 月まで画面へ入れるときに、収めたい半径。
+        /// 引きの倍率で下げると、画面の大きさによって収まり方が変わる。
+        /// 収めたいものの大きさを変えるほうが確実である。
+        /// </summary>
+        public float WideRadius { get; set; }
+
+        /// <summary>
         /// 説明を出しているかどうか。出していないときは地球を中央に置き、大きく見せる。
         /// </summary>
         public bool SidePanelVisible { get; set; }
+
+        /// <summary>月まで画面へ入れる引き。通常より外まで下がれるようにする。</summary>
+        public bool WideMode { get; set; }
 
         /// <summary>使える幅に対して、地球の直径が占める割合。</summary>
         private const float WidthShare = 0.72f;
@@ -156,7 +166,9 @@ namespace CivilizationToSpace.View
                 return;
             }
 
-            var distance = Radius / sine * Zoom;
+            // 月まで入れるときは、収めたい半径を大きく取る。
+            var framed = WideMode && WideRadius > 0f ? WideRadius : Radius;
+            var distance = framed / sine * Zoom;
 
             // 光軸から外れた球の輪郭は、中心の射影よりさらに外側へずれる。
             // 左側の領域の中央へ輪郭の中心が来る方位角を二分法で求める。

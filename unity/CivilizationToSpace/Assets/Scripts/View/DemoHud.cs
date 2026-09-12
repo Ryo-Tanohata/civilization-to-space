@@ -24,10 +24,15 @@ namespace CivilizationToSpace.View
         private static readonly Color ButtonColor = new Color(0.13f, 0.18f, 0.25f, 1f);
         private static readonly Color ButtonSelectedColor = new Color(0.22f, 0.40f, 0.55f, 1f);
 
+        /// <summary>月への展開のボタン。時代と同じものに見せないため色を分ける。</summary>
+        private static readonly Color MoonButtonColor = new Color(0.20f, 0.17f, 0.26f, 1f);
+        private static readonly Color MoonButtonSelectedColor = new Color(0.38f, 0.32f, 0.50f, 1f);
+
         private EraTimeline timeline;
         private TimelinePlayback playback;
         private MotionSettings motion;
         private EarthFraming framing;
+        private MoonExpansion moon;
 
         private Text indexText;
         private Text nameText;
@@ -86,14 +91,16 @@ namespace CivilizationToSpace.View
             EraTimeline eraTimeline,
             TimelinePlayback timelinePlayback,
             MotionSettings motionSettings,
-            EarthFraming earthFraming)
+            EarthFraming earthFraming,
+            MoonExpansion moonExpansion)
         {
             timeline = eraTimeline;
             playback = timelinePlayback;
             motion = motionSettings;
             framing = earthFraming;
+            moon = moonExpansion;
 
-            for (var i = 0; i < timeline.Count; i++)
+            for (var i = 0; i < timeline.EraCount; i++)
             {
                 var target = i;
                 var button = UiFactory.CreateButton(
@@ -101,6 +108,20 @@ namespace CivilizationToSpace.View
                 button.GetComponentInChildren<Text>().text = timeline.At(i).DisplayName;
                 button.onClick.AddListener(delegate { timeline.Select(target); });
                 eraButtons.Add(button);
+            }
+
+            // 月への展開は時代ではない。色を変えて並べ、時代と同じものに見せない。
+            if (moon != null)
+            {
+                for (var i = 0; i < moon.Phases.Count; i++)
+                {
+                    var target = timeline.EraCount + i;
+                    var button = UiFactory.CreateButton(
+                        controlRoot, "Moon" + (i + 1), 14, MoonButtonColor, TextColor);
+                    button.GetComponentInChildren<Text>().text = moon.Phases[i].DisplayName;
+                    button.onClick.AddListener(delegate { timeline.Select(target); });
+                    eraButtons.Add(button);
+                }
             }
 
             previousButton.transform.SetAsFirstSibling();
@@ -197,20 +218,16 @@ namespace CivilizationToSpace.View
         private void Show(EraData era)
         {
             indexText.text = Pad2(timeline.Index + 1) + " / " + Pad2(timeline.Count);
-            nameText.text = era.DisplayName;
-            rangeText.text = era.RangeLabel;
-            summaryText.text = era.Summary;
-            tagsText.text = Join(era.Tags, "　／　");
-            qualityText.text = "データ品質状態：" + era.Status;
 
-            eventsText.text = BuildEvents(era.Events);
-            eventsText.gameObject.SetActive(era.Events.Count > 0);
-
-            degradedText.gameObject.SetActive(era.VisualDegraded);
-            degradedText.text = "一部の視覚情報を読み取れなかったため、簡略表示にしています。";
-
-            futureText.text = BuildFuture(era);
-            futureText.gameObject.SetActive(futureText.text.Length > 0);
+            var tail = timeline.TailIndex;
+            if (tail >= 0 && moon != null && tail < moon.Phases.Count)
+            {
+                ShowMoonPhase(moon.Phases[tail]);
+            }
+            else
+            {
+                ShowEra(era);
+            }
 
             previousButton.interactable = timeline.HasPrevious;
             nextButton.interactable = timeline.HasNext;
@@ -233,8 +250,51 @@ namespace CivilizationToSpace.View
             // Button 自身の状態遷移が次の描画で上書きしてしまう。
             for (var i = 0; i < eraButtons.Count; i++)
             {
-                SetNormalColor(eraButtons[i], i == timeline.Index ? ButtonSelectedColor : ButtonColor);
+                var isMoon = i >= timeline.EraCount;
+                var selected = i == timeline.Index;
+                SetNormalColor(eraButtons[i], selected
+                    ? (isMoon ? MoonButtonSelectedColor : ButtonSelectedColor)
+                    : (isMoon ? MoonButtonColor : ButtonColor));
             }
+        }
+
+        private void ShowEra(EraData era)
+        {
+            nameText.text = era.DisplayName;
+            rangeText.text = era.RangeLabel;
+            summaryText.text = era.Summary;
+            tagsText.text = Join(era.Tags, "　／　");
+            qualityText.text = "データ品質状態：" + era.Status;
+
+            eventsText.text = BuildEvents(era.Events);
+            eventsText.gameObject.SetActive(era.Events.Count > 0);
+
+            degradedText.gameObject.SetActive(era.VisualDegraded);
+            degradedText.text = "一部の視覚情報を読み取れなかったため、簡略表示にしています。";
+
+            futureText.text = BuildFuture(era);
+            futureText.gameObject.SetActive(futureText.text.Length > 0);
+        }
+
+        /// <summary>
+        /// 月への展開の段階。時代ではなく仮想シナリオであることを、
+        /// 年代ラベルの位置と注意書きで示す。
+        /// </summary>
+        private void ShowMoonPhase(MoonPhase phase)
+        {
+            nameText.text = phase.DisplayName;
+            rangeText.text = "月への展開（仮想シナリオ）";
+            summaryText.text = phase.Summary;
+            tagsText.text = Join(phase.Tags, "　／　");
+            qualityText.text = "データ品質状態：" + phase.Status;
+
+            eventsText.text = phase.Caption;
+            eventsText.gameObject.SetActive(phase.Caption.Length > 0);
+
+            degradedText.gameObject.SetActive(false);
+
+            futureText.text = moon.Disclaimer;
+            futureText.gameObject.SetActive(true);
         }
 
         private string BuildStatus()

@@ -34,7 +34,10 @@ namespace CivilizationToSpace
         private TimelinePlayback playback;
         private MotionSettings motion;
         private EarthView earth;
+        private MoonView moon;
         private DemoHud hud;
+        private MoonExpansionLoader.Result moonResult;
+        private EarthFraming framing;
 
         /// <summary>検証済みカタログ。読込に失敗した場合は null。</summary>
         public EraCatalog Catalog
@@ -180,6 +183,11 @@ namespace CivilizationToSpace
         /// </summary>
         public const string CatalogPathOverrideKey = "CivilizationToSpace.CatalogPathOverride";
 
+        private static string ResolveMoonPath()
+        {
+            return Path.Combine(Application.streamingAssetsPath, MoonExpansionLoader.FileName);
+        }
+
         private static string ResolveCatalogPath()
         {
 #if UNITY_EDITOR
@@ -205,6 +213,19 @@ namespace CivilizationToSpace
             }
 
             timeline = new EraTimeline(result.Catalog.Eras);
+
+            // 月への展開は仮想シナリオであり、時代ではない。
+            // 時代データを増やさず、時系列の先へ段階として足す。
+            moonResult = MoonExpansionLoader.LoadFromFile(ResolveMoonPath());
+            if (moonResult.Ok)
+            {
+                timeline.SetTailCount(moonResult.Expansion.Phases.Count);
+            }
+            else
+            {
+                Debug.LogWarning("[MoonExpansion] 読み込めませんでした: " + moonResult.UserMessage);
+            }
+
             playback = new TimelinePlayback(timeline);
             motion = new MotionSettings();
             Debug.Log(BuildSummary(result));
@@ -238,12 +259,23 @@ namespace CivilizationToSpace
             earth.SetMotionSettings(motion);
             earth.Build();
 
-            var framing = AttachFraming(camera);
+            framing = AttachFraming(camera);
+
+            if (moonResult != null && moonResult.Ok)
+            {
+                var moonObject = new GameObject("Moon");
+                moonObject.transform.SetParent(transform, false);
+                moon = moonObject.AddComponent<MoonView>();
+                moon.SetMotionSettings(motion);
+                moon.Build(EarthPosition, HideFlags.None);
+            }
+
             hud.Build(camera, catalog.Title, catalog.Disclaimer, catalog.ParameterNote);
 
             timeline.Changed += OnEraChanged;
-            hud.Bind(timeline, playback, motion, framing);
+            hud.Bind(timeline, playback, motion, framing, moonResult != null && moonResult.Ok ? moonResult.Expansion : null);
             earth.Apply(timeline.Current.Visual, timeline.Index);
+            ApplyMoonPhase();
         }
 
         /// <summary>
@@ -307,7 +339,42 @@ namespace CivilizationToSpace
 
         private void OnEraChanged(EraData era)
         {
-            earth.Apply(era.Visual, timeline.Index);
+            // 月の段階にいるあいだ、地球は最後の時代の姿のまま保つ。
+            var eraIndex = Mathf.Min(timeline.Index, timeline.EraCount - 1);
+            earth.Apply(era.Visual, eraIndex);
+            ApplyMoonPhase();
+        }
+
+        /// <summary>
+        /// 月の段階を反映する。時代を見ているあいだは何も無い状態へ戻し、
+        /// カメラも通常の引きへ戻す。
+        /// </summary>
+        private void ApplyMoonPhase()
+        {
+            if (moon == null || moonResult == null || !moonResult.Ok)
+            {
+                return;
+            }
+
+            var tail = timeline.TailIndex;
+            var phases = moonResult.Expansion.Phases;
+            moon.Apply(tail >= 0 && tail < phases.Count ? phases[tail] : null);
+
+            if (framing == null)
+            {
+                return;
+            }
+
+            var wide = tail >= 0;
+            if (framing.WideMode == wide)
+            {
+                return;
+            }
+
+            framing.WideMode = wide;
+            framing.WideRadius = MoonView.FramedRadius;
+            framing.Zoom = 1f;
+            framing.Apply();
         }
 
         private static string BuildSummary(CatalogLoadResult loaded)
