@@ -219,7 +219,9 @@ namespace CivilizationToSpace.EditorTools
             }
 
             var era = timeline.Current;
-            var label = timeline.TailIndex >= 0 ? "Moon" + (timeline.TailIndex + 1) : era.Id;
+            var label = timeline.HeadIndex >= 0
+                ? "Form" + (timeline.HeadIndex + 1)
+                : timeline.TailIndex >= 0 ? "Moon" + (timeline.TailIndex + 1) : era.Id;
             if (timeline.Index != nextIndex)
             {
                 Debug.LogError("[Capture] 選択が反映されていません。要求 " + nextIndex + " / 実際 " + timeline.Index);

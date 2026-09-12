@@ -67,6 +67,18 @@ namespace CivilizationToSpace.View
             get { return OrbitRadius + MoonRadius * 2f; }
         }
 
+        /// <summary>
+        /// 月そのものを出すかどうか。形成過程で月が現れる前は出さない。
+        /// 現れたあとは消さない。時代のあいだは画面の外にある。
+        /// </summary>
+        public void SetBodyVisible(bool visible)
+        {
+            if (orbit != null)
+            {
+                orbit.gameObject.SetActive(visible);
+            }
+        }
+
         public void SetMotionSettings(MotionSettings settings)
         {
             motion = settings;

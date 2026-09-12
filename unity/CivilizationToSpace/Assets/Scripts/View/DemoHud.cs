@@ -28,11 +28,16 @@ namespace CivilizationToSpace.View
         private static readonly Color MoonButtonColor = new Color(0.20f, 0.17f, 0.26f, 1f);
         private static readonly Color MoonButtonSelectedColor = new Color(0.38f, 0.32f, 0.50f, 1f);
 
+        /// <summary>形成過程のボタン。時代とも月とも分けて見せる。</summary>
+        private static readonly Color FormationButtonColor = new Color(0.26f, 0.18f, 0.15f, 1f);
+        private static readonly Color FormationButtonSelectedColor = new Color(0.52f, 0.33f, 0.24f, 1f);
+
         private EraTimeline timeline;
         private TimelinePlayback playback;
         private MotionSettings motion;
         private EarthFraming framing;
         private MoonExpansion moon;
+        private EarthFormation formation;
 
         private Text indexText;
         private Text nameText;
@@ -92,17 +97,33 @@ namespace CivilizationToSpace.View
             TimelinePlayback timelinePlayback,
             MotionSettings motionSettings,
             EarthFraming earthFraming,
-            MoonExpansion moonExpansion)
+            MoonExpansion moonExpansion,
+            EarthFormation earthFormation)
         {
             timeline = eraTimeline;
             playback = timelinePlayback;
             motion = motionSettings;
             framing = earthFraming;
             moon = moonExpansion;
+            formation = earthFormation;
+
+            // 形成過程は時代の手前に来る。時代ではないので色を分ける。
+            if (formation != null)
+            {
+                for (var i = 0; i < formation.Stages.Count; i++)
+                {
+                    var target = i;
+                    var button = UiFactory.CreateButton(
+                        controlRoot, "Formation" + (i + 1), 14, FormationButtonColor, TextColor);
+                    button.GetComponentInChildren<Text>().text = formation.Stages[i].DisplayName;
+                    button.onClick.AddListener(delegate { timeline.Select(target); });
+                    eraButtons.Add(button);
+                }
+            }
 
             for (var i = 0; i < timeline.EraCount; i++)
             {
-                var target = i;
+                var target = timeline.EraOffset + i;
                 var button = UiFactory.CreateButton(
                     controlRoot, "Era" + (i + 1), 15, ButtonColor, TextColor);
                 button.GetComponentInChildren<Text>().text = timeline.At(i).DisplayName;
@@ -115,7 +136,7 @@ namespace CivilizationToSpace.View
             {
                 for (var i = 0; i < moon.Phases.Count; i++)
                 {
-                    var target = timeline.EraCount + i;
+                    var target = timeline.EraOffset + timeline.EraCount + i;
                     var button = UiFactory.CreateButton(
                         controlRoot, "Moon" + (i + 1), 14, MoonButtonColor, TextColor);
                     button.GetComponentInChildren<Text>().text = moon.Phases[i].DisplayName;
@@ -219,8 +240,14 @@ namespace CivilizationToSpace.View
         {
             indexText.text = Pad2(timeline.Index + 1) + " / " + Pad2(timeline.Count);
 
+            var head = timeline.HeadIndex;
             var tail = timeline.TailIndex;
-            if (tail >= 0 && moon != null && tail < moon.Phases.Count)
+
+            if (head >= 0 && formation != null && head < formation.Stages.Count)
+            {
+                ShowFormationStage(formation.Stages[head]);
+            }
+            else if (tail >= 0 && moon != null && tail < moon.Phases.Count)
             {
                 ShowMoonPhase(moon.Phases[tail]);
             }
@@ -250,11 +277,27 @@ namespace CivilizationToSpace.View
             // Button 自身の状態遷移が次の描画で上書きしてしまう。
             for (var i = 0; i < eraButtons.Count; i++)
             {
-                var isMoon = i >= timeline.EraCount;
                 var selected = i == timeline.Index;
-                SetNormalColor(eraButtons[i], selected
-                    ? (isMoon ? MoonButtonSelectedColor : ButtonSelectedColor)
-                    : (isMoon ? MoonButtonColor : ButtonColor));
+                Color normal;
+                Color chosen;
+
+                if (i < timeline.EraOffset)
+                {
+                    normal = FormationButtonColor;
+                    chosen = FormationButtonSelectedColor;
+                }
+                else if (i >= timeline.EraOffset + timeline.EraCount)
+                {
+                    normal = MoonButtonColor;
+                    chosen = MoonButtonSelectedColor;
+                }
+                else
+                {
+                    normal = ButtonColor;
+                    chosen = ButtonSelectedColor;
+                }
+
+                SetNormalColor(eraButtons[i], selected ? chosen : normal);
             }
         }
 
@@ -294,6 +337,26 @@ namespace CivilizationToSpace.View
             degradedText.gameObject.SetActive(false);
 
             futureText.text = moon.Disclaimer;
+            futureText.gameObject.SetActive(true);
+        }
+
+        /// <summary>
+        /// 地球ができるまでの段階。仮説であることを、年代ラベルの位置と注意書きで示す。
+        /// </summary>
+        private void ShowFormationStage(FormationStage stage)
+        {
+            nameText.text = stage.DisplayName;
+            rangeText.text = "地球ができるまで（仮説に基づく象徴表現）";
+            summaryText.text = stage.Summary;
+            tagsText.text = Join(stage.Tags, "　／　");
+            qualityText.text = "データ品質状態：" + stage.Status;
+
+            eventsText.text = stage.Caption;
+            eventsText.gameObject.SetActive(stage.Caption.Length > 0);
+
+            degradedText.gameObject.SetActive(false);
+
+            futureText.text = formation.Disclaimer;
             futureText.gameObject.SetActive(true);
         }
 

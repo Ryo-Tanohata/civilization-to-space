@@ -17,6 +17,11 @@ namespace CivilizationToSpace.Core
         private int index;
 
         /// <summary>
+        /// 時代の手前に置く段階の数。地球ができるまでがこれにあたる。
+        /// </summary>
+        private int headCount;
+
+        /// <summary>
         /// 時代の先に続く段階の数。月への展開がこれにあたる。
         /// 0なら時代だけで終わる。時代データ自体は増やさない。
         /// </summary>
@@ -47,38 +52,60 @@ namespace CivilizationToSpace.Core
             get { return eras.Count; }
         }
 
-        /// <summary>時代と、その先に続く段階を合わせた数。</summary>
+        /// <summary>手前・時代・先を合わせた数。</summary>
         public int Count
         {
-            get { return eras.Count + tailCount; }
+            get { return headCount + eras.Count + tailCount; }
         }
 
-        /// <summary>時代の先に続く段階の数を決める。</summary>
-        public void SetTailCount(int count)
+        /// <summary>時代が始まる位置。</summary>
+        public int EraOffset
         {
-            tailCount = Mathf.Max(0, count);
+            get { return headCount; }
+        }
+
+        /// <summary>手前と先に置く段階の数を決める。</summary>
+        public void SetOuterCounts(int head, int tail)
+        {
+            headCount = Mathf.Max(0, head);
+            tailCount = Mathf.Max(0, tail);
             if (index > Count - 1)
             {
                 Select(Count - 1);
             }
         }
 
-        /// <summary>いま時代を指しているか。偽なら先に続く段階を指している。</summary>
+        /// <summary>いま時代を指しているか。偽なら手前か先の段階を指している。</summary>
         public bool InEra
         {
-            get { return index < eras.Count; }
+            get { return index >= headCount && index < headCount + eras.Count; }
         }
 
-        /// <summary>先に続く段階の位置。時代を指しているときは -1。</summary>
+        /// <summary>手前の段階の位置。時代または先を指しているときは -1。</summary>
+        public int HeadIndex
+        {
+            get { return index < headCount ? index : -1; }
+        }
+
+        /// <summary>先に続く段階の位置。それ以外を指しているときは -1。</summary>
         public int TailIndex
         {
-            get { return InEra ? -1 : index - eras.Count; }
+            get { return index >= headCount + eras.Count ? index - headCount - eras.Count : -1; }
         }
 
-        /// <summary>いまの時代。先に続く段階を指しているときは最後の時代を返す。</summary>
+        /// <summary>
+        /// いまの時代。手前の段階を指しているときは最初の時代、
+        /// 先の段階を指しているときは最後の時代を返す。
+        /// </summary>
         public EraData Current
         {
-            get { return eras[Mathf.Min(index, eras.Count - 1)]; }
+            get { return eras[Mathf.Clamp(index - headCount, 0, eras.Count - 1)]; }
+        }
+
+        /// <summary>いまの時代の位置。手前・先の段階では端の時代の位置になる。</summary>
+        public int CurrentEraIndex
+        {
+            get { return Mathf.Clamp(index - headCount, 0, eras.Count - 1); }
         }
 
         /// <summary>並び順どおりの位置で取り出す。ボタンの見出しを作るために使う。</summary>

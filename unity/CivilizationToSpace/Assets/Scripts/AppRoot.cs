@@ -37,6 +37,8 @@ namespace CivilizationToSpace
         private MoonView moon;
         private DemoHud hud;
         private MoonExpansionLoader.Result moonResult;
+        private EarthFormationLoader.Result formationResult;
+        private FormationView formation;
         private EarthFraming framing;
 
         /// <summary>検証済みカタログ。読込に失敗した場合は null。</summary>
@@ -183,6 +185,43 @@ namespace CivilizationToSpace
         /// </summary>
         public const string CatalogPathOverrideKey = "CivilizationToSpace.CatalogPathOverride";
 
+        /// <summary>
+        /// 段階に応じてカメラの引きを変える。形成過程はぶつかってくる天体まで、
+        /// 月への展開は月まで画面へ入れる。時代のあいだは地球だけを見る。
+        /// </summary>
+        private void ApplyFraming()
+        {
+            if (framing == null)
+            {
+                return;
+            }
+
+            float wideRadius;
+            if (timeline.TailIndex >= 0 && moon != null)
+            {
+                wideRadius = MoonView.FramedRadius;
+            }
+            else if (timeline.HeadIndex >= 0 && formation != null)
+            {
+                wideRadius = formation.FramedRadius;
+            }
+            else
+            {
+                wideRadius = 0f;
+            }
+
+            var wide = wideRadius > 0f;
+            if (framing.WideMode == wide && Mathf.Approximately(framing.WideRadius, wideRadius))
+            {
+                return;
+            }
+
+            framing.WideMode = wide;
+            framing.WideRadius = wideRadius;
+            framing.Zoom = 1f;
+            framing.Apply();
+        }
+
         private static string ResolveMoonPath()
         {
             return Path.Combine(Application.streamingAssetsPath, MoonExpansionLoader.FileName);
@@ -214,17 +253,24 @@ namespace CivilizationToSpace
 
             timeline = new EraTimeline(result.Catalog.Eras);
 
-            // 月への展開は仮想シナリオであり、時代ではない。
-            // 時代データを増やさず、時系列の先へ段階として足す。
-            moonResult = MoonExpansionLoader.LoadFromFile(ResolveMoonPath());
-            if (moonResult.Ok)
+            // 形成過程も月への展開も時代ではない。時代データを増やさず、
+            // 時系列の手前と先へ段階として足す。
+            formationResult = EarthFormationLoader.LoadFromFile(
+                Path.Combine(Application.streamingAssetsPath, EarthFormationLoader.FileName));
+            if (!formationResult.Ok)
             {
-                timeline.SetTailCount(moonResult.Expansion.Phases.Count);
+                Debug.LogWarning("[EarthFormation] 読み込めませんでした: " + formationResult.UserMessage);
             }
-            else
+
+            moonResult = MoonExpansionLoader.LoadFromFile(ResolveMoonPath());
+            if (!moonResult.Ok)
             {
                 Debug.LogWarning("[MoonExpansion] 読み込めませんでした: " + moonResult.UserMessage);
             }
+
+            timeline.SetOuterCounts(
+                formationResult.Ok ? formationResult.Formation.Stages.Count : 0,
+                moonResult.Ok ? moonResult.Expansion.Phases.Count : 0);
 
             playback = new TimelinePlayback(timeline);
             motion = new MotionSettings();
@@ -261,6 +307,16 @@ namespace CivilizationToSpace
 
             framing = AttachFraming(camera);
 
+            if (formationResult != null && formationResult.Ok)
+            {
+                var formationObject = new GameObject("Formation");
+                formationObject.transform.SetParent(transform, false);
+                formationObject.transform.position = EarthPosition;
+                formation = formationObject.AddComponent<FormationView>();
+                formation.SetMotionSettings(motion);
+                formation.Build(EarthView.Radius, HideFlags.None);
+            }
+
             if (moonResult != null && moonResult.Ok)
             {
                 var moonObject = new GameObject("Moon");
@@ -273,9 +329,18 @@ namespace CivilizationToSpace
             hud.Build(camera, catalog.Title, catalog.Disclaimer, catalog.ParameterNote);
 
             timeline.Changed += OnEraChanged;
-            hud.Bind(timeline, playback, motion, framing, moonResult != null && moonResult.Ok ? moonResult.Expansion : null);
-            earth.Apply(timeline.Current.Visual, timeline.Index);
+            hud.Bind(
+                timeline,
+                playback,
+                motion,
+                framing,
+                moonResult != null && moonResult.Ok ? moonResult.Expansion : null,
+                formationResult != null && formationResult.Ok ? formationResult.Formation : null);
+
+            earth.Apply(timeline.Current.Visual, timeline.CurrentEraIndex);
+            ApplyFormationStage();
             ApplyMoonPhase();
+            ApplyFraming();
         }
 
         /// <summary>
@@ -339,10 +404,35 @@ namespace CivilizationToSpace
 
         private void OnEraChanged(EraData era)
         {
-            // 月の段階にいるあいだ、地球は最後の時代の姿のまま保つ。
-            var eraIndex = Mathf.Min(timeline.Index, timeline.EraCount - 1);
-            earth.Apply(era.Visual, eraIndex);
+            // 手前・先の段階にいるあいだ、地球は端の時代の姿のまま保つ。
+            earth.Apply(era.Visual, timeline.CurrentEraIndex);
+            ApplyFormationStage();
             ApplyMoonPhase();
+            ApplyFraming();
+        }
+
+        /// <summary>
+        /// 形成過程の段階を反映する。育ちかけの塊を表すため、地球そのものを小さくする。
+        /// </summary>
+        private void ApplyFormationStage()
+        {
+            if (formation == null || formationResult == null || !formationResult.Ok)
+            {
+                return;
+            }
+
+            var head = timeline.HeadIndex;
+            var stages = formationResult.Formation.Stages;
+            var stage = head >= 0 && head < stages.Count ? stages[head] : null;
+
+            formation.Apply(stage);
+            earth.transform.localScale = Vector3.one * (stage != null ? (float)stage.BodyScale : 1f);
+
+            // 月は、形成過程で現れてからあとは消さない。時代のあいだは画面の外にある。
+            if (moon != null)
+            {
+                moon.SetBodyVisible(stage == null || stage.Moon > 0.5d);
+            }
         }
 
         /// <summary>
@@ -359,22 +449,6 @@ namespace CivilizationToSpace
             var tail = timeline.TailIndex;
             var phases = moonResult.Expansion.Phases;
             moon.Apply(tail >= 0 && tail < phases.Count ? phases[tail] : null);
-
-            if (framing == null)
-            {
-                return;
-            }
-
-            var wide = tail >= 0;
-            if (framing.WideMode == wide)
-            {
-                return;
-            }
-
-            framing.WideMode = wide;
-            framing.WideRadius = MoonView.FramedRadius;
-            framing.Zoom = 1f;
-            framing.Apply();
         }
 
         private static string BuildSummary(CatalogLoadResult loaded)
