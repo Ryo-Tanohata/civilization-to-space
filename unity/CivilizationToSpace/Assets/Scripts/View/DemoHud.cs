@@ -66,14 +66,18 @@ namespace CivilizationToSpace.View
         private RectTransform playbackRoot;
         private RectTransform headerRoot;
         private RectTransform bottomStack;
-        private RectTransform formationRow;
-        private RectTransform eraRow;
-        private RectTransform moonRow;
+        /// <summary>段階ボタンを並べる行。横長なら1本、縦長なら2本。</summary>
+        private RectTransform[] stageRows;
+
+        /// <summary>段階ボタンの総数。行へ均等に割り振るために先に数える。</summary>
+        private int stageCount;
+
+        /// <summary>すでに何個置いたか。</summary>
+        private int stagePlaced;
 
         /// <summary>長押しで出す説明。1つを使い回し、出す場所だけ変える。</summary>
         private RectTransform tooltipRoot;
         private Text tooltipTitle;
-        private Text tooltipBody;
         private LongPressInfo tooltipOwner;
         private Text viewHint;
         private Button descriptionButton;
@@ -87,6 +91,8 @@ namespace CivilizationToSpace.View
         public void Build(Camera camera, string catalogTitle, string disclaimer, string parameterNote)
         {
             EnsureEventSystem();
+
+            compact = Screen.width < Screen.height * WideAspect;
 
             var canvas = UiFactory.CreateCanvas("Hud", camera);
             var root = (RectTransform)canvas.transform;
@@ -121,6 +127,12 @@ namespace CivilizationToSpace.View
             moon = moonExpansion;
             formation = earthFormation;
 
+            // 行へ均等に割り振るため、置く前に総数を数えておく。
+            stageCount = (formation != null ? formation.Stages.Count : 0)
+                         + timeline.EraCount
+                         + (moon != null ? moon.Phases.Count : 0);
+            stagePlaced = 0;
+
             // 形成過程は時代の手前に来る。時代ではないので色を分ける。
             if (formation != null)
             {
@@ -129,7 +141,7 @@ namespace CivilizationToSpace.View
                     var target = i;
                     var stage = formation.Stages[i];
                     var button = UiFactory.CreateIconButton(
-                        formationRow, "Formation" + (i + 1), StageIcons.Formation(stage), FormationButtonColor);
+                        NextStageRow(), "Formation" + (i + 1), StageIcons.Formation(stage), FormationButtonColor);
                     AttachStageInfo(button, stage.DisplayName, stage.Summary,
                         delegate { timeline.Select(target); });
                     eraButtons.Add(button);
@@ -141,7 +153,7 @@ namespace CivilizationToSpace.View
                 var target = timeline.EraOffset + i;
                 var era = timeline.At(i);
                 var button = UiFactory.CreateIconButton(
-                    eraRow, "Era" + (i + 1), StageIcons.Era(era.Visual), ButtonColor);
+                    NextStageRow(), "Era" + (i + 1), StageIcons.Era(era.Visual), ButtonColor);
                 AttachStageInfo(button, era.DisplayName, era.Summary,
                     delegate { timeline.Select(target); });
                 eraButtons.Add(button);
@@ -155,7 +167,7 @@ namespace CivilizationToSpace.View
                     var target = timeline.EraOffset + timeline.EraCount + i;
                     var phase = moon.Phases[i];
                     var button = UiFactory.CreateIconButton(
-                        moonRow, "Moon" + (i + 1), StageIcons.Moon(phase), MoonButtonColor);
+                        NextStageRow(), "Moon" + (i + 1), StageIcons.Moon(phase), MoonButtonColor);
                     AttachStageInfo(button, phase.DisplayName, phase.Summary,
                         delegate { timeline.Select(target); });
                     eraButtons.Add(button);
@@ -203,10 +215,10 @@ namespace CivilizationToSpace.View
                 viewHint.gameObject.SetActive(visible);
             }
 
-            if (descriptionButton != null)
-            {
-                descriptionButton.GetComponentInChildren<Text>().text = visible ? "説明を隠す" : "説明を出す";
-            }
+            SetButtonFace(
+                descriptionButton,
+                visible ? "説明を隠す" : "説明を出す",
+                ControlIcons.Description(visible));
 
             if (framing != null)
             {
@@ -278,11 +290,24 @@ namespace CivilizationToSpace.View
             suppressSliderCallback = false;
 
             var last = timeline.Count - 1;
-            playButton.GetComponentInChildren<Text>().text =
-                playback.IsPlaying ? "停止" : (timeline.Index >= last ? "最初から再生" : "再生");
-            speedButton.GetComponentInChildren<Text>().text = "速度 " + FormatSpeed(playback.Speed);
-            motionButton.GetComponentInChildren<Text>().text =
-                motion.Reduced ? "動きを減らす：オン" : "動きを減らす：オフ";
+            var atEnd = timeline.Index >= last;
+
+            SetButtonFace(
+                playButton,
+                playback.IsPlaying ? "停止" : (atEnd ? "最初から再生" : "再生"),
+                playback.IsPlaying ? ControlIcons.Pause()
+                    : (atEnd ? ControlIcons.Replay() : ControlIcons.Play()));
+
+            // 速さは絵で表せないので、狭い画面でも倍率の数字だけは文字で出す。
+            SetButtonFace(
+                speedButton,
+                compact ? FormatSpeed(playback.Speed) : "速度 " + FormatSpeed(playback.Speed),
+                null);
+
+            SetButtonFace(
+                motionButton,
+                motion.Reduced ? "動きを減らす：オン" : "動きを減らす：オフ",
+                ControlIcons.Motion(motion.Reduced));
             SetNormalColor(motionButton, motion.Reduced ? ButtonSelectedColor : ButtonColor);
 
             statusText.text = BuildStatus();
@@ -514,11 +539,21 @@ namespace CivilizationToSpace.View
             playbackRoot.gameObject.AddComponent<LayoutElement>().preferredHeight = 52f;
             UiFactory.AddHorizontalLayout(playbackRoot, 8, 8f);
 
-            playButton = UiFactory.CreateButton(playbackRoot, "Play", 15, ButtonColor, TextColor);
-            UiFactory.SetWidth(playButton.gameObject, 116f, 0f);
+            if (compact)
+            {
+                playButton = CreateControlIcon(playbackRoot, "Play", ControlIcons.Play(), "再生");
+                speedButton = UiFactory.CreateButton(playbackRoot, "Speed", 14, ButtonColor, TextColor);
+                UiFactory.SetWidth(speedButton.gameObject, ControlIconSize, 0f);
+                AttachControlInfo(speedButton, "再生の速さ");
+            }
+            else
+            {
+                playButton = UiFactory.CreateButton(playbackRoot, "Play", 15, ButtonColor, TextColor);
+                UiFactory.SetWidth(playButton.gameObject, 116f, 0f);
 
-            speedButton = UiFactory.CreateButton(playbackRoot, "Speed", 15, ButtonColor, TextColor);
-            UiFactory.SetWidth(speedButton.gameObject, 96f, 0f);
+                speedButton = UiFactory.CreateButton(playbackRoot, "Speed", 15, ButtonColor, TextColor);
+                UiFactory.SetWidth(speedButton.gameObject, 96f, 0f);
+            }
 
             var sliderHost = UiFactory.CreateRect(playbackRoot, "EraSliderHost");
             UiFactory.SetWidth(sliderHost.gameObject, 160f, 1f);
@@ -530,15 +565,27 @@ namespace CivilizationToSpace.View
                 playbackRoot, "Status", 13, DimTextColor, TextAnchor.MiddleLeft, FontStyle.Normal);
             UiFactory.SetWidth(statusText.gameObject, 230f, 0f);
 
-            motionButton = UiFactory.CreateButton(playbackRoot, "Motion", 14, ButtonColor, TextColor);
-            UiFactory.SetWidth(motionButton.gameObject, 150f, 0f);
+            if (compact)
+            {
+                motionButton = CreateControlIcon(
+                    playbackRoot, "Motion", ControlIcons.Motion(false), "動きを減らす");
+                resetViewButton = CreateControlIcon(
+                    playbackRoot, "ResetView", ControlIcons.ResetView(), "視点をもどす");
+                descriptionButton = CreateControlIcon(
+                    playbackRoot, "Description", ControlIcons.Description(false), "説明を出す");
+            }
+            else
+            {
+                motionButton = UiFactory.CreateButton(playbackRoot, "Motion", 14, ButtonColor, TextColor);
+                UiFactory.SetWidth(motionButton.gameObject, 150f, 0f);
 
-            resetViewButton = UiFactory.CreateButton(playbackRoot, "ResetView", 14, ButtonColor, TextColor);
-            resetViewButton.GetComponentInChildren<Text>().text = "視点をもどす";
-            UiFactory.SetWidth(resetViewButton.gameObject, 118f, 0f);
+                resetViewButton = UiFactory.CreateButton(playbackRoot, "ResetView", 14, ButtonColor, TextColor);
+                resetViewButton.GetComponentInChildren<Text>().text = "視点をもどす";
+                UiFactory.SetWidth(resetViewButton.gameObject, 118f, 0f);
 
-            descriptionButton = UiFactory.CreateButton(playbackRoot, "Description", 14, ButtonColor, TextColor);
-            UiFactory.SetWidth(descriptionButton.gameObject, 118f, 0f);
+                descriptionButton = UiFactory.CreateButton(playbackRoot, "Description", 14, ButtonColor, TextColor);
+                UiFactory.SetWidth(descriptionButton.gameObject, 118f, 0f);
+            }
         }
 
         /// <summary>
@@ -568,20 +615,23 @@ namespace CivilizationToSpace.View
             controlRoot = bar.rectTransform;
             UiFactory.AddVerticalLayout(controlRoot, 8, 6f);
 
-            // 横長の画面では15個が1行に収まる。縦長では収まらないので群れごとに分ける。
-            // 分けるほど下側が高くなり、地球の見える範囲が狭くなるため、収まるなら1行にする。
-            if (Screen.width >= Screen.height * WideAspect)
+            // 横長の画面では16個が1行に収まる。縦長では収まらないので折り返す。
+            //
+            // 以前は形成・時代・月の3つの群れごとに行を分けていたが、縦画面では3行になり、
+            // そのぶん下の帯が高くなって地球の見える範囲を削っていた。
+            // 群れの違いは絵の色と形で読み取れるので、行を分けてまで示す必要はない。
+            // 2行に詰め、指で押せる大きさ（約44）を下回らない範囲で並べる。
+            if (!compact)
             {
-                var single = CreateStageRow(controlRoot, "StageRow");
-                formationRow = single;
-                eraRow = single;
-                moonRow = single;
+                stageRows = new[] { CreateStageRow(controlRoot, "StageRow") };
             }
             else
             {
-                formationRow = CreateStageRow(controlRoot, "FormationRow");
-                eraRow = CreateStageRow(controlRoot, "EraRow");
-                moonRow = CreateStageRow(controlRoot, "MoonRow");
+                stageRows = new[]
+                {
+                    CreateStageRow(controlRoot, "StageRowTop"),
+                    CreateStageRow(controlRoot, "StageRowBottom"),
+                };
             }
 
             var nav = UiFactory.CreateRect(controlRoot, "NavRow");
@@ -604,6 +654,29 @@ namespace CivilizationToSpace.View
         }
 
         /// <summary>段階ボタン1行ぶんの入れ物。中央に寄せ、幅は引き伸ばさない。</summary>
+        /// <summary>
+        /// 次の段階ボタンを置く行を返す。
+        /// 前半を上の行、後半を下の行へ入れ、時代の並び順はそのまま保つ。
+        /// </summary>
+        private RectTransform NextStageRow()
+        {
+            if (stageRows == null || stageRows.Length == 0)
+            {
+                return controlRoot;
+            }
+
+            if (stageRows.Length == 1)
+            {
+                stagePlaced++;
+                return stageRows[0];
+            }
+
+            var perRow = Mathf.CeilToInt(stageCount / (float)stageRows.Length);
+            var row = Mathf.Clamp(stagePlaced / Mathf.Max(1, perRow), 0, stageRows.Length - 1);
+            stagePlaced++;
+            return stageRows[row];
+        }
+
         private static RectTransform CreateStageRow(RectTransform parent, string name)
         {
             var row = UiFactory.CreateRect(parent, name);
@@ -622,6 +695,78 @@ namespace CivilizationToSpace.View
 
         /// <summary>この縦横比より横長なら、段階ボタンを1行に並べる。</summary>
         private const float WideAspect = 1.3f;
+
+        /// <summary>
+        /// 狭い画面（縦長）かどうか。段階ボタンの行数と、操作ボタンを絵にするかを決める。
+        /// 起動時の向きで決め、あとから変えない。作り直すと押している最中の状態が飛ぶ。
+        /// </summary>
+        private bool compact;
+
+        /// <summary>絵のボタンの大きさ。指で押せる下限（約44）を下回らせない。</summary>
+        private const float ControlIconSize = 46f;
+
+        /// <summary>操作ボタンを絵で作り、長押しで名前が出るようにする。</summary>
+        private Button CreateControlIcon(RectTransform parent, string name, Sprite icon, string label)
+        {
+            var button = UiFactory.CreateIconButton(parent, name, icon, ButtonColor);
+            AttachControlInfo(button, label);
+            return button;
+        }
+
+        /// <summary>絵のボタンに名前を結びつける。押したときの動きは呼び出し側が足す。</summary>
+        private void AttachControlInfo(Button button, string label)
+        {
+            var element = UiFactory.SetWidth(button.gameObject, ControlIconSize, 0f);
+            element.preferredHeight = ControlIconSize;
+
+            var info = button.gameObject.AddComponent<LongPressInfo>();
+            info.Title = label;
+            info.Body = string.Empty;
+            info.Show = ShowTooltip;
+            info.Hide = HideTooltip;
+        }
+
+        /// <summary>
+        /// ボタンの見た目を更新する。文字のボタンなら文字を、絵のボタンなら絵と名前を変える。
+        /// 呼ぶ側が両方を気にしなくて済むように、ここで吸収する。
+        /// </summary>
+        private static void SetButtonFace(Button button, string label, Sprite icon)
+        {
+            if (button == null)
+            {
+                return;
+            }
+
+            var info = button.GetComponent<LongPressInfo>();
+            if (info != null)
+            {
+                info.Title = label;
+            }
+
+            var text = button.GetComponentInChildren<Text>();
+            if (text != null)
+            {
+                text.text = label;
+                return;
+            }
+
+            if (icon == null)
+            {
+                return;
+            }
+
+            var images = button.GetComponentsInChildren<Image>(true);
+            foreach (var image in images)
+            {
+                // 背景ではなく、中の絵だけを差し替える。
+                if (image.gameObject != button.gameObject)
+                {
+                    image.sprite = icon;
+                    image.enabled = true;
+                    return;
+                }
+            }
+        }
 
         /// <summary>絵だけのボタンに、名前と説明と押したときの動きを結びつける。</summary>
         private void AttachStageInfo(Button button, string title, string body, Action activate)
@@ -648,15 +793,16 @@ namespace CivilizationToSpace.View
             tooltipRoot.anchorMin = new Vector2(0.5f, 0f);
             tooltipRoot.anchorMax = new Vector2(0.5f, 0f);
             tooltipRoot.pivot = new Vector2(0.5f, 0f);
-            tooltipRoot.sizeDelta = new Vector2(340f, 0f);
+            tooltipRoot.sizeDelta = new Vector2(200f, 0f);
 
-            UiFactory.AddVerticalLayout(tooltipRoot, 12, 4f);
+            UiFactory.AddVerticalLayout(tooltipRoot, 10, 0f);
             UiFactory.AddContentHeight(tooltipRoot);
 
+            // 名前だけを出す。以前は説明文も並べていたが、指で押さえている最中に
+            // 3〜4行の文章が地球へ覆いかぶさり、かえって読み取りの邪魔になっていた。
+            // 説明は「説明を出す」で右の面に出せるので、ここでは繰り返さない。
             tooltipTitle = UiFactory.CreateText(
-                tooltipRoot, "Title", 16, TextColor, TextAnchor.UpperLeft, FontStyle.Bold);
-            tooltipBody = UiFactory.CreateText(
-                tooltipRoot, "Body", 13, DimTextColor, TextAnchor.UpperLeft, FontStyle.Normal);
+                tooltipRoot, "Title", 16, TextColor, TextAnchor.MiddleCenter, FontStyle.Bold);
 
             tooltipRoot.gameObject.SetActive(false);
         }
@@ -670,7 +816,6 @@ namespace CivilizationToSpace.View
 
             tooltipOwner = info;
             tooltipTitle.text = info.Title;
-            tooltipBody.text = info.Body;
             tooltipRoot.gameObject.SetActive(true);
 
             // 文字を入れてから位置を決める。先に測ると前回の大きさのままになる。
