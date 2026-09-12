@@ -20,7 +20,8 @@
     IMPACTOR: 2,
     IMPACT: 3,
     MOON_FORMING: 4,
-    SETTLED: 5
+    SETTLED: 5,
+    COLONY: 6
   };
 
   var PHASE_LABEL = [
@@ -29,10 +30,11 @@
     '別の天体が近づいている',
     'ぶつかった。破片が飛び散った',
     '破片がまわりながら集まっている',
-    '地球と月になった'
+    '地球と月になった（軌道が落ち着いていく）',
+    'ラグランジュ点（L4・L5）にコロニーを置いた'
   ];
 
-  var KIND = { PLANETESIMAL: 0, EARTH: 1, IMPACTOR: 2, DEBRIS: 3, MOON: 4 };
+  var KIND = { PLANETESIMAL: 0, EARTH: 1, IMPACTOR: 2, DEBRIS: 3, MOON: 4, COLONY: 5 };
 
   var DEFAULTS = {
     seed: 20260912,
@@ -62,7 +64,58 @@
     debrisAttraction: 60,
     stepSize: 0.015,
     maxStepsPerFrame: 3,
-    settleDelay: 3
+    settleDelay: 3,
+
+    /*
+     * 地球と月が決まったあと、L4とL5へコロニーを置く。
+     *
+     * 置くのは「絵」ではない。ほかの天体と同じ式で動かす。留まるかどうかは
+     * 計算の結果であって、こちらが決めていない。留まるのは、地球に対する月の
+     * 質量比が 0.0385 より小さいときだけである（本実装では約0.021）。
+     * 条件を変えて月を重くすると、留まらなくなることを確かめられる。
+     */
+    colonyEnabled: true,
+
+    /*
+     * 月ができた直後の軌道を円くする強さ。
+     *
+     * 入れないと、破片が集まってできた塊は多くの場合そのまま飛び去る
+     * （実測：離心率 e が 1 を超え、地球に束縛されていない種が4つ中3つ）。
+     * 実際の月も、できた直後は潮汐で軌道が変わり続けた。その働きの向きだけを
+     * 写したもので、強さは見ていられる時間で落ち着くように決めた値である。
+     */
+    tidalCircularise: 0.35,
+
+    /*
+     * 月を運ぶ先。地球半径の何倍か。
+     *
+     * できたばかりの月は地球のすぐそばにあり、そのままではラグランジュ点が
+     * 地球の表面すれすれに来てしまう。実際の月も、できた直後は3〜5地球半径に
+     * あり、潮汐で現在の約60地球半径まで遠ざかった。その過程を縮めている。
+     * **ここは計算ではなく運搬である。** 遠ざかる向きと、円くなる向きだけが
+     * 実際の潮汐と同じで、速さは見ていられる時間に合わせた値である。
+     */
+    moonTargetRadii: 12,
+
+    /*
+     * この離心率より小さくなったら「落ち着いた」とみなし、コロニーを置く。
+     *
+     * 楕円が残ったまま置くと、L4・L5 が固定点にならず、コロニーが離れていく。
+     * 実測（月の質量比 0.022 の系、900単位時間）：
+     *   置いた時 e=0.060 → 失われた
+     *   置いた時 e=0.020 → 46〜75度のあいだで振れた（残るが大きく振れる）
+     *   置いた時 e=0.005 → 58〜62度に収まった
+     */
+    colonyMaxEccentricity: 0.005,
+
+    /* 落ち着くのを待つ上限。これを過ぎたら、落ち着いていなくても先へ進む。 */
+    colonySettleTimeout: 400,
+
+    /* コロニーの質量。運動を乱さないよう、事実上の試験粒子にする。 */
+    colonyMassFraction: 1e-7,
+
+    /* 地球と月が落ち着いてからコロニーを置くまでの待ち時間。 */
+    colonyDelay: 1.5
   };
 
   /* 種を決めれば同じ結果になる乱数。xorshift32。 */
@@ -132,6 +185,7 @@
     this.protoEarthAt = 0;
     this.impactAt = 0;
     this.mergeEvents = 0;
+    this.settledAt = 0;
     this.count = 0;
 
     var capacity = Math.max(16, s.planetesimalCount + s.ejectaCount + 8);
@@ -306,8 +360,13 @@
       (this.phase === PHASE.IMPACT || this.phase === PHASE.MOON_FORMING)
         ? Math.max(0, s.diskViscosity) : 0;
 
+    // 月ができた直後だけ、その軌道も円くする。潮汐の働きの向きだけを写したもの。
+    var tidal = this.phase === PHASE.SETTLED ? Math.max(0, s.tidalCircularise) : 0;
+
     var earth = this.earthIndex;
-    var circularise = viscosity > 0 && earth >= 0 && earth < n;
+    var hasEarth = earth >= 0 && earth < n;
+    var circularise = viscosity > 0 && hasEarth;
+    var settling = tidal > 0 && hasEarth;
 
     for (var i = 0; i < n; i++) {
       if (drag > 0) {
@@ -318,6 +377,10 @@
 
       if (circularise && this.kind[i] === KIND.DEBRIS) {
         this.applyCircularise(i, earth, viscosity);
+      }
+
+      if (settling && this.kind[i] === KIND.MOON) {
+        this.applyTidalRecession(i, earth, tidal);
       }
 
       this.vx[i] += this.ax[i] * dt;
@@ -361,6 +424,83 @@
     this.ax[i] += (this.vx[earth] + tx * circular - this.vx[i]) * viscosity;
     this.ay[i] += (this.vy[earth] + ty * circular - this.vy[i]) * viscosity;
     this.az[i] += (this.vz[earth] + tz * circular - this.vz[i]) * viscosity;
+  };
+
+  /*
+   * 半径方向の速度だけを減らす。
+   *
+   * 向きが中心を向いているので、角運動量に対する回転の力（トルク）が0になる。
+   * つまり角運動量を保ったまま、楕円を円に近づける。落ち着く先の半径は
+   * h^2 / μ（h は角運動量）で、近点より内側には決して入らない。
+   *
+   * 「いまの半径の円」を目指す形（applyCircularise）にすると、近点にいるあいだは
+   * その小さい半径の円を目指してしまい、月が内側へ引きずられて地球に落ちる
+   * （実測：12種のうち4種で月が地球に吸い込まれた）。
+   */
+  /*
+   * 潮汐で月が遠ざかり、軌道が円くなる過程を縮めたもの。**計算ではなく運搬である。**
+   *
+   * 半径を目標へ寄せ、接線方向の速さをその半径の円軌道に合わせる。
+   * 入れないと、破片が集まってできた塊は地球に落ちるか飛び去るかのどちらかになり、
+   * 地球と月の組が残らない（実測：種12通りのうち、そのまま残ったのは1つだけ）。
+   * 実際の月も、できた直後は3〜5地球半径にあり、潮汐で約60地球半径まで遠ざかった。
+   * 向きだけが実際と同じで、速さは見ていられる時間に合わせた値である。
+   */
+  Simulation.prototype.applyTidalRecession = function (i, earth, strength) {
+    var ox = this.px[i] - this.px[earth];
+    var oy = this.py[i] - this.py[earth];
+    var oz = this.pz[i] - this.pz[earth];
+    var distance = Math.sqrt(ox * ox + oy * oy + oz * oz);
+    if (distance < 1e-4) { return; }
+
+    var ux = ox / distance, uy = oy / distance, uz = oz / distance;
+    var rx = this.vx[i] - this.vx[earth];
+    var ry = this.vy[i] - this.vy[earth];
+    var rz = this.vz[i] - this.vz[earth];
+
+    // 半径方向と接線方向に分ける。
+    var radial = rx * ux + ry * uy + rz * uz;
+    var tx = rx - ux * radial;
+    var ty = ry - uy * radial;
+    var tz = rz - uz * radial;
+    var tangential = Math.sqrt(tx * tx + ty * ty + tz * tz);
+
+    var target = this.settings.moonTargetRadii * this.radius[earth];
+    var mu = this.settings.gravity * (this.mass[earth] + this.mass[i]);
+    var circular = Math.sqrt(mu / distance);
+
+    // 半径を目標へ。行きすぎないよう、半径方向の速さも抑える。
+    var toward = ((target - distance) * 0.30 - radial * 2.0) * strength;
+    this.ax[i] += ux * toward;
+    this.ay[i] += uy * toward;
+    this.az[i] += uz * toward;
+
+    if (tangential < 1e-6) { return; }
+
+    // 接線の速さをその半径の円軌道に合わせる。向きは変えない。
+    var spin = (circular - tangential) * strength;
+    this.ax[i] += tx / tangential * spin;
+    this.ay[i] += ty / tangential * spin;
+    this.az[i] += tz / tangential * spin;
+  };
+
+  Simulation.prototype.applyRadialDamping = function (i, earth, strength) {
+    var ox = this.px[i] - this.px[earth];
+    var oy = this.py[i] - this.py[earth];
+    var oz = this.pz[i] - this.pz[earth];
+    var distance = Math.sqrt(ox * ox + oy * oy + oz * oz);
+    if (distance < 1e-4) { return; }
+
+    var ux = ox / distance, uy = oy / distance, uz = oz / distance;
+    var rx = this.vx[i] - this.vx[earth];
+    var ry = this.vy[i] - this.vy[earth];
+    var rz = this.vz[i] - this.vz[earth];
+
+    var radial = rx * ux + ry * uy + rz * uz;
+
+    this.ax[i] -= ux * radial * strength;
+    this.ay[i] -= uy * radial * strength;
+    this.az[i] -= uz * radial * strength;
   };
 
   Simulation.prototype.resolve = function (index) {
@@ -668,9 +808,221 @@
              this.time - this.impactAt >= s.settleDelay * 8)) {
           this.nameTheMoon();
           this.phase = PHASE.SETTLED;
+          this.settledAt = this.time;
+        }
+        break;
+
+      case PHASE.SETTLED:
+        if (!s.colonyEnabled || this.time - this.settledAt < s.colonyDelay) { break; }
+
+        // 軌道が落ち着いてから置く。楕円のままだと L4・L5 が固定点にならず、
+        // 置いてもすぐ離れてしまう（実測：離心率が高い種では1割も留まらない）。
+        var e = this.moonEccentricity();
+        var arrived = this.moonAtTarget();
+        var waited = this.time - this.settledAt >= s.colonySettleTimeout;
+        if ((e >= 0 && e <= s.colonyMaxEccentricity && arrived) || waited) {
+          if (this.placeColonies()) { this.phase = PHASE.COLONY; }
         }
         break;
     }
+  };
+
+  /*
+   * 地球と月のラグランジュ点 L4・L5 へコロニーを置く。
+   *
+   * L4・L5 は、地球と月と正三角形をつくる位置である。置いたあとは何もしない。
+   * ほかの天体と同じ式で動き、留まるかどうかは計算が決める。
+   */
+  Simulation.prototype.placeColonies = function () {
+    var earth = this.earthIndex;
+    var moon = this.heaviestOtherThanEarth();
+    if (earth < 0 || moon < 0) { return false; }
+
+    var rx = this.px[moon] - this.px[earth];
+    var ry = this.py[moon] - this.py[earth];
+    var rz = this.pz[moon] - this.pz[earth];
+    var distance = Math.sqrt(rx * rx + ry * ry + rz * rz);
+    if (distance < 1e-3) { return false; }
+
+    var vx = this.vx[moon] - this.vx[earth];
+    var vy = this.vy[moon] - this.vy[earth];
+    var vz = this.vz[moon] - this.vz[earth];
+
+    // 公転の角速度。ω = (r × v) / |r|^2
+    var wx = (ry * vz - rz * vy) / (distance * distance);
+    var wy = (rz * vx - rx * vz) / (distance * distance);
+    var wz = (rx * vy - ry * vx) / (distance * distance);
+    if (wx * wx + wy * wy + wz * wz < 1e-12) { return false; }
+
+    var mE = this.mass[earth];
+    var mM = this.mass[moon];
+    var total = mE + mM;
+
+    // 重心。全体はこの点のまわりで回っている。
+    var bx = (this.px[earth] * mE + this.px[moon] * mM) / total;
+    var by = (this.py[earth] * mE + this.py[moon] * mM) / total;
+    var bz = (this.pz[earth] * mE + this.pz[moon] * mM) / total;
+    var bvx = (this.vx[earth] * mE + this.vx[moon] * mM) / total;
+    var bvy = (this.vy[earth] * mE + this.vy[moon] * mM) / total;
+    var bvz = (this.vz[earth] * mE + this.vz[moon] * mM) / total;
+
+    var mass = this.settings.totalMass * this.settings.colonyMassFraction;
+
+    // 地球から見て、月の向きを軌道面内で ±60度まわした先が L4 と L5。
+    this.addColony(earth, rx, ry, rz, wx, wy, wz, 60, bx, by, bz, bvx, bvy, bvz, mass);
+    this.addColony(earth, rx, ry, rz, wx, wy, wz, -60, bx, by, bz, bvx, bvy, bvz, mass);
+    return true;
+  };
+
+  Simulation.prototype.addColony = function (
+    earth, rx, ry, rz, wx, wy, wz, degrees, bx, by, bz, bvx, bvy, bvz, mass) {
+    var w = Math.sqrt(wx * wx + wy * wy + wz * wz);
+    var ax = wx / w, ay = wy / w, az = wz / w;
+
+    // ロドリゲスの回転公式。軌道面の法線まわりに回す。
+    var a = degrees * Math.PI / 180;
+    var c = Math.cos(a), s = Math.sin(a);
+    var dot = ax * rx + ay * ry + az * rz;
+    var cxv = ay * rz - az * ry;
+    var cyv = az * rx - ax * rz;
+    var czv = ax * ry - ay * rx;
+
+    var ox = rx * c + cxv * s + ax * dot * (1 - c);
+    var oy = ry * c + cyv * s + ay * dot * (1 - c);
+    var oz = rz * c + czv * s + az * dot * (1 - c);
+
+    var x = this.px[earth] + ox;
+    var y = this.py[earth] + oy;
+    var z = this.pz[earth] + oz;
+
+    // 速度は、重心のまわりを同じ角速度で回るものとして決める。v = v_重心 + ω × (位置 - 重心)
+    var qx = x - bx, qy = y - by, qz = z - bz;
+
+    this.add(
+      x, y, z,
+      bvx + (wy * qz - wz * qy),
+      bvy + (wz * qx - wx * qz),
+      bvz + (wx * qy - wy * qx),
+      mass, KIND.COLONY);
+  };
+
+  /*
+   * 月の軌道の離心率。0で円、1以上は地球に束縛されていない。
+   * 月が無いときは -1 を返す。
+   */
+  Simulation.prototype.moonEccentricity = function () {
+    var earth = this.earthIndex;
+    var moon = this.heaviestOtherThanEarth();
+    if (earth < 0 || moon < 0) { return -1; }
+
+    var rx = this.px[moon] - this.px[earth];
+    var ry = this.py[moon] - this.py[earth];
+    var rz = this.pz[moon] - this.pz[earth];
+    var vx = this.vx[moon] - this.vx[earth];
+    var vy = this.vy[moon] - this.vy[earth];
+    var vz = this.vz[moon] - this.vz[earth];
+
+    var r = Math.sqrt(rx * rx + ry * ry + rz * rz);
+    if (r < 1e-6) { return -1; }
+
+    var mu = this.settings.gravity * (this.mass[earth] + this.mass[moon]);
+    if (mu <= 0) { return -1; }
+
+    var v2 = vx * vx + vy * vy + vz * vz;
+    var rv = rx * vx + ry * vy + rz * vz;
+
+    var ex = ((v2 - mu / r) * rx - rv * vx) / mu;
+    var ey = ((v2 - mu / r) * ry - rv * vy) / mu;
+    var ez = ((v2 - mu / r) * rz - rv * vz) / mu;
+
+    return Math.sqrt(ex * ex + ey * ey + ez * ez);
+  };
+
+  /* 月が運び先の距離に来たか。 */
+  Simulation.prototype.moonAtTarget = function () {
+    var earth = this.earthIndex;
+    var moon = this.heaviestOtherThanEarth();
+    if (earth < 0 || moon < 0) { return false; }
+
+    var dx = this.px[moon] - this.px[earth];
+    var dy = this.py[moon] - this.py[earth];
+    var dz = this.pz[moon] - this.pz[earth];
+    var distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    var target = this.settings.moonTargetRadii * this.radius[earth];
+
+    return Math.abs(distance - target) <= target * 0.06;
+  };
+
+  Simulation.prototype.heaviestOtherThanEarth = function () {
+    var best = -1, bestMass = 0;
+    for (var i = 0; i < this.count; i++) {
+      if (this.kind[i] === KIND.EARTH || this.kind[i] === KIND.COLONY) { continue; }
+      if (this.mass[i] > bestMass) { best = i; bestMass = this.mass[i]; }
+    }
+    return best;
+  };
+
+  /*
+   * コロニーが、いまのL4・L5からどれだけずれているか。
+   * 月までの距離を1としたときの割合で返す。留まっていれば小さいままになる。
+   */
+  Simulation.prototype.colonyDrift = function () {
+    var earth = this.earthIndex;
+    var moon = this.heaviestOtherThanEarth();
+    if (earth < 0 || moon < 0) { return -1; }
+
+    var rx = this.px[moon] - this.px[earth];
+    var ry = this.py[moon] - this.py[earth];
+    var rz = this.pz[moon] - this.pz[earth];
+    var distance = Math.sqrt(rx * rx + ry * ry + rz * rz);
+    if (distance < 1e-3) { return -1; }
+
+    var worst = 0;
+    var found = false;
+
+    for (var i = 0; i < this.count; i++) {
+      if (this.kind[i] !== KIND.COLONY) { continue; }
+      found = true;
+
+      // いちばん近いラグランジュ点との差を見る。L4かL5かは問わない。
+      var best = Infinity;
+      for (var sign = -1; sign <= 1; sign += 2) {
+        var target = this.lagrangePoint(earth, rx, ry, rz, sign * 60);
+        var dx = this.px[i] - target[0];
+        var dy = this.py[i] - target[1];
+        var dz = this.pz[i] - target[2];
+        var d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (d < best) { best = d; }
+      }
+
+      if (best / distance > worst) { worst = best / distance; }
+    }
+
+    return found ? worst : -1;
+  };
+
+  Simulation.prototype.lagrangePoint = function (earth, rx, ry, rz, degrees) {
+    var moon = this.heaviestOtherThanEarth();
+    var vx = this.vx[moon] - this.vx[earth];
+    var vy = this.vy[moon] - this.vy[earth];
+    var vz = this.vz[moon] - this.vz[earth];
+
+    var wx = ry * vz - rz * vy;
+    var wy = rz * vx - rx * vz;
+    var wz = rx * vy - ry * vx;
+    var w = Math.sqrt(wx * wx + wy * wy + wz * wz);
+    if (w < 1e-9) { return [this.px[earth], this.py[earth], this.pz[earth]]; }
+
+    var ax = wx / w, ay = wy / w, az = wz / w;
+    var a = degrees * Math.PI / 180;
+    var c = Math.cos(a), s = Math.sin(a);
+    var dot = ax * rx + ay * ry + az * rz;
+
+    return [
+      this.px[earth] + rx * c + (ay * rz - az * ry) * s + ax * dot * (1 - c),
+      this.py[earth] + ry * c + (az * rx - ax * rz) * s + ay * dot * (1 - c),
+      this.pz[earth] + rz * c + (ax * ry - ay * rx) * s + az * dot * (1 - c)
+    ];
   };
 
   root.FormationSim = Simulation;

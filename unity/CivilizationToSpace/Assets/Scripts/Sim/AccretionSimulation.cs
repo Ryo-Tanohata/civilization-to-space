@@ -54,6 +54,7 @@ namespace CivilizationToSpace.Sim
         private float time;
         private float protoEarthAt;
         private float impactAt;
+        private float settledAt;
         private int mergeEvents;
 
         public AccretionSimulation(SimSettings simSettings)
@@ -115,6 +116,7 @@ namespace CivilizationToSpace.Sim
             time = 0f;
             protoEarthAt = 0f;
             impactAt = 0f;
+            settledAt = 0f;
             mergeEvents = 0;
             count = 0;
 
@@ -296,8 +298,13 @@ namespace CivilizationToSpace.Sim
                 ? Mathf.Max(0f, settings.DiskViscosity)
                 : 0f;
 
+            // 月ができた直後だけ、その軌道を落ち着かせる。
+            var tidal = phase == SimPhase.Settled ? Mathf.Max(0f, settings.TidalCircularise) : 0f;
+
             var earth = EarthIndex;
-            var canCircularise = viscosity > 0f && earth >= 0 && earth < count;
+            var hasEarth = earth >= 0 && earth < count;
+            var canCircularise = viscosity > 0f && hasEarth;
+            var settling = tidal > 0f && hasEarth;
 
             for (var i = 0; i < count; i++)
             {
@@ -309,6 +316,11 @@ namespace CivilizationToSpace.Sim
                 if (canCircularise && bodies[i].Kind == BodyKind.Debris)
                 {
                     bodies[i].Acceleration += Circularise(i, earth) * viscosity;
+                }
+
+                if (settling && bodies[i].Kind == BodyKind.Moon)
+                {
+                    bodies[i].Acceleration += TidalRecession(i, earth) * tidal;
                 }
 
                 bodies[i].Velocity += bodies[i].Acceleration * dt;
@@ -342,6 +354,48 @@ namespace CivilizationToSpace.Sim
             var wanted = bodies[earth].Velocity + tangent * circular;
 
             return wanted - bodies[index].Velocity;
+        }
+
+        /// <summary>
+        /// 潮汐で月が遠ざかり、軌道が円くなる過程を縮めたもの。**計算ではなく運搬である。**
+        ///
+        /// 半径を目標へ寄せ、接線方向の速さをその半径の円軌道に合わせる。
+        /// 入れないと、破片が集まってできた塊は地球に落ちるか飛び去るかのどちらかになり、
+        /// 地球と月の組が残らない（実測：種12通りのうち、そのまま残ったのは1つだけで、
+        /// ほかは離心率が1を超えて地球に束縛されていなかった）。
+        /// 実際の月も、できた直後は3〜5地球半径にあり、潮汐で約60地球半径まで遠ざかった。
+        /// 向きだけが実際と同じで、速さは見ていられる時間に合わせた値である。
+        /// </summary>
+        private Vector3 TidalRecession(int index, int earth)
+        {
+            var offset = bodies[index].Position - bodies[earth].Position;
+            var distance = offset.magnitude;
+            if (distance < 1e-4f)
+            {
+                return Vector3.zero;
+            }
+
+            var outward = offset / distance;
+            var relative = bodies[index].Velocity - bodies[earth].Velocity;
+
+            var radial = Vector3.Dot(relative, outward);
+            var tangential = relative - outward * radial;
+            var speed = tangential.magnitude;
+
+            var target = settings.MoonTargetRadii * bodies[earth].Radius;
+            var mu = settings.Gravity * (bodies[earth].Mass + bodies[index].Mass);
+            var circular = Mathf.Sqrt(mu / distance);
+
+            // 半径を目標へ。行きすぎないよう、半径方向の速さも抑える。
+            var result = outward * ((target - distance) * 0.30f - radial * 2.0f);
+
+            if (speed > 1e-6f)
+            {
+                // 接線の速さをその半径の円軌道に合わせる。向きは変えない。
+                result += tangential / speed * (circular - speed);
+            }
+
+            return result;
         }
 
         // ------------------------------------------------------------------
@@ -654,10 +708,255 @@ namespace CivilizationToSpace.Sim
                     {
                         NameTheMoon();
                         phase = SimPhase.Settled;
+                        settledAt = time;
+                    }
+
+                    break;
+
+                case SimPhase.Settled:
+                    if (!settings.ColonyEnabled || time - settledAt < settings.ColonyDelay)
+                    {
+                        break;
+                    }
+
+                    // 軌道が落ち着いてから置く。楕円が残ったまま置くと、L4・L5 が
+                    // 固定点にならず、コロニーが離れていく（実測：月の質量比0.022の系で、
+                    // 置いた時の離心率 0.060 では失われ、0.020 では46〜75度に振れ、
+                    // 0.005 では58〜62度に収まった）。
+                    var eccentricity = MoonEccentricity();
+                    var waited = time - settledAt >= settings.ColonySettleTimeout;
+
+                    if ((eccentricity >= 0f && eccentricity <= settings.ColonyMaxEccentricity && MoonAtTarget())
+                        || waited)
+                    {
+                        if (PlaceColonies())
+                        {
+                            phase = SimPhase.Colony;
+                        }
                     }
 
                     break;
             }
+        }
+
+        // ------------------------------------------------------------------
+        // ラグランジュ点
+        // ------------------------------------------------------------------
+
+        /// <summary>地球以外で最も重い天体。コロニーは数えない。無いときは -1。</summary>
+        public int HeaviestOtherThanEarth()
+        {
+            var best = -1;
+            var bestMass = 0f;
+
+            for (var i = 0; i < count; i++)
+            {
+                if (bodies[i].Kind == BodyKind.Earth || bodies[i].Kind == BodyKind.Colony)
+                {
+                    continue;
+                }
+
+                if (bodies[i].Mass <= bestMass)
+                {
+                    continue;
+                }
+
+                best = i;
+                bestMass = bodies[i].Mass;
+            }
+
+            return best;
+        }
+
+        /// <summary>月の軌道の離心率。0で円、1以上は地球に束縛されていない。無いときは -1。</summary>
+        public float MoonEccentricity()
+        {
+            var earth = EarthIndex;
+            var moon = HeaviestOtherThanEarth();
+            if (earth < 0 || moon < 0)
+            {
+                return -1f;
+            }
+
+            var offset = bodies[moon].Position - bodies[earth].Position;
+            var relative = bodies[moon].Velocity - bodies[earth].Velocity;
+
+            var distance = offset.magnitude;
+            if (distance < 1e-6f)
+            {
+                return -1f;
+            }
+
+            var mu = settings.Gravity * (bodies[earth].Mass + bodies[moon].Mass);
+            if (mu <= 0f)
+            {
+                return -1f;
+            }
+
+            var speed2 = relative.sqrMagnitude;
+            var dot = Vector3.Dot(offset, relative);
+
+            return ((speed2 - mu / distance) * offset - dot * relative).magnitude / mu;
+        }
+
+        /// <summary>月が運び先の距離に来たか。</summary>
+        private bool MoonAtTarget()
+        {
+            var earth = EarthIndex;
+            var moon = HeaviestOtherThanEarth();
+            if (earth < 0 || moon < 0)
+            {
+                return false;
+            }
+
+            var distance = Vector3.Distance(bodies[moon].Position, bodies[earth].Position);
+            var target = settings.MoonTargetRadii * bodies[earth].Radius;
+            return Mathf.Abs(distance - target) <= target * 0.06f;
+        }
+
+        /// <summary>
+        /// 地球と月のラグランジュ点 L4・L5 へコロニーを置く。
+        ///
+        /// L4・L5 は、地球と月と正三角形をつくる位置である。置いたあとは何もしない。
+        /// ほかの天体と同じ式で動き、留まるかどうかは計算が決める。
+        /// 留まるのは月の質量比が 0.0385 より小さいときだけで、条件を変えて月を
+        /// 重くすると留まらなくなることを確かめられる。
+        /// </summary>
+        private bool PlaceColonies()
+        {
+            var earth = EarthIndex;
+            var moon = HeaviestOtherThanEarth();
+            if (earth < 0 || moon < 0)
+            {
+                return false;
+            }
+
+            var offset = bodies[moon].Position - bodies[earth].Position;
+            var distance = offset.magnitude;
+            if (distance < 1e-3f)
+            {
+                return false;
+            }
+
+            var relative = bodies[moon].Velocity - bodies[earth].Velocity;
+
+            // 公転の角速度。ω = (r × v) / |r|^2
+            var spin = Vector3.Cross(offset, relative) / (distance * distance);
+            if (spin.sqrMagnitude < 1e-12f)
+            {
+                return false;
+            }
+
+            var earthMass = bodies[earth].Mass;
+            var moonMass = bodies[moon].Mass;
+            var total = earthMass + moonMass;
+
+            var center = (bodies[earth].Position * earthMass + bodies[moon].Position * moonMass) / total;
+            var centerVelocity = (bodies[earth].Velocity * earthMass + bodies[moon].Velocity * moonMass) / total;
+
+            var mass = settings.TotalMass * settings.ColonyMassFraction;
+
+            AddColony(earth, offset, spin, 60f, center, centerVelocity, mass);
+            AddColony(earth, offset, spin, -60f, center, centerVelocity, mass);
+            return true;
+        }
+
+        private void AddColony(
+            int earth, Vector3 offset, Vector3 spin, float degrees,
+            Vector3 center, Vector3 centerVelocity, float mass)
+        {
+            var position = bodies[earth].Position + Rotate(offset, spin.normalized, degrees);
+
+            // 速度は、重心のまわりを同じ角速度で回るものとして決める。
+            Add(new Body
+            {
+                Position = position,
+                Velocity = centerVelocity + Vector3.Cross(spin, position - center),
+                Mass = mass,
+                Radius = RadiusFor(mass),
+                Kind = BodyKind.Colony,
+                Alive = true
+            });
+        }
+
+        /// <summary>いまの L4・L5 の位置。degrees は +60 と -60 を渡す。</summary>
+        public Vector3 LagrangePoint(float degrees)
+        {
+            var earth = EarthIndex;
+            var moon = HeaviestOtherThanEarth();
+            if (earth < 0 || moon < 0)
+            {
+                return Vector3.zero;
+            }
+
+            var offset = bodies[moon].Position - bodies[earth].Position;
+            var relative = bodies[moon].Velocity - bodies[earth].Velocity;
+            var spin = Vector3.Cross(offset, relative);
+            if (spin.sqrMagnitude < 1e-12f)
+            {
+                return bodies[earth].Position;
+            }
+
+            return bodies[earth].Position + Rotate(offset, spin.normalized, degrees);
+        }
+
+        /// <summary>
+        /// コロニーが、いまの L4・L5 からどれだけずれているか。
+        /// 月までの距離を1とした割合。コロニーが無いときは -1。
+        /// </summary>
+        public float ColonyDrift()
+        {
+            var earth = EarthIndex;
+            var moon = HeaviestOtherThanEarth();
+            if (earth < 0 || moon < 0)
+            {
+                return -1f;
+            }
+
+            var distance = Vector3.Distance(bodies[moon].Position, bodies[earth].Position);
+            if (distance < 1e-3f)
+            {
+                return -1f;
+            }
+
+            var lead = LagrangePoint(60f);
+            var trail = LagrangePoint(-60f);
+
+            var worst = 0f;
+            var found = false;
+
+            for (var i = 0; i < count; i++)
+            {
+                if (bodies[i].Kind != BodyKind.Colony)
+                {
+                    continue;
+                }
+
+                found = true;
+
+                // 近いほうのラグランジュ点との差を見る。L4かL5かは問わない。
+                var gap = Mathf.Min(
+                    Vector3.Distance(bodies[i].Position, lead),
+                    Vector3.Distance(bodies[i].Position, trail)) / distance;
+
+                if (gap > worst)
+                {
+                    worst = gap;
+                }
+            }
+
+            return found ? worst : -1f;
+        }
+
+        /// <summary>軸のまわりに回す（ロドリゲスの回転公式）。</summary>
+        private static Vector3 Rotate(Vector3 value, Vector3 axis, float degrees)
+        {
+            var angle = degrees * Mathf.Deg2Rad;
+            var cos = Mathf.Cos(angle);
+            var sin = Mathf.Sin(angle);
+
+            return value * cos + Vector3.Cross(axis, value) * sin +
+                   axis * (Vector3.Dot(axis, value) * (1f - cos));
         }
 
         private int CountOtherThanEarth()

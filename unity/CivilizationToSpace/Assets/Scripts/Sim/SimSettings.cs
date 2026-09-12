@@ -122,6 +122,30 @@ namespace CivilizationToSpace.Sim
         /// <summary>破片が1つにまとまったと判定するまでの猶予。</summary>
         public float SettleDelay = 3f;
 
+        [Header("月の落ち着きとラグランジュ点")]
+        [Tooltip("月ができた直後の軌道を落ち着かせる強さ。0にすると月が落ちるか飛び去ります。")]
+        [Range(0f, 1.5f)]
+        public float TidalCircularise = 0.35f;
+
+        [Tooltip("月を運ぶ先。地球半径の何倍か。")]
+        public float MoonTargetRadii = 12f;
+
+        [Tooltip("ラグランジュ点にコロニーを置きます。")]
+        public bool ColonyEnabled = true;
+
+        [Tooltip("コロニーの質量。運動を乱さないよう、事実上の試験粒子にします。")]
+        public float ColonyMassFraction = 1e-7f;
+
+        [Tooltip("地球と月が落ち着いてからコロニーを置くまでの待ち時間。")]
+        public float ColonyDelay = 1.5f;
+
+        [Tooltip("この離心率より小さくなったら置きます。大きいまま置くと留まりません。")]
+        [Range(0.001f, 0.1f)]
+        public float ColonyMaxEccentricity = 0.005f;
+
+        [Tooltip("落ち着くのを待つ上限。過ぎたら、落ち着いていなくても置きます。")]
+        public float ColonySettleTimeout = 400f;
+
         public SimSettings Clone()
         {
             return (SimSettings)MemberwiseClone();

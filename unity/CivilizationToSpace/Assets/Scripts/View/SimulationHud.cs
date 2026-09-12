@@ -121,6 +121,22 @@ namespace CivilizationToSpace.View
                 .Append("%");
             builder.Append("　経過 ").Append(simulation.Time.ToString("0.0"));
 
+            // 月ができたあとは、軌道の楕円ぐあいも出す。L4・L5 が成り立つ条件だからである。
+            var eccentricity = simulation.MoonEccentricity();
+            if (eccentricity >= 0f)
+            {
+                builder.Append("　月の離心率 ").Append(eccentricity.ToString("0.000"));
+            }
+
+            if (simulation.Phase == SimPhase.Colony)
+            {
+                var drift = simulation.ColonyDrift();
+                if (drift >= 0f)
+                {
+                    builder.Append("　コロニーのずれ ").Append((drift * 100f).ToString("0.0")).Append('%');
+                }
+            }
+
             statusText.text = builder.ToString();
         }
 
@@ -139,7 +155,9 @@ namespace CivilizationToSpace.View
                 case SimPhase.MoonForming:
                     return "破片がまわりながら集まっている";
                 case SimPhase.Settled:
-                    return "地球と月になった";
+                    return "地球と月になった（軌道が落ち着いていく）";
+                case SimPhase.Colony:
+                    return "ラグランジュ点（L4・L5）にコロニーを置いた";
                 default:
                     return string.Empty;
             }

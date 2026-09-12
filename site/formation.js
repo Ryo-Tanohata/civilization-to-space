@@ -19,6 +19,15 @@
   LOOKS[KIND.IMPACTOR] = { color: [179, 82, 107], glow: 0.25 };
   LOOKS[KIND.DEBRIS] = { color: [242, 158, 77], glow: 0.7 };
   LOOKS[KIND.MOON] = { color: [184, 186, 194], glow: 0 };
+  LOOKS[KIND.COLONY] = { color: [190, 226, 246], glow: 0.9 };
+
+  /*
+   * コロニーを描く大きさ。地球の半径に対する割合。
+   *
+   * **実物の割合ではない。** オニール型の円筒は長さ数十kmで、月（直径3474km）の
+   * 1%ほどしかない。そのまま描くと画面に1画素も出ないため、見えるまで大きくしている。
+   */
+  var COLONY_DRAW_SCALE = 0.42;
 
   var COUNT_CHOICES = [120, 200, 280, 380, 520, 700];
   var AIM_CHOICES = [0, 0.4, 0.8, 1.2, 1.6];
@@ -68,6 +77,9 @@
   var sprites = [];
   var stars = null;
   var order = [];
+
+  /* コロニーを描くときの画面上の傾き。円盤の面の向きから毎フレーム決める。 */
+  var colonyAngle = 0;
 
   // ------------------------------------------------------------------
   // 球の絵
@@ -302,6 +314,8 @@
     var near = Math.max(0.05, distance * 0.01);
 
     drawStars(rx, ry, rz, ux, uy, uz, fx, fy, fz, focal, cx, cy);
+    updateColonyAngle(rx, ry, rz, ux, uy, uz);
+    drawLagrangeMarkers(camX, camY, camZ, rx, ry, rz, ux, uy, uz, fx, fy, fz, focal, cx, cy, near);
 
     var n = sim.count;
     if (order.length < n) { order = new Array(n); }
@@ -315,6 +329,11 @@
 
     for (var i = 0; i < visible; i++) {
       var item = depth[i];
+      if (item.kind === KIND.COLONY) {
+        drawColony(item, focal, cx, cy);
+        continue;
+      }
+
       var sprite = sprites[item.kind];
       if (!sprite) { continue; }
 
@@ -330,6 +349,35 @@
 
       ctx.drawImage(sprite.image, sx - size / 2, sy - size / 2, size, size);
     }
+  }
+
+  /* 円盤の面に垂直な向きを画面へ落として、円筒の傾きを決める。 */
+  function updateColonyAngle(rx, ry, rz, ux, uy, uz) {
+    var earth = sim.earthIndex;
+    var moon = sim.heaviestOtherThanEarth();
+    if (earth < 0 || moon < 0) { return; }
+
+    var ox = sim.px[moon] - sim.px[earth];
+    var oy = sim.py[moon] - sim.py[earth];
+    var oz = sim.pz[moon] - sim.pz[earth];
+    var vx = sim.vx[moon] - sim.vx[earth];
+    var vy = sim.vy[moon] - sim.vy[earth];
+    var vz = sim.vz[moon] - sim.vz[earth];
+
+    var nx = oy * vz - oz * vy;
+    var ny = oz * vx - ox * vz;
+    var nz = ox * vy - oy * vx;
+    var n = Math.sqrt(nx * nx + ny * ny + nz * nz);
+    if (n < 1e-9) { return; }
+
+    nx /= n; ny /= n; nz /= n;
+
+    var sx = nx * rx + ny * ry + nz * rz;
+    var sy = nx * ux + ny * uy + nz * uz;
+    if (Math.abs(sx) + Math.abs(sy) < 1e-6) { return; }
+
+    // 画面のyは下向きなので符号を反転する。
+    colonyAngle = Math.atan2(-sy, sx);
   }
 
   function drawBodiesPrepare(n, camX, camY, camZ, rx, ry, rz, ux, uy, uz, fx, fy, fz, near) {
@@ -351,6 +399,92 @@
       });
     }
     return list;
+  }
+
+  /*
+   * コロニーを円筒として描く。球ではないので、絵を使い回さず直接描く。
+   * 軸の向きは円盤の面に垂直にしている。太陽を置いていないためで、
+   * 実際のオニール型は軸を太陽へ向ける。
+   */
+  function drawColony(item, focal, cx, cy) {
+    var earthRadius = sim.earthIndex >= 0 ? sim.radius[sim.earthIndex] : 1;
+    var length = earthRadius * COLONY_DRAW_SCALE * focal / item.z;
+    if (length < 6) { length = 6; }
+    var width = length * 0.34;
+
+    var sx = cx + item.x * focal / item.z;
+    var sy = cy - item.y * focal / item.z;
+
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.rotate(colonyAngle);
+
+    // 円筒の胴。両端を丸めて、円筒らしく見せる。
+    ctx.fillStyle = 'rgba(190,226,246,0.95)';
+    ctx.beginPath();
+    if (ctx.roundRect) {
+      ctx.roundRect(-length / 2, -width / 2, length, width, width / 2);
+    } else {
+      ctx.rect(-length / 2, -width / 2, length, width);
+    }
+    ctx.fill();
+
+    // 窓の列。3本の帯で、回転する居住面を表す。
+    ctx.fillStyle = 'rgba(120,180,215,0.95)';
+    for (var k = -1; k <= 1; k++) {
+      ctx.fillRect(-length * 0.36, k * width * 0.28 - width * 0.055, length * 0.72, width * 0.11);
+    }
+
+    // 端の輪
+    ctx.strokeStyle = 'rgba(235,248,255,0.9)';
+    ctx.lineWidth = Math.max(1, width * 0.12);
+    ctx.beginPath();
+    ctx.ellipse(-length / 2, 0, width * 0.16, width / 2, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(length / 2, 0, width * 0.16, width / 2, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  /*
+   * L4・L5 のいまの位置に細い輪を描く。
+   * コロニーがその輪のまわりで振れていることが見て取れるようにするため。
+   */
+  function drawLagrangeMarkers(camX, camY, camZ, rx, ry, rz, ux, uy, uz, fx, fy, fz, focal, cx, cy, near) {
+    if (sim.phase !== Sim.PHASE.COLONY || sim.earthIndex < 0) { return; }
+
+    var moon = sim.heaviestOtherThanEarth();
+    if (moon < 0) { return; }
+
+    var ox = sim.px[moon] - sim.px[sim.earthIndex];
+    var oy = sim.py[moon] - sim.py[sim.earthIndex];
+    var oz = sim.pz[moon] - sim.pz[sim.earthIndex];
+
+    var labels = ['L4', 'L5'];
+    var signs = [60, -60];
+
+    for (var k = 0; k < 2; k++) {
+      var point = sim.lagrangePoint(sim.earthIndex, ox, oy, oz, signs[k]);
+      var dx = point[0] - camX, dy = point[1] - camY, dz = point[2] - camZ;
+      var z = dx * fx + dy * fy + dz * fz;
+      if (z <= near) { continue; }
+
+      var sx = cx + (dx * rx + dy * ry + dz * rz) * focal / z;
+      var sy = cy - (dx * ux + dy * uy + dz * uz) * focal / z;
+      var r = Math.max(7, sim.radius[sim.earthIndex] * 0.5 * focal / z);
+
+      ctx.strokeStyle = 'rgba(158,227,237,0.55)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(sx, sy, r, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgba(158,227,237,0.85)';
+      ctx.font = '11px system-ui, sans-serif';
+      ctx.fillText(labels[k], sx + r + 3, sy - r * 0.2);
+    }
   }
 
   function drawStars(rx, ry, rz, ux, uy, uz, fx, fy, fz, focal, cx, cy) {
@@ -395,10 +529,22 @@
     phaseText.textContent = Sim.phaseLabel(sim.phase);
 
     var share = sim.totalLiveMass > 0 ? sim.largestMass / sim.totalLiveMass * 100 : 0;
-    readout.textContent =
-      '天体 ' + sim.count + '個　合体 ' + sim.mergeEvents + '回　' +
+    var text = '天体 ' + sim.count + '個　合体 ' + sim.mergeEvents + '回　' +
       'いちばん重い塊 ' + share.toFixed(0) + '%　経過 ' + sim.time.toFixed(1) +
       '　種 ' + sim.settings.seed;
+
+    // 月ができたあとは、軌道の楕円ぐあいも出す。L4・L5 が成り立つ条件だからである。
+    var e = sim.moonEccentricity();
+    if (e >= 0) { text += '　月の離心率 ' + e.toFixed(3); }
+
+    if (sim.phase === Sim.PHASE.COLONY) {
+      var drift = sim.colonyDrift();
+      if (drift >= 0) {
+        text += '　コロニーのずれ ' + (drift * 100).toFixed(1) + '%';
+      }
+    }
+
+    readout.textContent = text;
   }
 
   function loop(now) {

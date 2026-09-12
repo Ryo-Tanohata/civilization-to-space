@@ -21,8 +21,11 @@ namespace CivilizationToSpace.Sim
         /// <summary>破片が周回しながら集まっていく。</summary>
         MoonForming,
 
-        /// <summary>地球と月が残り、落ち着いた。</summary>
-        Settled
+        /// <summary>地球と月が残り、軌道が落ち着いていく。</summary>
+        Settled,
+
+        /// <summary>ラグランジュ点 L4・L5 にコロニーを置いた。</summary>
+        Colony
     }
 
     /// <summary>
@@ -35,6 +38,9 @@ namespace CivilizationToSpace.Sim
         Earth,
         Impactor,
         Debris,
-        Moon
+        Moon,
+
+        /// <summary>ラグランジュ点に置いたスペースコロニー。質量は事実上0にする。</summary>
+        Colony
     }
 }

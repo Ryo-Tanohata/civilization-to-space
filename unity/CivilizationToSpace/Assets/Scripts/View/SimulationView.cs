@@ -21,10 +21,23 @@ namespace CivilizationToSpace.View
         private static readonly Color ImpactorColor = new Color(0.70f, 0.32f, 0.42f, 1f);
         private static readonly Color DebrisColor = new Color(0.95f, 0.62f, 0.30f, 1f);
         private static readonly Color MoonColor = new Color(0.72f, 0.73f, 0.76f, 1f);
+        private static readonly Color ColonyColor = new Color(0.75f, 0.89f, 0.96f, 1f);
 
-        private const int KindCount = 5;
+        private const int KindCount = 6;
+
+        /// <summary>
+        /// コロニーを描く大きさ。地球の半径に対する割合。
+        ///
+        /// **実物の割合ではない。** オニール型の円筒は長さ数十kmで、月（直径3474km）の
+        /// 1%ほどしかない。そのまま描くと1画素も出ないため、見えるまで大きくしている。
+        /// </summary>
+        private const float ColonyDrawScale = 0.42f;
 
         private Mesh sphere;
+        private Mesh cylinder;
+
+        /// <summary>コロニーの軸の向き。円盤の面に垂直にする。</summary>
+        private Vector3 colonyAxis = Vector3.up;
         private Material[] materials;
         private Matrix4x4[][] batches;
         private int[] used;
@@ -34,7 +47,8 @@ namespace CivilizationToSpace.View
 
         public void Build()
         {
-            sphere = BorrowSphereMesh();
+            sphere = BorrowMesh(PrimitiveType.Sphere);
+            cylinder = BorrowMesh(PrimitiveType.Cylinder);
 
             materials = new Material[KindCount];
             materials[(int)BodyKind.Planetesimal] = CreateMaterial(PlanetesimalColor, 0f);
@@ -42,6 +56,7 @@ namespace CivilizationToSpace.View
             materials[(int)BodyKind.Impactor] = CreateMaterial(ImpactorColor, 0.25f);
             materials[(int)BodyKind.Debris] = CreateMaterial(DebrisColor, 0.7f);
             materials[(int)BodyKind.Moon] = CreateMaterial(MoonColor, 0f);
+            materials[(int)BodyKind.Colony] = CreateMaterial(ColonyColor, 0.85f);
 
             batches = new Matrix4x4[KindCount][];
             used = new int[KindCount];
@@ -67,6 +82,12 @@ namespace CivilizationToSpace.View
             var count = simulation.Count;
             DrawnCount = count;
 
+            UpdateColonyAxis(simulation);
+
+            var earth = simulation.EarthIndex;
+            var earthRadius = earth >= 0 && earth < count ? bodies[earth].Radius : 1f;
+            var colonyRotation = Quaternion.FromToRotation(Vector3.up, colonyAxis);
+
             for (var i = 0; i < count; i++)
             {
                 var kind = (int)bodies[i].Kind;
@@ -81,10 +102,22 @@ namespace CivilizationToSpace.View
                     Flush(kind);
                 }
 
-                // 球の元の直径は1。半径ぶんの2倍に伸ばす。
-                var diameter = bodies[i].Radius * 2f;
-                batches[kind][used[kind]] = Matrix4x4.TRS(
-                    bodies[i].Position, Quaternion.identity, new Vector3(diameter, diameter, diameter));
+                if (bodies[i].Kind == BodyKind.Colony)
+                {
+                    // 円筒の元の高さは2、直径は1。見える大きさまで伸ばす。
+                    var length = earthRadius * ColonyDrawScale;
+                    var width = length * 0.34f;
+                    batches[kind][used[kind]] = Matrix4x4.TRS(
+                        bodies[i].Position, colonyRotation, new Vector3(width, length * 0.5f, width));
+                }
+                else
+                {
+                    // 球の元の直径は1。半径ぶんの2倍に伸ばす。
+                    var diameter = bodies[i].Radius * 2f;
+                    batches[kind][used[kind]] = Matrix4x4.TRS(
+                        bodies[i].Position, Quaternion.identity, new Vector3(diameter, diameter, diameter));
+                }
+
                 used[kind]++;
             }
 
@@ -129,9 +162,17 @@ namespace CivilizationToSpace.View
                 return;
             }
 
+            // コロニーだけは球ではない。円筒で描く。
+            var mesh = kind == (int)BodyKind.Colony ? cylinder : sphere;
+            if (mesh == null)
+            {
+                used[kind] = 0;
+                return;
+            }
+
             if (SystemInfo.supportsInstancing)
             {
-                Graphics.DrawMeshInstanced(sphere, 0, materials[kind], batches[kind], used[kind]);
+                Graphics.DrawMeshInstanced(mesh, 0, materials[kind], batches[kind], used[kind]);
             }
             else
             {
@@ -139,11 +180,35 @@ namespace CivilizationToSpace.View
                 // 遅いが、何も映らないよりはよい。
                 for (var i = 0; i < used[kind]; i++)
                 {
-                    Graphics.DrawMesh(sphere, batches[kind][i], materials[kind], 0);
+                    Graphics.DrawMesh(mesh, batches[kind][i], materials[kind], 0);
                 }
             }
 
             used[kind] = 0;
+        }
+
+        /// <summary>
+        /// コロニーの軸を、円盤の面に垂直な向きに合わせる。
+        /// 太陽を置いていないためこう決めている。実際のオニール型は軸を太陽へ向ける。
+        /// </summary>
+        private void UpdateColonyAxis(Sim.AccretionSimulation simulation)
+        {
+            var earth = simulation.EarthIndex;
+            var moon = simulation.HeaviestOtherThanEarth();
+            if (earth < 0 || moon < 0)
+            {
+                return;
+            }
+
+            var bodies = simulation.Bodies;
+            var normal = Vector3.Cross(
+                bodies[moon].Position - bodies[earth].Position,
+                bodies[moon].Velocity - bodies[earth].Velocity);
+
+            if (normal.sqrMagnitude > 1e-10f)
+            {
+                colonyAxis = normal.normalized;
+            }
         }
 
         private static Material CreateMaterial(Color color, float glow)
@@ -172,12 +237,12 @@ namespace CivilizationToSpace.View
         }
 
         /// <summary>
-        /// 組み込みの球メッシュを借りる。
+        /// 組み込みのメッシュを借りる。
         /// プリミティブを1つ作って、メッシュだけ受け取り、入れ物は捨てる。
         /// </summary>
-        private static Mesh BorrowSphereMesh()
+        private static Mesh BorrowMesh(PrimitiveType type)
         {
-            var temporary = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            var temporary = GameObject.CreatePrimitive(type);
             var filter = temporary.GetComponent<MeshFilter>();
             var mesh = filter != null ? filter.sharedMesh : null;
 
