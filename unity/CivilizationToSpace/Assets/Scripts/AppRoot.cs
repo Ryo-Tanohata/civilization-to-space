@@ -314,7 +314,7 @@ namespace CivilizationToSpace
                 formationObject.transform.position = EarthPosition;
                 formation = formationObject.AddComponent<FormationView>();
                 formation.SetMotionSettings(motion);
-                formation.Build(EarthView.Radius, HideFlags.None);
+                formation.Build(earth.transform, EarthView.Radius, HideFlags.None);
             }
 
             if (moonResult != null && moonResult.Ok)
@@ -394,6 +394,12 @@ namespace CivilizationToSpace
 
             playback.Tick(Time.deltaTime);
 
+            // 月が破片から集まってくる様子を、大きさの変化で表す。
+            if (moon != null && formation != null)
+            {
+                moon.SetBodyScale(timeline.HeadIndex >= 0 ? formation.MoonEmergence : 1f);
+            }
+
             // まだ焼いていない時代を1フレームに1つずつ用意する。
             // 再生中に初めて使う時代を焼くと、その瞬間だけ画面が止まる。
             if (earth != null && result != null && result.Ok)
@@ -425,14 +431,8 @@ namespace CivilizationToSpace
             var stages = formationResult.Formation.Stages;
             var stage = head >= 0 && head < stages.Count ? stages[head] : null;
 
+            // 塊の大きさは FormationView が時間をかけて動かす。ここでは指示だけ出す。
             formation.Apply(stage);
-            earth.transform.localScale = Vector3.one * (stage != null ? (float)stage.BodyScale : 1f);
-
-            // 月は、形成過程で現れてからあとは消さない。時代のあいだは画面の外にある。
-            if (moon != null)
-            {
-                moon.SetBodyVisible(stage == null || stage.Moon > 0.5d);
-            }
         }
 
         /// <summary>

@@ -39,7 +39,12 @@ namespace CivilizationToSpace.EditorTools
         /// 時代の移り変わりにかかる時間より長くする。短いと移り変わりの途中を撮り、
         /// 前後の時代が混ざった絵になる。
         /// </summary>
-        private const float SettleSeconds = 1.8f;
+        private const string SettleArgument = "-settleSeconds";
+
+        private static float SettleSeconds
+        {
+            get { return SessionState.GetFloat("CivilizationToSpace.CaptureTool.Settle", 1.8f); }
+        }
 
         private static int warmedFrames;
         private static float selectedAt;
@@ -72,6 +77,12 @@ namespace CivilizationToSpace.EditorTools
 
             ReadSize();
             ReadCatalogOverride();
+
+            var settle = ReadArgument(SettleArgument);
+            float parsedSettle;
+            SessionState.SetFloat(
+                "CivilizationToSpace.CaptureTool.Settle",
+                !string.IsNullOrEmpty(settle) && float.TryParse(settle, out parsedSettle) ? parsedSettle : 1.8f);
             Start(directory, true);
         }
 

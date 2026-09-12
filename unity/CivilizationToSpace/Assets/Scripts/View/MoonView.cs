@@ -79,6 +79,25 @@ namespace CivilizationToSpace.View
             }
         }
 
+        /// <summary>
+        /// 月が現れる度合い。0で見えず、1で本来の大きさ。
+        /// 破片から集まってくる様子を、大きさの変化で表す。
+        /// </summary>
+        public void SetBodyScale(float scale)
+        {
+            if (body == null)
+            {
+                return;
+            }
+
+            var clamped = Mathf.Clamp01(scale);
+            body.localScale = Vector3.one * clamped;
+            if (orbit != null)
+            {
+                orbit.gameObject.SetActive(clamped > 0.001f);
+            }
+        }
+
         public void SetMotionSettings(MotionSettings settings)
         {
             motion = settings;
