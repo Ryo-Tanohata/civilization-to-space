@@ -196,19 +196,16 @@ namespace CivilizationToSpace
                 return;
             }
 
-            float wideRadius;
-            if (timeline.TailIndex >= 0 && moon != null)
-            {
-                wideRadius = MoonView.FramedRadius;
-            }
-            else if (timeline.HeadIndex >= 0 && formation != null)
-            {
-                wideRadius = formation.FramedRadius;
-            }
-            else
-            {
-                wideRadius = 0f;
-            }
+            // どの段階でも同じ引きにする。宇宙から地球と月を眺めている、という一つの視点を
+            // 通して保つためである。段階ごとに引きを変えると、進めるたびに画面が飛び、
+            // 地球へ寄ったり離れたりして、同じ場所を見ている感じが途切れる。
+            //
+            // 必要な広さは2つあり、広いほうに合わせる。
+            //   ・月の軌道まで入る広さ（月が画面から出ないように）
+            //   ・微惑星が現れる位置まで入る広さ（外から近づく様子が見えるように）
+            var wideRadius = Mathf.Max(
+                MoonView.FramedRadius,
+                formation != null ? formation.FramedRadius : 0f);
 
             var wide = wideRadius > 0f;
             if (framing.WideMode == wide && Mathf.Approximately(framing.WideRadius, wideRadius))

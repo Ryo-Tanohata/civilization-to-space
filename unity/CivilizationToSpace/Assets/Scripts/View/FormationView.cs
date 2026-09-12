@@ -27,6 +27,12 @@ namespace CivilizationToSpace.View
         /// <summary>小さな天体が現れる距離。地球の半径を1としたときの倍率。</summary>
         private const float SwarmStartRadius = 3.4f;
 
+        /// <summary>
+        /// 微惑星が地表へ届くまでに地球のまわりを回る回数。
+        /// 少なすぎるとまっすぐ落ちて見え、多すぎると近づいていることが読めない。
+        /// </summary>
+        private const float SwarmTurns = 2.25f;
+
         /// <summary>破片の輪の半径。</summary>
         private const float DebrisRadius = 2.0f;
 
@@ -73,7 +79,16 @@ namespace CivilizationToSpace.View
 
         private GameObject[] swarm;
         private float[] swarmProgress;
-        private Vector3[] swarmDirections;
+
+        /// <summary>軌道面を表す直交する2本。位置は この2本の合成で決める。</summary>
+        private Vector3[] swarmAxisU;
+        private Vector3[] swarmAxisV;
+
+        /// <summary>軌道のつぶれ具合。0で円、1に近いほど細長い楕円。</summary>
+        private float[] swarmEccentricity;
+
+        /// <summary>軌道上のどこから始めるか。</summary>
+        private float[] swarmPhase;
 
         private GameObject[] debris;
         private Vector3[] debrisTargets;
@@ -272,16 +287,72 @@ namespace CivilizationToSpace.View
 
                 if (swarmProgress[i] >= 1f)
                 {
-                    // 表面へ届いた。跡の光を残して、外から出し直す。
-                    SpawnFlash(swarmDirections[i] * surface, earthRadius * 0.12f);
+                    // 表面へ届いた。跡の光を残して、別の軌道で出し直す。
+                    SpawnFlash(SwarmPosition(i, 1f, surface), earthRadius * 0.12f);
                     swarmProgress[i] = 0f;
-                    swarmDirections[i] = Random.onUnitSphere;
+                    ResetSwarmOrbit(i);
                 }
 
-                var distance = Mathf.Lerp(earthRadius * SwarmStartRadius, surface, swarmProgress[i]);
-                swarm[i].transform.localPosition = swarmDirections[i] * distance;
+                swarm[i].transform.localPosition = SwarmPosition(i, swarmProgress[i], surface);
                 swarm[i].transform.Rotate(Vector3.one, 120f * Time.deltaTime, Space.Self);
             }
+        }
+
+        /// <summary>
+        /// 微惑星ひとつの位置を、楕円軌道の上で求める。
+        ///
+        /// **この形にしている根拠。**
+        /// 地球は、重力で引き寄せられた小天体が衝突と合体を繰り返して育った、
+        /// というのが標準的な説明である。NASAの天体生物学の教材は
+        /// 「planetesimals が質量を得るほど重力が強まり、まわりの大小の物体を引き寄せた」
+        /// 「原始惑星が育つと、その強い重力が微惑星との高速の衝突を数多く生んだ」と述べ、
+        /// 最後は月を生んだ巨大衝突で地球の成長が終わった、としている。
+        /// 重力に引かれた軌道は円ではなく楕円になり、ぶつかるまでのあいだ
+        /// 天体は地球のまわりを回りながら近づく。まっすぐ落とすと、その過程が消えてしまう。
+        ///
+        /// 参照した公的資料：
+        ///   NASA Astrobiology「How did our Solar System form?」
+        ///   https://astrobiology.nasa.gov/education/alp/how-did-our-solar-system-form/
+        ///   Lunar and Planetary Institute「Active Accretion」
+        ///   https://www.lpi.usra.edu/education/orexlaunch/Active%20Accretion.pdf
+        ///
+        /// **数値の意味。** 半長径・離心率・周回数は見やすさのために決めた値であり、
+        /// 実際の軌道要素でも、衝突の頻度でも、かかった時間でもない。
+        /// </summary>
+        /// <param name="index">何番目の微惑星か。</param>
+        /// <param name="progress">0で軌道の外側、1で地表。</param>
+        /// <param name="surface">いまの地表までの距離。</param>
+        private Vector3 SwarmPosition(int index, float progress, float surface)
+        {
+            // 半長径が縮んでいく。これが「だんだん近づく」ことにあたる。
+            var apart = Mathf.Lerp(earthRadius * SwarmStartRadius, surface, progress);
+
+            // 近づくほど円に近づける。最後まで細長いと、地表を素通りして見える。
+            var eccentricity = swarmEccentricity[index] * (1f - progress);
+
+            var angle = swarmPhase[index] + progress * SwarmTurns * Mathf.PI * 2f;
+
+            // 焦点を地球に置いた楕円。angle=0 が最も遠い側になる。
+            var radius = apart * (1f - eccentricity * eccentricity)
+                         / (1f + eccentricity * Mathf.Cos(angle));
+
+            return (swarmAxisU[index] * Mathf.Cos(angle) + swarmAxisV[index] * Mathf.Sin(angle)) * radius;
+        }
+
+        /// <summary>微惑星に新しい軌道面と形を割り当てる。</summary>
+        private void ResetSwarmOrbit(int index)
+        {
+            var normal = Random.onUnitSphere;
+            var u = Vector3.Cross(normal, Vector3.up);
+            if (u.sqrMagnitude < 0.001f)
+            {
+                u = Vector3.Cross(normal, Vector3.forward);
+            }
+
+            swarmAxisU[index] = u.normalized;
+            swarmAxisV[index] = Vector3.Cross(normal, swarmAxisU[index]).normalized;
+            swarmEccentricity[index] = Random.Range(0.25f, 0.55f);
+            swarmPhase[index] = Random.Range(0f, Mathf.PI * 2f);
         }
 
         /// <summary>
@@ -538,7 +609,10 @@ namespace CivilizationToSpace.View
         {
             swarm = new GameObject[SwarmPoolSize];
             swarmProgress = new float[SwarmPoolSize];
-            swarmDirections = new Vector3[SwarmPoolSize];
+            swarmAxisU = new Vector3[SwarmPoolSize];
+            swarmAxisV = new Vector3[SwarmPoolSize];
+            swarmEccentricity = new float[SwarmPoolSize];
+            swarmPhase = new float[SwarmPoolSize];
 
             var material = CreateRockMaterial(RockColor, 0.25f, flags);
 
@@ -553,7 +627,7 @@ namespace CivilizationToSpace.View
 
                 swarm[i] = item;
                 swarmProgress[i] = i / (float)SwarmPoolSize;
-                swarmDirections[i] = Random.onUnitSphere;
+                ResetSwarmOrbit(i);
             }
         }
 
