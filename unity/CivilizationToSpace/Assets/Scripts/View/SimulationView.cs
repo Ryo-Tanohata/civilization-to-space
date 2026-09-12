@@ -8,7 +8,7 @@ namespace CivilizationToSpace.View
     ///
     /// 数百個をひとつずつ GameObject にすると、合体のたびに生成と破棄が起き、
     /// スマートフォンでは描画より先にそちらで止まる。ひとつの球を使い回し、
-    /// 種別ごとにまとめて描く（<see cref="Graphics.DrawMeshInstanced"/>）。
+    /// 種別ごとにまとめて描く（<see cref="Graphics.RenderMeshInstanced"/>）。
     /// 位置はシミュレーションが持ち、こちらは毎フレーム読むだけである。
     /// </summary>
     public sealed class SimulationView
@@ -32,6 +32,15 @@ namespace CivilizationToSpace.View
         /// 1%ほどしかない。そのまま描くと1画素も出ないため、見えるまで大きくしている。
         /// </summary>
         private const float ColonyDrawScale = 0.42f;
+
+        /// <summary>
+        /// 描画してよい範囲。
+        ///
+        /// <see cref="Graphics.RenderMeshInstanced"/> は範囲を自分で渡す必要がある。
+        /// 既定のままだと原点付近の小さな箱とみなされ、外にある天体が消えてしまう。
+        /// 系の広がり（最大でも半径40ほど）を十分に包む大きさにしてある。
+        /// </summary>
+        private static readonly Bounds WorldBounds = new Bounds(Vector3.zero, Vector3.one * 4000f);
 
         private Mesh sphere;
         private Mesh cylinder;
@@ -170,9 +179,18 @@ namespace CivilizationToSpace.View
                 return;
             }
 
+            // Unity 6 で Graphics.DrawMeshInstanced は非推奨になった。
+            // 置き換え先の RenderMeshInstanced は描画の条件を RenderParams で渡す。
+            var parameters = new RenderParams(materials[kind])
+            {
+                worldBounds = WorldBounds,
+                receiveShadows = true,
+                shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On
+            };
+
             if (SystemInfo.supportsInstancing)
             {
-                Graphics.DrawMeshInstanced(mesh, 0, materials[kind], batches[kind], used[kind]);
+                Graphics.RenderMeshInstanced(parameters, mesh, 0, batches[kind], used[kind]);
             }
             else
             {
@@ -180,7 +198,7 @@ namespace CivilizationToSpace.View
                 // 遅いが、何も映らないよりはよい。
                 for (var i = 0; i < used[kind]; i++)
                 {
-                    Graphics.DrawMesh(mesh, batches[kind][i], materials[kind], 0);
+                    Graphics.RenderMesh(parameters, mesh, 0, batches[kind][i]);
                 }
             }
 

@@ -75,7 +75,7 @@ namespace CivilizationToSpace.EditorTools
 
         private static void SetUpLight()
         {
-            var light = Object.FindObjectOfType<Light>();
+            var light = Object.FindAnyObjectByType<Light>();
             if (light == null || light.type != LightType.Directional)
             {
                 return;
