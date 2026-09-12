@@ -154,6 +154,93 @@ namespace CivilizationToSpace.View
             return rect;
         }
 
+        /// <summary>
+        /// 左上の列。右端を「右パネルの左端」に合わせる。高さは中身に合わせて伸びる。
+        ///
+        /// 幅を <see cref="ReferenceResolution"/> から計算すると、縦長の画面で
+        /// 実際の横幅より広くなり、右パネルの下へ文字が潜り込む。割合で決めれば重ならない。
+        /// </summary>
+        public static RectTransform TopLeftColumn(RectTransform rect, float widthFraction, float margin, float top)
+        {
+            rect.anchorMin = new Vector2(0f, 1f);
+            rect.anchorMax = new Vector2(1f - widthFraction, 1f);
+            rect.pivot = new Vector2(0.5f, 1f);
+            rect.offsetMin = new Vector2(margin, rect.offsetMin.y);
+            rect.offsetMax = new Vector2(-margin, -top);
+            AddContentHeight(rect);
+            return rect;
+        }
+
+        /// <summary>
+        /// 下端に貼り付ける縦の積み重ね。高さは中身の合計になる。
+        /// 帯ごとに位置を数値で決めると、行が増えたときに必ず重なる。
+        /// </summary>
+        public static RectTransform BottomStack(RectTransform rect, float side, float bottom, float spacing)
+        {
+            rect.anchorMin = new Vector2(0f, 0f);
+            rect.anchorMax = new Vector2(1f, 0f);
+            rect.pivot = new Vector2(0.5f, 0f);
+            rect.anchoredPosition = new Vector2(0f, bottom);
+            rect.sizeDelta = new Vector2(-side * 2f, 0f);
+
+            var layout = rect.gameObject.AddComponent<VerticalLayoutGroup>();
+            layout.padding = new RectOffset(0, 0, 0, 0);
+            layout.spacing = spacing;
+            layout.childAlignment = TextAnchor.LowerCenter;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = true;
+            layout.childForceExpandHeight = false;
+
+            AddContentHeight(rect);
+            return rect;
+        }
+
+        /// <summary>高さを中身に合わせる。</summary>
+        public static ContentSizeFitter AddContentHeight(RectTransform rect)
+        {
+            var fitter = rect.GetComponent<ContentSizeFitter>();
+            if (fitter == null)
+            {
+                fitter = rect.gameObject.AddComponent<ContentSizeFitter>();
+            }
+
+            fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            return fitter;
+        }
+
+        /// <summary>
+        /// 絵だけのボタン。文字を持たない。
+        /// 段階が15個あると、狭い画面では名前が1文字ずつ縦に折り返されて読めなくなる。
+        /// 名前と説明は <see cref="LongPressInfo"/> が長押しで出す。
+        /// </summary>
+        public static Button CreateIconButton(Transform parent, string name, Sprite icon, Color background)
+        {
+            var rect = CreateRect(parent, name);
+
+            var image = rect.gameObject.AddComponent<Image>();
+            image.color = background;
+            image.raycastTarget = true;
+
+            var button = rect.gameObject.AddComponent<Button>();
+            button.targetGraphic = image;
+            button.colors = MakeColors(background);
+
+            var iconRect = CreateRect(rect, "Icon");
+            Stretch(iconRect, 5f, 5f, 5f, 5f);
+
+            var iconImage = iconRect.gameObject.AddComponent<Image>();
+            iconImage.sprite = icon;
+            iconImage.preserveAspect = true;
+            iconImage.raycastTarget = false;
+
+            // 絵が無いときは空の四角を出さない。押せることだけは残す。
+            iconImage.enabled = icon != null;
+
+            return button;
+        }
+
         /// <summary>下端に横いっぱいの帯を作る。</summary>
         public static RectTransform BottomBar(RectTransform rect, float height, float side, float bottom)
         {
