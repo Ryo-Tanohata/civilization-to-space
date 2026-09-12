@@ -52,6 +52,7 @@ docs/
   design/STORYBOARD.md
   design/BROWSER_MOCK_SPEC.md
   planning/IMPLEMENTATION_ORDER_R1_P1.md
+  planning/IMPLEMENTATION_ORDER_AFTER_R1_P1.md
   design/DATA_INTERCHANGE_R1.md
   reports/P0_BROWSER_MOCK_IMPLEMENTATION.md
   reports/R2_P0_HUMAN_REVIEW.md
@@ -101,5 +102,6 @@ unity/CivilizationToSpace/
 - [R2-P0レビュー報告](docs/reports/R2_P0_HUMAN_REVIEW.md)
 - [R1-P0レビュー報告](docs/reports/R1_P0_HUMAN_REVIEW.md)
 - [R1-P1実装順序](docs/planning/IMPLEMENTATION_ORDER_R1_P1.md)
+- [R1-P1以降の実装順序](docs/planning/IMPLEMENTATION_ORDER_AFTER_R1_P1.md)
 - [データ交換形式](docs/design/DATA_INTERCHANGE_R1.md)
 - [R1-P1実装報告](docs/reports/R1_P1_UNITY_IMPLEMENTATION.md)
