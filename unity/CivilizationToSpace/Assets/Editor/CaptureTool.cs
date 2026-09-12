@@ -23,6 +23,7 @@ namespace CivilizationToSpace.EditorTools
         private const string ExitKey = "CivilizationToSpace.CaptureTool.Exit";
         private const string DirectoryArgument = "-outputDir";
         private const string SizeArgument = "-captureSize";
+        private const string CatalogArgument = "-catalogPath";
 
         private const int DefaultWidth = 1280;
         private const int DefaultHeight = 720;
@@ -33,11 +34,15 @@ namespace CivilizationToSpace.EditorTools
         /// <summary>Awake と最初の描画が済むまで回すフレーム数。</summary>
         private const int WarmUpFrames = 8;
 
-        /// <summary>時代を選んでから撮るまでに挟むフレーム数。</summary>
-        private const int SettleFrames = 3;
+        /// <summary>
+        /// 時代を選んでから撮るまでに待つ秒数。
+        /// 時代の移り変わりは0.6秒かけて補間されるため、
+        /// フレーム数で待つと補間の途中を撮ってしまう。
+        /// </summary>
+        private const float SettleSeconds = 0.9f;
 
         private static int warmedFrames;
-        private static int settledFrames;
+        private static float selectedAt;
         private static int nextIndex;
         private static bool selected;
         private static bool failed;
@@ -66,6 +71,7 @@ namespace CivilizationToSpace.EditorTools
             }
 
             ReadSize();
+            ReadCatalogOverride();
             Start(directory, true);
         }
 
@@ -109,6 +115,16 @@ namespace CivilizationToSpace.EditorTools
             get { return SessionState.GetInt(HeightKey, DefaultHeight); }
         }
 
+        /// <summary>
+        /// 異常系の確認用に、読込先を一時フォルダの複製へ差し替える。
+        /// リポジトリ内のJSONは書き換えない。
+        /// </summary>
+        private static void ReadCatalogOverride()
+        {
+            var path = ReadArgument(CatalogArgument);
+            SessionState.SetString(AppRoot.CatalogPathOverrideKey, path ?? string.Empty);
+        }
+
         private static void Start(string directory, bool exitWhenDone)
         {
             Directory.CreateDirectory(directory);
@@ -132,7 +148,7 @@ namespace CivilizationToSpace.EditorTools
             }
 
             warmedFrames = 0;
-            settledFrames = 0;
+            selectedAt = 0f;
             nextIndex = 0;
             selected = false;
             failed = false;
@@ -193,13 +209,12 @@ namespace CivilizationToSpace.EditorTools
                 timeline.Select(nextIndex);
                 Canvas.ForceUpdateCanvases();
                 selected = true;
-                settledFrames = 0;
+                selectedAt = Time.realtimeSinceStartup;
                 return;
             }
 
-            if (settledFrames < SettleFrames)
+            if (Time.realtimeSinceStartup - selectedAt < SettleSeconds)
             {
-                settledFrames++;
                 return;
             }
 

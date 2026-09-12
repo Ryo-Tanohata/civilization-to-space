@@ -31,6 +31,8 @@ namespace CivilizationToSpace
 
         private CatalogLoadResult result;
         private EraTimeline timeline;
+        private TimelinePlayback playback;
+        private MotionSettings motion;
         private EarthView earth;
         private DemoHud hud;
 
@@ -44,6 +46,15 @@ namespace CivilizationToSpace
         public EraTimeline Timeline
         {
             get { return timeline; }
+        }
+
+        /// <summary>
+        /// 自動再生。R2-P1はここから IsPlaying を読み、RequestStop を呼ぶ。
+        /// それ以外に依存しない。
+        /// </summary>
+        public TimelinePlayback Playback
+        {
+            get { return playback; }
         }
 
         /// <summary>読込に失敗したかどうか。真のとき操作を無効化する。</summary>
@@ -124,8 +135,7 @@ namespace CivilizationToSpace
                 return;
             }
 
-            var path = Path.Combine(Application.streamingAssetsPath, EraCatalogLoader.EraCatalogFileName);
-            var loaded = EraCatalogLoader.LoadFromFile(path);
+            var loaded = EraCatalogLoader.LoadFromFile(ResolveCatalogPath());
             if (!loaded.Ok)
             {
                 return;
@@ -164,10 +174,28 @@ namespace CivilizationToSpace
             }
         }
 
+        /// <summary>
+        /// 検証のために読込先を差し替えるためのキー。エディタでのみ効く。
+        /// 異常系を確かめるとき、リポジトリ内のJSONを書き換えず、一時フォルダの複製を読ませる。
+        /// </summary>
+        public const string CatalogPathOverrideKey = "CivilizationToSpace.CatalogPathOverride";
+
+        private static string ResolveCatalogPath()
+        {
+#if UNITY_EDITOR
+            var overridePath = UnityEditor.SessionState.GetString(CatalogPathOverrideKey, string.Empty);
+            if (!string.IsNullOrEmpty(overridePath))
+            {
+                return overridePath;
+            }
+#endif
+            return Path.Combine(Application.streamingAssetsPath, EraCatalogLoader.EraCatalogFileName);
+        }
+
         private void Load()
         {
             // 絶対パスにはユーザー名が含まれる。本リポジトリはPublicであるため、パスを出力しない。
-            var path = Path.Combine(Application.streamingAssetsPath, EraCatalogLoader.EraCatalogFileName);
+            var path = ResolveCatalogPath();
             result = EraCatalogLoader.LoadFromFile(path);
 
             if (LoadFailed)
@@ -177,6 +205,8 @@ namespace CivilizationToSpace
             }
 
             timeline = new EraTimeline(result.Catalog.Eras);
+            playback = new TimelinePlayback(timeline);
+            motion = new MotionSettings();
             Debug.Log(BuildSummary(result));
         }
 
@@ -205,13 +235,14 @@ namespace CivilizationToSpace
             earthObject.transform.SetParent(transform, false);
             earthObject.transform.position = EarthPosition;
             earth = earthObject.AddComponent<EarthView>();
+            earth.SetMotionSettings(motion);
             earth.Build();
 
-            AttachFraming(camera);
+            var framing = AttachFraming(camera);
             hud.Build(camera, catalog.Title, catalog.Disclaimer, catalog.ParameterNote);
 
             timeline.Changed += OnEraChanged;
-            hud.Bind(timeline);
+            hud.Bind(timeline, playback, motion, framing);
             earth.Apply(timeline.Current.Visual);
         }
 
@@ -219,11 +250,11 @@ namespace CivilizationToSpace
         /// カメラの位置を画面の大きさから決め直させる。
         /// 固定値のままだと、ウィンドウの縦横比によって地球がはみ出す。
         /// </summary>
-        private static void AttachFraming(Camera camera)
+        private static EarthFraming AttachFraming(Camera camera)
         {
             if (camera == null)
             {
-                return;
+                return null;
             }
 
             var framing = camera.GetComponent<EarthFraming>();
@@ -234,7 +265,37 @@ namespace CivilizationToSpace
 
             framing.Target = EarthPosition;
             framing.Radius = EarthView.Radius;
+            framing.Zoom = 1f;
             framing.Apply();
+
+            if (camera.GetComponent<EarthCameraControl>() == null)
+            {
+                camera.gameObject.AddComponent<EarthCameraControl>();
+            }
+
+            return framing;
+        }
+
+        /// <summary>
+        /// 動きを減らす設定を外から切り替える。点検ツールが使う。
+        /// 画面のトグルと同じ経路を通す。
+        /// </summary>
+        public void SetReducedMotionForTesting(bool reduced)
+        {
+            if (motion != null)
+            {
+                motion.Reduced = reduced;
+            }
+        }
+
+        private void Update()
+        {
+            if (!Application.isPlaying || playback == null)
+            {
+                return;
+            }
+
+            playback.Tick(Time.deltaTime);
         }
 
         private void OnEraChanged(EraData era)

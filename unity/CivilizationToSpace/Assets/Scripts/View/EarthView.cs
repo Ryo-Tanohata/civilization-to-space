@@ -50,6 +50,27 @@ namespace CivilizationToSpace.View
 
         private GameObject[] satellites;
 
+        /// <summary>自転させる入れ物。層はすべてこの下に置く。カメラは回さない。</summary>
+        private Transform spin;
+
+        /// <summary>衛星の周回用。地球本体とは別の速さで回す。</summary>
+        private Transform satelliteRing;
+
+        /// <summary>自転の速さ（度／秒）。低く保ち、平面の円ではないと分かる程度に留める。</summary>
+        private const float SpinDegreesPerSecond = 3f;
+
+        /// <summary>衛星の周回の速さ（度／秒）。</summary>
+        private const float OrbitDegreesPerSecond = 6f;
+
+        /// <summary>時代を切り替えたときの補間の長さ（秒）。</summary>
+        private const float TransitionSeconds = 0.6f;
+
+        private MotionSettings motion;
+        private Snapshot from;
+        private Snapshot to;
+        private float transition = 1f;
+        private bool hasState;
+
         /// <summary>
         /// 生成物に付ける印。編集中のプレビューでは DontSave を渡し、
         /// シーンへ保存されないようにする。
@@ -61,9 +82,21 @@ namespace CivilizationToSpace.View
             Build(HideFlags.None);
         }
 
+        /// <summary>動きの設定を渡す。渡さない場合は常に動く。</summary>
+        public void SetMotionSettings(MotionSettings settings)
+        {
+            motion = settings;
+        }
+
         public void Build(HideFlags flags)
         {
             createdFlags = flags;
+
+            var spinObject = new GameObject("Spin");
+            spinObject.hideFlags = flags;
+            spinObject.transform.SetParent(transform, false);
+            spin = spinObject.transform;
+
             baseMaterial = CreateOpaque(FallbackColor);
             CreateSphere("Base", 1.000f, baseMaterial);
 
@@ -82,37 +115,124 @@ namespace CivilizationToSpace.View
             BuildSatellites();
         }
 
-        /// <summary>時代の視覚値を写す。呼ばれるたびに全体を上書きする。</summary>
+        /// <summary>
+        /// 時代の視覚値を写す。動きを減らしていなければ、少しかけて移り変わる。
+        /// 衛星の個数だけは補間しない。個数は連続量ではないためである。
+        /// </summary>
         public void Apply(EraVisual visual)
         {
-            var earthColor = ParseColor(visual.EarthColor);
-            var emissionColor = ParseColor(visual.EmissionColor);
+            var next = Snapshot.From(visual);
 
-            var ocean = (float)visual.OceanLevel;
-            var vegetation = (float)visual.Vegetation;
-            var ice = (float)visual.IceCoverage;
-            var cloud = (float)visual.CloudDensity;
-            var volcano = (float)visual.VolcanicActivity;
-            var city = (float)visual.CityLights;
+            var instant = !hasState || (motion != null && motion.Reduced);
+            from = instant ? next : Current();
+            to = next;
+            transition = instant ? 1f : 0f;
+            hasState = true;
 
+            ApplySatellites(visual.SatelliteCount);
+            Push(instant ? next : from);
+        }
+
+        private void Update()
+        {
+            var reduced = motion != null && motion.Reduced;
+
+            if (!reduced)
+            {
+                if (spin != null)
+                {
+                    spin.Rotate(Vector3.up, SpinDegreesPerSecond * Time.deltaTime, Space.Self);
+                }
+
+                if (satelliteRing != null)
+                {
+                    satelliteRing.Rotate(Vector3.up, OrbitDegreesPerSecond * Time.deltaTime, Space.Self);
+                }
+            }
+
+            if (transition >= 1f)
+            {
+                return;
+            }
+
+            if (reduced)
+            {
+                // 途中で動きを減らした場合は、そこで補間を打ち切って目的の見た目にする。
+                transition = 1f;
+                Push(to);
+                return;
+            }
+
+            transition = Mathf.Min(1f, transition + Time.deltaTime / TransitionSeconds);
+            Push(Snapshot.Lerp(from, to, transition));
+        }
+
+        private Snapshot Current()
+        {
+            return transition >= 1f ? to : Snapshot.Lerp(from, to, transition);
+        }
+
+        /// <summary>補間できる形にした視覚値。層への書き込みはここを通す。</summary>
+        private struct Snapshot
+        {
+            public Color Earth;
+            public Color Emission;
+            public float Ocean;
+            public float Vegetation;
+            public float Ice;
+            public float Cloud;
+            public float Volcano;
+            public float City;
+
+            public static Snapshot From(EraVisual visual)
+            {
+                return new Snapshot
+                {
+                    Earth = ParseColor(visual.EarthColor),
+                    Emission = ParseColor(visual.EmissionColor),
+                    Ocean = (float)visual.OceanLevel,
+                    Vegetation = (float)visual.Vegetation,
+                    Ice = (float)visual.IceCoverage,
+                    Cloud = (float)visual.CloudDensity,
+                    Volcano = (float)visual.VolcanicActivity,
+                    City = (float)visual.CityLights
+                };
+            }
+
+            public static Snapshot Lerp(Snapshot a, Snapshot b, float t)
+            {
+                return new Snapshot
+                {
+                    Earth = Color.Lerp(a.Earth, b.Earth, t),
+                    Emission = Color.Lerp(a.Emission, b.Emission, t),
+                    Ocean = Mathf.Lerp(a.Ocean, b.Ocean, t),
+                    Vegetation = Mathf.Lerp(a.Vegetation, b.Vegetation, t),
+                    Ice = Mathf.Lerp(a.Ice, b.Ice, t),
+                    Cloud = Mathf.Lerp(a.Cloud, b.Cloud, t),
+                    Volcano = Mathf.Lerp(a.Volcano, b.Volcano, t),
+                    City = Mathf.Lerp(a.City, b.City, t)
+                };
+            }
+        }
+
+        private void Push(Snapshot state)
+        {
             // 海→植生→氷の順に混ぜる。氷を最後にすると、凍結の時代が白く読める。
-            var surface = earthColor;
-            surface = Color.Lerp(surface, OceanColor, ocean * OceanMix);
-            surface = Color.Lerp(surface, VegetationColor, vegetation * VegetationMix);
-            surface = Color.Lerp(surface, IceColor, ice * IceMix);
+            var surface = state.Earth;
+            surface = Color.Lerp(surface, OceanColor, state.Ocean * OceanMix);
+            surface = Color.Lerp(surface, VegetationColor, state.Vegetation * VegetationMix);
+            surface = Color.Lerp(surface, IceColor, state.Ice * IceMix);
             surface.a = 1f;
 
             baseMaterial.color = surface;
-            SetEmission(baseMaterial, earthColor * 0.10f + VolcanoColor * (volcano * 0.75f));
+            SetEmission(baseMaterial, state.Earth * 0.10f + VolcanoColor * (state.Volcano * 0.75f));
 
-            SetAlpha(volcanoMaterial, VolcanoColor, volcano * 0.55f);
-            SetAlpha(cityMaterial, CityColor, city * 0.40f);
-            SetAlpha(cloudMaterial, CloudColor, cloud * 0.32f);
+            SetAlpha(volcanoMaterial, VolcanoColor, state.Volcano * 0.55f);
+            SetAlpha(cityMaterial, CityColor, state.City * 0.40f);
+            SetAlpha(cloudMaterial, CloudColor, state.Cloud * 0.32f);
 
-            SetAlpha(atmosphereMaterial, emissionColor, 0.32f);
-            SetEmission(atmosphereMaterial, emissionColor * 0.75f);
-
-            ApplySatellites(visual.SatelliteCount);
+            SetAlpha(atmosphereMaterial, state.Emission, 0.32f);
+            SetEmission(atmosphereMaterial, state.Emission * 0.75f);
         }
 
         private void BuildSatellites()
@@ -125,6 +245,7 @@ namespace CivilizationToSpace.View
             ring.hideFlags = createdFlags;
             ring.transform.SetParent(transform, false);
             ring.transform.localRotation = Quaternion.Euler(24f, 0f, 12f);
+            satelliteRing = ring.transform;
 
             for (var i = 0; i < SatellitePoolSize; i++)
             {
@@ -159,7 +280,7 @@ namespace CivilizationToSpace.View
             sphere.name = name;
             sphere.hideFlags = createdFlags;
             SafeDestroy(sphere.GetComponent<Collider>());
-            sphere.transform.SetParent(transform, false);
+            sphere.transform.SetParent(spin != null ? spin : transform, false);
             sphere.transform.localScale = Vector3.one * (BaseRadius * 2f * radiusScale);
             sphere.GetComponent<Renderer>().sharedMaterial = material;
         }
@@ -253,6 +374,9 @@ namespace CivilizationToSpace.View
             SafeDestroy(cityMaterial);
             SafeDestroy(atmosphereMaterial);
             satellites = null;
+            spin = null;
+            satelliteRing = null;
+            hasState = false;
         }
 
         private static void SetAlpha(Material material, Color color, float alpha)

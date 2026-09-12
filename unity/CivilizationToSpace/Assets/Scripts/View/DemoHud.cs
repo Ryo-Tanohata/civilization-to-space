@@ -25,22 +25,34 @@ namespace CivilizationToSpace.View
         private static readonly Color ButtonSelectedColor = new Color(0.22f, 0.40f, 0.55f, 1f);
 
         private EraTimeline timeline;
+        private TimelinePlayback playback;
+        private MotionSettings motion;
+        private EarthFraming framing;
 
         private Text indexText;
         private Text nameText;
         private Text rangeText;
         private Text summaryText;
         private Text tagsText;
-        private Text statusText;
+        private Text qualityText;
         private Text eventsText;
         private Text degradedText;
         private Text futureText;
 
         private Button previousButton;
         private Button nextButton;
+        private Button playButton;
+        private Button speedButton;
+        private Button motionButton;
+        private Button resetViewButton;
+        private Slider eraSlider;
+        private Text statusText;
+        private bool suppressSliderCallback;
         private readonly List<Button> eraButtons = new List<Button>();
 
         private RectTransform controlRoot;
+        private RectTransform playbackRoot;
+        private Text viewHint;
         private RectTransform infoRoot;
         private RectTransform errorRoot;
         private Text errorText;
@@ -54,14 +66,23 @@ namespace CivilizationToSpace.View
 
             BuildHeader(root, catalogTitle, disclaimer, parameterNote);
             BuildInfoPanel(root);
+            BuildPlaybackBar(root);
             BuildControlBar(root);
+            BuildViewHint(root);
             BuildErrorPanel(root);
         }
 
         /// <summary>データが読めたときに呼ぶ。操作を有効にし、最初の時代を表示する。</summary>
-        public void Bind(EraTimeline eraTimeline)
+        public void Bind(
+            EraTimeline eraTimeline,
+            TimelinePlayback timelinePlayback,
+            MotionSettings motionSettings,
+            EarthFraming earthFraming)
         {
             timeline = eraTimeline;
+            playback = timelinePlayback;
+            motion = motionSettings;
+            framing = earthFraming;
 
             for (var i = 0; i < timeline.Count; i++)
             {
@@ -79,8 +100,39 @@ namespace CivilizationToSpace.View
             previousButton.onClick.AddListener(timeline.Previous);
             nextButton.onClick.AddListener(timeline.Next);
 
+            eraSlider.maxValue = timeline.Count - 1;
+            eraSlider.onValueChanged.AddListener(OnSliderChanged);
+
+            playButton.onClick.AddListener(playback.Toggle);
+            speedButton.onClick.AddListener(playback.CycleSpeed);
+            motionButton.onClick.AddListener(motion.Toggle);
+            resetViewButton.onClick.AddListener(framing.ResetView);
+
             timeline.Changed += Show;
+            playback.Changed += Refresh;
+            motion.Changed += Refresh;
+
             Show(timeline.Current);
+        }
+
+        private void OnSliderChanged(float value)
+        {
+            if (suppressSliderCallback || timeline == null)
+            {
+                return;
+            }
+
+            // 手で時代を動かすと再生は止まる。止めるのは TimelinePlayback 側が引き受ける。
+            timeline.Select(Mathf.RoundToInt(value));
+        }
+
+        /// <summary>再生・速度・動きの設定が変わったときの表示更新。時代は変わっていない。</summary>
+        private void Refresh()
+        {
+            if (timeline != null)
+            {
+                Show(timeline.Current);
+            }
         }
 
         /// <summary>全体エラー。操作を無効にし、見せてよい文言だけを出す。</summary>
@@ -88,6 +140,11 @@ namespace CivilizationToSpace.View
         {
             infoRoot.gameObject.SetActive(false);
             controlRoot.gameObject.SetActive(false);
+            playbackRoot.gameObject.SetActive(false);
+
+            // 地球を描いていないので、視点操作の案内も出さない。
+            viewHint.gameObject.SetActive(false);
+
             errorRoot.gameObject.SetActive(true);
             errorText.text = userMessage;
         }
@@ -99,7 +156,7 @@ namespace CivilizationToSpace.View
             rangeText.text = era.RangeLabel;
             summaryText.text = era.Summary;
             tagsText.text = Join(era.Tags, "　／　");
-            statusText.text = "データ品質状態：" + era.Status;
+            qualityText.text = "データ品質状態：" + era.Status;
 
             eventsText.text = BuildEvents(era.Events);
             eventsText.gameObject.SetActive(era.Events.Count > 0);
@@ -113,12 +170,44 @@ namespace CivilizationToSpace.View
             previousButton.interactable = timeline.HasPrevious;
             nextButton.interactable = timeline.HasNext;
 
+            suppressSliderCallback = true;
+            eraSlider.value = timeline.Index;
+            suppressSliderCallback = false;
+
+            var last = timeline.Count - 1;
+            playButton.GetComponentInChildren<Text>().text =
+                playback.IsPlaying ? "停止" : (timeline.Index >= last ? "最初から再生" : "再生");
+            speedButton.GetComponentInChildren<Text>().text = "速度 " + FormatSpeed(playback.Speed);
+            motionButton.GetComponentInChildren<Text>().text =
+                motion.Reduced ? "動きを減らす：オン" : "動きを減らす：オフ";
+            SetNormalColor(motionButton, motion.Reduced ? ButtonSelectedColor : ButtonColor);
+
+            statusText.text = BuildStatus();
+
             // 選択中はボタンの通常色を変える。Image の色を直接触ると、
             // Button 自身の状態遷移が次の描画で上書きしてしまう。
             for (var i = 0; i < eraButtons.Count; i++)
             {
                 SetNormalColor(eraButtons[i], i == timeline.Index ? ButtonSelectedColor : ButtonColor);
             }
+        }
+
+        private string BuildStatus()
+        {
+            var position = Pad2(timeline.Index + 1) + " / " + Pad2(timeline.Count);
+            if (!playback.IsPlaying)
+            {
+                return "停止中 ・ " + position;
+            }
+
+            var seconds = Mathf.RoundToInt(playback.StepSeconds);
+            return "再生中 " + FormatSpeed(playback.Speed) +
+                   "（1時代あたり約" + seconds + "秒）・ " + position;
+        }
+
+        private static string FormatSpeed(float speed)
+        {
+            return (Mathf.Approximately(speed, 0.5f) ? "0.5" : Mathf.RoundToInt(speed).ToString()) + "x";
         }
 
         private static string BuildEvents(IReadOnlyList<string> events)
@@ -190,7 +279,7 @@ namespace CivilizationToSpace.View
         {
             var panel = UiFactory.CreatePanel(root, "InfoPanel", PanelColor);
             infoRoot = panel.rectTransform;
-            UiFactory.RightColumn(infoRoot, UiFactory.SidePanelWidthFraction, 20f, 20f, 96f);
+            UiFactory.RightColumn(infoRoot, UiFactory.SidePanelWidthFraction, 20f, 20f, 148f);
 
             var content = UiFactory.CreateRect(infoRoot, "Content");
             UiFactory.Stretch(content, 0f, 0f, 0f, 0f);
@@ -204,7 +293,56 @@ namespace CivilizationToSpace.View
             eventsText = UiFactory.CreateText(content, "Events", 14, TextColor, TextAnchor.UpperLeft, FontStyle.Normal);
             futureText = UiFactory.CreateText(content, "Future", 14, WarnColor, TextAnchor.UpperLeft, FontStyle.Normal);
             degradedText = UiFactory.CreateText(content, "Degraded", 13, WarnColor, TextAnchor.UpperLeft, FontStyle.Normal);
-            statusText = UiFactory.CreateText(content, "Status", 13, DimTextColor, TextAnchor.UpperLeft, FontStyle.Normal);
+            qualityText = UiFactory.CreateText(content, "Quality", 13, DimTextColor, TextAnchor.UpperLeft, FontStyle.Normal);
+        }
+
+        /// <summary>再生・速度・動き・視点リセットとスライダーの帯。</summary>
+        private void BuildPlaybackBar(RectTransform root)
+        {
+            var bar = UiFactory.CreatePanel(root, "PlaybackBar", BarColor);
+            playbackRoot = bar.rectTransform;
+            UiFactory.BottomBar(playbackRoot, 52f, 24f, 88f);
+            UiFactory.AddHorizontalLayout(playbackRoot, 8, 8f);
+
+            playButton = UiFactory.CreateButton(playbackRoot, "Play", 15, ButtonColor, TextColor);
+            UiFactory.SetWidth(playButton.gameObject, 116f, 0f);
+
+            speedButton = UiFactory.CreateButton(playbackRoot, "Speed", 15, ButtonColor, TextColor);
+            UiFactory.SetWidth(speedButton.gameObject, 96f, 0f);
+
+            var sliderHost = UiFactory.CreateRect(playbackRoot, "EraSliderHost");
+            UiFactory.SetWidth(sliderHost.gameObject, 160f, 1f);
+            eraSlider = UiFactory.CreateSlider(
+                sliderHost, "EraSlider", 6, new Color(0.18f, 0.22f, 0.29f, 1f), AccentColor, TextColor);
+            UiFactory.Stretch((RectTransform)eraSlider.transform, 4f, 12f, 4f, 12f);
+
+            statusText = UiFactory.CreateText(
+                playbackRoot, "Status", 13, DimTextColor, TextAnchor.MiddleLeft, FontStyle.Normal);
+            UiFactory.SetWidth(statusText.gameObject, 230f, 0f);
+
+            motionButton = UiFactory.CreateButton(playbackRoot, "Motion", 14, ButtonColor, TextColor);
+            UiFactory.SetWidth(motionButton.gameObject, 150f, 0f);
+
+            resetViewButton = UiFactory.CreateButton(playbackRoot, "ResetView", 14, ButtonColor, TextColor);
+            resetViewButton.GetComponentInChildren<Text>().text = "視点をもどす";
+            UiFactory.SetWidth(resetViewButton.gameObject, 118f, 0f);
+        }
+
+        /// <summary>
+        /// 視点操作の説明。3Dの操作は見ただけでは分からないため常設する。
+        /// R1要件のAC-06が求める「操作名が認識できる」を、これで満たす。
+        /// </summary>
+        private void BuildViewHint(RectTransform root)
+        {
+            var hint = UiFactory.CreateText(
+                root, "ViewHint", 13, DimTextColor, TextAnchor.LowerLeft, FontStyle.Normal);
+            hint.rectTransform.anchorMin = new Vector2(0f, 0f);
+            hint.rectTransform.anchorMax = new Vector2(0f, 0f);
+            hint.rectTransform.pivot = new Vector2(0f, 0f);
+            hint.rectTransform.anchoredPosition = new Vector2(26f, 146f);
+            hint.rectTransform.sizeDelta = new Vector2(620f, 22f);
+            hint.text = "地球の上をドラッグすると視点が回り、ホイールで寄ります。視点の操作では再生は止まりません。";
+            viewHint = hint;
         }
 
         private void BuildControlBar(RectTransform root)
@@ -227,7 +365,7 @@ namespace CivilizationToSpace.View
         {
             var panel = UiFactory.CreatePanel(root, "ErrorPanel", PanelColor);
             errorRoot = panel.rectTransform;
-            UiFactory.RightColumn(errorRoot, UiFactory.SidePanelWidthFraction, 20f, 20f, 96f);
+            UiFactory.RightColumn(errorRoot, UiFactory.SidePanelWidthFraction, 20f, 20f, 148f);
 
             var content = UiFactory.CreateRect(errorRoot, "Content");
             UiFactory.Stretch(content, 0f, 0f, 0f, 0f);

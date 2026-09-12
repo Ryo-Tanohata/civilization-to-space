@@ -193,6 +193,57 @@ namespace CivilizationToSpace.View
             return layout;
         }
 
+        /// <summary>
+        /// 目盛りつきのスライダー。uGUIのSliderは背景・塗り・つまみを自前で組む必要がある。
+        /// </summary>
+        public static Slider CreateSlider(Transform parent, string name, int steps, Color track, Color fill, Color handle)
+        {
+            var rect = CreateRect(parent, name);
+            var slider = rect.gameObject.AddComponent<Slider>();
+
+            var background = CreatePanel(rect, "Track", track);
+            background.rectTransform.anchorMin = new Vector2(0f, 0.5f);
+            background.rectTransform.anchorMax = new Vector2(1f, 0.5f);
+            background.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+            background.rectTransform.offsetMin = new Vector2(0f, -3f);
+            background.rectTransform.offsetMax = new Vector2(0f, 3f);
+
+            var fillArea = CreateRect(rect, "Fill Area");
+            fillArea.anchorMin = new Vector2(0f, 0.5f);
+            fillArea.anchorMax = new Vector2(1f, 0.5f);
+            fillArea.pivot = new Vector2(0.5f, 0.5f);
+            fillArea.offsetMin = new Vector2(8f, -3f);
+            fillArea.offsetMax = new Vector2(-8f, 3f);
+
+            var fillImage = CreatePanel(fillArea, "Fill", fill);
+            fillImage.rectTransform.anchorMin = Vector2.zero;
+            fillImage.rectTransform.anchorMax = new Vector2(0f, 1f);
+            fillImage.rectTransform.sizeDelta = new Vector2(16f, 0f);
+
+            var handleArea = CreateRect(rect, "Handle Slide Area");
+            handleArea.anchorMin = new Vector2(0f, 0f);
+            handleArea.anchorMax = new Vector2(1f, 1f);
+            handleArea.offsetMin = new Vector2(8f, 0f);
+            handleArea.offsetMax = new Vector2(-8f, 0f);
+
+            var handleImage = CreatePanel(handleArea, "Handle", handle);
+            handleImage.raycastTarget = true;
+            handleImage.rectTransform.anchorMin = new Vector2(0f, 0f);
+            handleImage.rectTransform.anchorMax = new Vector2(0f, 1f);
+            handleImage.rectTransform.sizeDelta = new Vector2(16f, 0f);
+
+            slider.fillRect = fillImage.rectTransform;
+            slider.handleRect = handleImage.rectTransform;
+            slider.targetGraphic = handleImage;
+            slider.direction = Slider.Direction.LeftToRight;
+            slider.minValue = 0f;
+            slider.maxValue = Mathf.Max(1, steps - 1);
+            slider.wholeNumbers = true;
+            slider.colors = MakeColors(handle);
+
+            return slider;
+        }
+
         public static LayoutElement SetWidth(GameObject target, float preferred, float flexible)
         {
             var element = target.GetComponent<LayoutElement>();

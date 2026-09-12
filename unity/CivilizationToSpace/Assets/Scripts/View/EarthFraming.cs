@@ -3,27 +3,45 @@ using UnityEngine;
 namespace CivilizationToSpace.View
 {
     /// <summary>
-    /// 地球が画面の左側に収まるようカメラを置き直す。
+    /// 地球が画面の左側に収まるようカメラを置く。視点の向きと寄りも受け取る。
     ///
     /// カメラの位置を固定値で持つと、ウィンドウの縦横比が変わったときに地球がはみ出す。
-    /// 画面の大きさから毎回、距離と横のずらし量を求め直す。
+    /// 描画先の大きさから毎回、距離と見かけの位置を求め直す。
     ///
-    /// カメラは回さない。向きは常に正面のままである。視点操作はS4で足す。
+    /// 球の輪郭は接線でできるため、見かけの半径は 半径÷距離 ではなく asin(半径÷距離) で決まる。
+    /// 単純な比で計算すると1割ほど小さく見積もり、実際にははみ出す。
+    ///
+    /// 時代を切り替えてもカメラは動かさない。動かすのは描画先の大きさが変わったときと、
+    /// 利用者が視点を操作したときだけである。
     /// </summary>
     [RequireComponent(typeof(Camera))]
     public sealed class EarthFraming : MonoBehaviour
     {
-        /// <summary>地球の中心。原点に置く前提だが、変えられるようにしておく。</summary>
+        /// <summary>地球の中心。</summary>
         public Vector3 Target { get; set; }
 
         /// <summary>地球の半径。EarthView と揃える。</summary>
         public float Radius { get; set; }
 
+        /// <summary>左右の向き（度）。0が正面。</summary>
+        public float Yaw { get; set; }
+
+        /// <summary>上下の向き（度）。端で止める。</summary>
+        public float Pitch { get; set; }
+
+        /// <summary>寄りの倍率。1が既定。小さいほど近づく。</summary>
+        public float Zoom { get; set; }
+
+        public const float MinimumPitch = -70f;
+        public const float MaximumPitch = 70f;
+        public const float MinimumZoom = 0.55f;
+        public const float MaximumZoom = 2.4f;
+
         /// <summary>左側の領域に対して、地球の直径が占める割合。</summary>
         private const float WidthShare = 0.72f;
 
         /// <summary>画面の高さに対して、地球の直径が占める割合の上限。見出しと操作帯を避ける。</summary>
-        private const float HeightShare = 0.54f;
+        private const float HeightShare = 0.50f;
 
         /// <summary>説明パネルが極端に狭い画面を占めすぎないよう、左側の下限を決める。</summary>
         private const float MinimumLeftShare = 0.34f;
@@ -35,7 +53,25 @@ namespace CivilizationToSpace.View
         private void Awake()
         {
             view = GetComponent<Camera>();
-            Radius = Radius <= 0f ? 2.2f : Radius;
+
+            if (Radius <= 0f)
+            {
+                Radius = 2.2f;
+            }
+
+            if (Zoom <= 0f)
+            {
+                Zoom = 1f;
+            }
+        }
+
+        /// <summary>視点を既定へ戻す。</summary>
+        public void ResetView()
+        {
+            Yaw = 0f;
+            Pitch = 0f;
+            Zoom = 1f;
+            Apply();
         }
 
         private void LateUpdate()
@@ -77,6 +113,9 @@ namespace CivilizationToSpace.View
                 view = GetComponent<Camera>();
             }
 
+            Pitch = Mathf.Clamp(Pitch, MinimumPitch, MaximumPitch);
+            Zoom = Mathf.Clamp(Zoom <= 0f ? 1f : Zoom, MinimumZoom, MaximumZoom);
+
             int pixelWidth;
             int pixelHeight;
             ReadSize(out pixelWidth, out pixelHeight);
@@ -96,7 +135,6 @@ namespace CivilizationToSpace.View
             // 焦点距離（画素）。画面の高さと縦画角から決まる。
             var focal = height * 0.5f / Mathf.Tan(view.fieldOfView * 0.5f * Mathf.Deg2Rad);
 
-            // 球の輪郭は接線でできるため、見かけの半径は R/距離 ではなく asin(R/距離) で決まる。
             // 画面に占めたい直径から見かけの半角を出し、そこから距離を逆算する。
             var halfAngle = Mathf.Atan(diameterPixels * 0.5f / focal);
             var sine = Mathf.Sin(halfAngle);
@@ -105,7 +143,7 @@ namespace CivilizationToSpace.View
                 return;
             }
 
-            var distanceToCenter = Radius / sine;
+            var distance = Radius / sine * Zoom;
 
             // 光軸から外れた球の輪郭は、中心の射影よりさらに外側へずれる。
             // 左側の領域の中央へ輪郭の中心が来る方位角を二分法で求める。
@@ -126,12 +164,16 @@ namespace CivilizationToSpace.View
                 }
             }
 
-            var azimuth = (low + high) * 0.5f;
+            var azimuth = (low + high) * 0.5f * Mathf.Rad2Deg;
 
-            // カメラは常に +z を向く。球はカメラから見て方位角 azimuth の方向にある。
-            var direction = new Vector3(Mathf.Sin(azimuth), 0f, Mathf.Cos(azimuth));
-            transform.rotation = Quaternion.identity;
-            transform.position = Target - direction * distanceToCenter;
+            // 地球から見たカメラの方向。既定では地球の手前にいる。
+            var direction = Quaternion.Euler(Pitch, Yaw, 0f) * Vector3.back;
+            transform.position = Target + direction * distance;
+
+            // 地球へ正対させたあと、方位角のぶんだけ右へ振る。
+            // カメラが右を向くと、地球は画面の左へ寄る。
+            transform.rotation = Quaternion.LookRotation(-direction, Vector3.up)
+                                 * Quaternion.AngleAxis(-azimuth, Vector3.up);
         }
     }
 }
