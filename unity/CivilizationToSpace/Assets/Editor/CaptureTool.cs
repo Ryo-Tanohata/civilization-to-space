@@ -181,7 +181,7 @@ namespace CivilizationToSpace.EditorTools
                 return;
             }
 
-            var appRoot = UnityEngine.Object.FindObjectOfType<AppRoot>();
+            var appRoot = UnityEngine.Object.FindAnyObjectByType<AppRoot>();
             var camera = Camera.main;
             if (appRoot == null || camera == null)
             {

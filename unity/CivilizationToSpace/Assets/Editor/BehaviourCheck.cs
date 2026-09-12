@@ -100,7 +100,7 @@ namespace CivilizationToSpace.EditorTools
                 }
             }
 
-            var app = UnityEngine.Object.FindObjectOfType<AppRoot>();
+            var app = UnityEngine.Object.FindAnyObjectByType<AppRoot>();
             if (app == null || app.LoadFailed)
             {
                 Record("U-00 起動", false, "AppRoot が無いか、読込に失敗しました");
@@ -112,7 +112,7 @@ namespace CivilizationToSpace.EditorTools
             var playback = app.Playback;
             var camera = Camera.main;
             var framing = camera != null ? camera.GetComponent<EarthFraming>() : null;
-            var earth = UnityEngine.Object.FindObjectOfType<EarthView>();
+            var earth = UnityEngine.Object.FindAnyObjectByType<EarthView>();
             var spin = earth != null ? earth.transform.Find("Spin") : null;
 
             switch (step)

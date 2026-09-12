@@ -71,7 +71,7 @@ namespace CivilizationToSpace.EditorTools
             EditorApplication.update -= Observe;
             SessionState.SetBool(PendingKey, false);
 
-            var appRoot = Object.FindObjectOfType<AppRoot>();
+            var appRoot = Object.FindAnyObjectByType<AppRoot>();
             var ok = Report(appRoot);
 
             if (SessionState.GetBool(ExitKey, false))
