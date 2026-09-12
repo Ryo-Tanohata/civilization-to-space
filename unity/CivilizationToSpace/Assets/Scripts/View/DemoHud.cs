@@ -52,7 +52,12 @@ namespace CivilizationToSpace.View
 
         private RectTransform controlRoot;
         private RectTransform playbackRoot;
+        private RectTransform headerRoot;
         private Text viewHint;
+        private Button descriptionButton;
+
+        /// <summary>説明を出しているかどうか。既定は出さない。</summary>
+        private bool descriptionVisible;
         private RectTransform infoRoot;
         private RectTransform errorRoot;
         private Text errorText;
@@ -70,6 +75,10 @@ namespace CivilizationToSpace.View
             BuildControlBar(root);
             BuildViewHint(root);
             BuildErrorPanel(root);
+
+            // 部品がそろってから既定の表示にする。先に呼ぶと、
+            // まだ作られていない部品に指定が効かない。
+            SetDescriptionVisible(false);
         }
 
         /// <summary>データが読めたときに呼ぶ。操作を有効にし、最初の時代を表示する。</summary>
@@ -107,12 +116,47 @@ namespace CivilizationToSpace.View
             speedButton.onClick.AddListener(playback.CycleSpeed);
             motionButton.onClick.AddListener(motion.Toggle);
             resetViewButton.onClick.AddListener(framing.ResetView);
+            descriptionButton.onClick.AddListener(ToggleDescription);
 
             timeline.Changed += Show;
             playback.Changed += Refresh;
             motion.Changed += Refresh;
 
             Show(timeline.Current);
+        }
+
+        /// <summary>
+        /// 説明の表示を切り替える。既定では出さず、地球を大きく見せる。
+        /// 出したときはカメラの配置も切り替え、地球が説明と重ならないようにする。
+        /// </summary>
+        private void ToggleDescription()
+        {
+            SetDescriptionVisible(!descriptionVisible);
+            Refresh();
+        }
+
+        private void SetDescriptionVisible(bool visible)
+        {
+            descriptionVisible = visible;
+            infoRoot.gameObject.SetActive(visible);
+            headerRoot.gameObject.SetActive(visible);
+
+            // 視点操作の案内も文字なので、説明を出しているときだけにする。
+            if (viewHint != null)
+            {
+                viewHint.gameObject.SetActive(visible);
+            }
+
+            if (descriptionButton != null)
+            {
+                descriptionButton.GetComponentInChildren<Text>().text = visible ? "説明を隠す" : "説明を出す";
+            }
+
+            if (framing != null)
+            {
+                framing.SidePanelVisible = visible;
+                framing.Apply();
+            }
         }
 
         private void OnSliderChanged(float value)
@@ -139,6 +183,7 @@ namespace CivilizationToSpace.View
         public void ShowError(string userMessage)
         {
             infoRoot.gameObject.SetActive(false);
+            headerRoot.gameObject.SetActive(true);
             controlRoot.gameObject.SetActive(false);
             playbackRoot.gameObject.SetActive(false);
 
@@ -260,6 +305,7 @@ namespace CivilizationToSpace.View
         private void BuildHeader(RectTransform root, string catalogTitle, string disclaimer, string parameterNote)
         {
             var header = UiFactory.CreateRect(root, "Header");
+            headerRoot = header;
             UiFactory.TopLeft(header, 20f, 14f, UiFactory.ReferenceResolution.x * (1f - UiFactory.SidePanelWidthFraction) - 40f, 96f);
             UiFactory.AddVerticalLayout(header, 0, 4f);
 
@@ -326,6 +372,9 @@ namespace CivilizationToSpace.View
             resetViewButton = UiFactory.CreateButton(playbackRoot, "ResetView", 14, ButtonColor, TextColor);
             resetViewButton.GetComponentInChildren<Text>().text = "視点をもどす";
             UiFactory.SetWidth(resetViewButton.gameObject, 118f, 0f);
+
+            descriptionButton = UiFactory.CreateButton(playbackRoot, "Description", 14, ButtonColor, TextColor);
+            UiFactory.SetWidth(descriptionButton.gameObject, 118f, 0f);
         }
 
         /// <summary>

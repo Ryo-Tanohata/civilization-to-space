@@ -36,10 +36,10 @@ namespace CivilizationToSpace.EditorTools
 
         /// <summary>
         /// 時代を選んでから撮るまでに待つ秒数。
-        /// 時代の移り変わりは0.6秒かけて補間されるため、
-        /// フレーム数で待つと補間の途中を撮ってしまう。
+        /// 時代の移り変わりにかかる時間より長くする。短いと移り変わりの途中を撮り、
+        /// 前後の時代が混ざった絵になる。
         /// </summary>
-        private const float SettleSeconds = 0.9f;
+        private const float SettleSeconds = 1.8f;
 
         private static int warmedFrames;
         private static float selectedAt;

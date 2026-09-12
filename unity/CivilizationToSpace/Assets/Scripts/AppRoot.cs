@@ -151,7 +151,7 @@ namespace CivilizationToSpace
 
             var eras = loaded.Catalog.Eras;
             var index = Mathf.Clamp(previewEraIndex, 0, eras.Count - 1);
-            preview.Apply(eras[index].Visual);
+            preview.Apply(eras[index].Visual, index);
         }
 
         private void ClearEditPreview()
@@ -243,7 +243,7 @@ namespace CivilizationToSpace
 
             timeline.Changed += OnEraChanged;
             hud.Bind(timeline, playback, motion, framing);
-            earth.Apply(timeline.Current.Visual);
+            earth.Apply(timeline.Current.Visual, timeline.Index);
         }
 
         /// <summary>
@@ -296,11 +296,18 @@ namespace CivilizationToSpace
             }
 
             playback.Tick(Time.deltaTime);
+
+            // まだ焼いていない時代を1フレームに1つずつ用意する。
+            // 再生中に初めて使う時代を焼くと、その瞬間だけ画面が止まる。
+            if (earth != null && result != null && result.Ok)
+            {
+                earth.BakeNext(result.Catalog.Eras);
+            }
         }
 
         private void OnEraChanged(EraData era)
         {
-            earth.Apply(era.Visual);
+            earth.Apply(era.Visual, timeline.Index);
         }
 
         private static string BuildSummary(CatalogLoadResult loaded)

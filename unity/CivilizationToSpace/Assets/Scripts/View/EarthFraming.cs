@@ -37,11 +37,20 @@ namespace CivilizationToSpace.View
         public const float MinimumZoom = 0.55f;
         public const float MaximumZoom = 2.4f;
 
-        /// <summary>左側の領域に対して、地球の直径が占める割合。</summary>
+        /// <summary>
+        /// 説明を出しているかどうか。出していないときは地球を中央に置き、大きく見せる。
+        /// </summary>
+        public bool SidePanelVisible { get; set; }
+
+        /// <summary>使える幅に対して、地球の直径が占める割合。</summary>
         private const float WidthShare = 0.72f;
 
-        /// <summary>画面の高さに対して、地球の直径が占める割合の上限。見出しと操作帯を避ける。</summary>
+        /// <summary>画面の高さに対して、地球の直径が占める割合の上限。操作帯を避ける。</summary>
         private const float HeightShare = 0.50f;
+
+        /// <summary>説明を出していないときの割合。操作帯の上まで使い切る。</summary>
+        private const float WideWidthShare = 0.92f;
+        private const float WideHeightShare = 0.80f;
 
         /// <summary>説明パネルが極端に狭い画面を占めすぎないよう、左側の下限を決める。</summary>
         private const float MinimumLeftShare = 0.34f;
@@ -123,10 +132,14 @@ namespace CivilizationToSpace.View
             var width = Mathf.Max(1, pixelWidth);
             var height = Mathf.Max(1, pixelHeight);
 
-            var leftShare = Mathf.Max(MinimumLeftShare, 1f - UiFactory.SidePanelWidthFraction);
+            var leftShare = SidePanelVisible
+                ? Mathf.Max(MinimumLeftShare, 1f - UiFactory.SidePanelWidthFraction)
+                : 1f;
             var leftPixels = width * leftShare;
 
-            var diameterPixels = Mathf.Min(leftPixels * WidthShare, height * HeightShare);
+            var widthShare = SidePanelVisible ? WidthShare : WideWidthShare;
+            var heightShare = SidePanelVisible ? HeightShare : WideHeightShare;
+            var diameterPixels = Mathf.Min(leftPixels * widthShare, height * heightShare);
             if (diameterPixels <= 0f)
             {
                 return;

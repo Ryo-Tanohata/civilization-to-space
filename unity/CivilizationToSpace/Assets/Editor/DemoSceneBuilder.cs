@@ -126,7 +126,13 @@ namespace CivilizationToSpace.EditorTools
             }
 
             light.transform.rotation = Quaternion.Euler(28f, -36f, 0f);
-            light.intensity = 1.15f;
+            light.intensity = 1.35f;
+            light.color = Color.white;
+
+            // 環境光を落とす。既定のままだと全体が均一に明るくなり、
+            // 球の陰影が出ず、地形の凹凸も昼夜の境も読めない。
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
+            RenderSettings.ambientLight = new Color(0.16f, 0.18f, 0.23f, 1f);
         }
 
         /// <summary>ビルド設定の先頭に置く。Play Mode の検証では使わないが、設定の欠落を残さない。</summary>

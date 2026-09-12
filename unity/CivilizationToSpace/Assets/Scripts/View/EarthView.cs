@@ -1,17 +1,20 @@
+using System.Collections.Generic;
 using CivilizationToSpace.Core;
 using UnityEngine;
 
 namespace CivilizationToSpace.View
 {
     /// <summary>
-    /// 象徴的な地球。visual の 0〜1 をUnityの見た目へ変換する。
+    /// 象徴的な地球。時代ごとに手続き的に描いた地表を球へ貼る。
     ///
-    /// 海・植生・氷は本体の色へ混ぜ込む。均一な半透明の殻として重ねると、
-    /// 外側の層が内側を覆い隠し、値の違いが読めなくなるためである。
-    /// 火山と都市光は加算合成の殻にする。隠すのではなく光を足す量として扱う。
-    /// 大気だけは通常の半透明にする。球の外側にはみ出した部分が輪郭の光として見えるためである。
+    /// 一様な色の球では、自転していても動いて見えず、時代ごとの違いも色の差でしか読めない。
+    /// 海陸の分布・植生・氷・火山・都市光を絵として持たせ、時代を切り替えると
+    /// 大陸の位置と形、緑や氷の広がりが変わるようにしている。
     ///
-    /// ブラウザとの見た目の一致は求めない。層の色・半径・合成はすべて描画側の都合であり、
+    /// 時代の切り替えは、次の地表を重ねて濃くしていくことで移り変わらせる。
+    /// 画素を毎フレーム合成すると重いため、球を2枚重ねて不透明度だけを動かす。
+    ///
+    /// ブラウザとの見た目の一致は求めない。色・半径・合成はすべて描画側の都合であり、
     /// 共通データではない。いずれの色も特定の時代を表さない。
     /// </summary>
     public sealed class EarthView : MonoBehaviour
@@ -24,68 +27,56 @@ namespace CivilizationToSpace.View
             get { return BaseRadius; }
         }
 
-        // 混色と発光に使う色。描画側の定数であり、時代データではない。
-        private static readonly Color OceanColor = new Color32(0x23, 0x6C, 0xA8, 0xFF);
-        private static readonly Color VegetationColor = new Color32(0x4F, 0x93, 0x3C, 0xFF);
-        private static readonly Color IceColor = new Color32(0xE6, 0xF1, 0xF8, 0xFF);
-        private static readonly Color VolcanoColor = new Color32(0xFF, 0x6A, 0x2A, 0xFF);
-        private static readonly Color CityColor = new Color32(0xFF, 0xD2, 0x93, 0xFF);
-        private static readonly Color CloudColor = new Color32(0xFF, 0xFF, 0xFF, 0xFF);
-        private static readonly Color SatelliteColor = new Color32(0xC8, 0xD4, 0xE0, 0xFF);
-        private static readonly Color FallbackColor = new Color32(0x69, 0x78, 0x87, 0xFF);
+        private static readonly Color FallbackColor = new Color(0.41f, 0.47f, 0.53f);
 
-        // 混色の効き。1.0にすると本体色が完全に置き換わるため、手前で止める。
-        private const float OceanMix = 0.60f;
-        private const float VegetationMix = 0.62f;
-        private const float IceMix = 0.88f;
+        /// <summary>自転の速さ（度／秒）。1周およそ45秒。</summary>
+        private const float SpinDegreesPerSecond = 8f;
+
+        /// <summary>雲を地表より少し速く流す（度／秒）。</summary>
+        private const float CloudDegreesPerSecond = 11f;
+
+        /// <summary>衛星の周回の速さ（度／秒）。</summary>
+        private const float OrbitDegreesPerSecond = 14f;
+
+        /// <summary>時代を切り替えたときの移り変わりの長さ（秒）。</summary>
+        private const float TransitionSeconds = 1.2f;
 
         /// <summary>衛星の表示上限。データ側の値に上限は無いため、描画側で持ち数を決める。</summary>
         private const int SatellitePoolSize = 8;
 
-        private Material baseMaterial;
+        private Transform spin;
+        private Transform cloudSpin;
+        private Transform satelliteRing;
+
+        private Material currentMaterial;
+        private Material incomingMaterial;
         private Material cloudMaterial;
-        private Material volcanoMaterial;
-        private Material cityMaterial;
         private Material atmosphereMaterial;
+
+        /// <summary>高さで膨らませた球。輪郭にも起伏が出る。</summary>
+        private PlanetMesh planet;
 
         private GameObject[] satellites;
 
-        /// <summary>自転させる入れ物。層はすべてこの下に置く。カメラは回さない。</summary>
-        private Transform spin;
-
-        /// <summary>衛星の周回用。地球本体とは別の速さで回す。</summary>
-        private Transform satelliteRing;
-
-        /// <summary>自転の速さ（度／秒）。低く保ち、平面の円ではないと分かる程度に留める。</summary>
-        private const float SpinDegreesPerSecond = 3f;
-
-        /// <summary>衛星の周回の速さ（度／秒）。</summary>
-        private const float OrbitDegreesPerSecond = 6f;
-
-        /// <summary>時代を切り替えたときの補間の長さ（秒）。</summary>
-        private const float TransitionSeconds = 0.6f;
-
-        private MotionSettings motion;
-        private Snapshot from;
-        private Snapshot to;
-        private float transition = 1f;
-        private bool hasState;
-
-        /// <summary>
-        /// 生成物に付ける印。編集中のプレビューでは DontSave を渡し、
-        /// シーンへ保存されないようにする。
-        /// </summary>
         private HideFlags createdFlags = HideFlags.None;
+        private MotionSettings motion;
 
-        public void Build()
-        {
-            Build(HideFlags.None);
-        }
+        /// <summary>焼いた地表の控え。時代ごとに1組だけ作る。</summary>
+        private readonly Dictionary<int, PlanetSurfaceBaker.Surface> baked =
+            new Dictionary<int, PlanetSurfaceBaker.Surface>();
+
+        private float transition = 1f;
+        private bool hasSurface;
 
         /// <summary>動きの設定を渡す。渡さない場合は常に動く。</summary>
         public void SetMotionSettings(MotionSettings settings)
         {
             motion = settings;
+        }
+
+        public void Build()
+        {
+            Build(HideFlags.None);
         }
 
         public void Build(HideFlags flags)
@@ -97,20 +88,30 @@ namespace CivilizationToSpace.View
             spinObject.transform.SetParent(transform, false);
             spin = spinObject.transform;
 
-            baseMaterial = CreateOpaque(FallbackColor);
-            CreateSphere("Base", 1.000f, baseMaterial);
+            planet = new PlanetMesh(BaseRadius);
+            planet.Mesh.hideFlags = flags;
 
-            volcanoMaterial = CreateAdditive(VolcanoColor, 0);
-            CreateSphere("Volcano", 1.014f, volcanoMaterial);
+            currentMaterial = CreateSurfaceMaterial(false, 0, true);
+            CreatePlanetShell(spin, "Surface", 1.000f, currentMaterial);
 
-            cityMaterial = CreateAdditive(CityColor, 1);
-            CreateSphere("CityLights", 1.020f, cityMaterial);
+            incomingMaterial = CreateSurfaceMaterial(true, 1, true);
+            CreatePlanetShell(spin, "SurfaceNext", 1.003f, incomingMaterial);
+            SetSurfaceAlpha(incomingMaterial, 0f);
 
-            cloudMaterial = CreateTransparent(CloudColor, 2);
-            CreateSphere("Clouds", 1.032f, cloudMaterial);
+            var cloudObject = new GameObject("CloudSpin");
+            cloudObject.hideFlags = flags;
+            cloudObject.transform.SetParent(transform, false);
+            cloudSpin = cloudObject.transform;
 
-            atmosphereMaterial = CreateTransparent(FallbackColor, 3);
-            CreateSphere("Atmosphere", 1.085f, atmosphereMaterial);
+            cloudMaterial = CreateSurfaceMaterial(true, 2, false);
+            CreateSphere(cloudSpin, "Clouds", 1.050f, cloudMaterial);
+
+            atmosphereMaterial = CreateBlended(
+                FallbackColor,
+                3,
+                UnityEngine.Rendering.BlendMode.SrcAlpha,
+                UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            CreateSphere(transform, "Atmosphere", 1.075f, atmosphereMaterial);
 
             BuildSatellites();
         }
@@ -119,18 +120,45 @@ namespace CivilizationToSpace.View
         /// 時代の視覚値を写す。動きを減らしていなければ、少しかけて移り変わる。
         /// 衛星の個数だけは補間しない。個数は連続量ではないためである。
         /// </summary>
-        public void Apply(EraVisual visual)
+        public void Apply(EraVisual visual, int eraIndex)
         {
-            var next = Snapshot.From(visual);
+            var surface = GetOrBake(visual, eraIndex);
+            var instant = !hasSurface || (motion != null && motion.Reduced);
 
-            var instant = !hasState || (motion != null && motion.Reduced);
-            from = instant ? next : Current();
-            to = next;
-            transition = instant ? 1f : 0f;
-            hasState = true;
+            if (instant)
+            {
+                AssignSurface(currentMaterial, surface);
+                SetSurfaceAlpha(incomingMaterial, 0f);
+                planet.SetImmediate(surface.Elevation);
+                transition = 1f;
+            }
+            else
+            {
+                AssignSurface(incomingMaterial, surface);
+                SetSurfaceAlpha(incomingMaterial, 0f);
 
+                // 大陸がせり上がり、また沈む様子を出すため、形も一緒に移り変わらせる。
+                planet.BeginTransition(surface.Elevation);
+                transition = 0f;
+            }
+
+            cloudMaterial.mainTexture = surface.Clouds;
+
+            Color emissionColor;
+            if (!ColorUtility.TryParseHtmlString(visual.EmissionColor, out emissionColor))
+            {
+                emissionColor = FallbackColor;
+            }
+
+            // 大気は薄くする。濃いと地表全体に膜がかかり、地形が読めなくなる。
+            // 球の外側へはみ出した部分が輪郭の光として残ればよい。
+            var atmosphere = emissionColor;
+            atmosphere.a = 0.10f;
+            atmosphereMaterial.color = atmosphere;
+            atmosphereMaterial.SetColor("_EmissionColor", emissionColor * 0.45f);
+
+            hasSurface = true;
             ApplySatellites(visual.SatelliteCount);
-            Push(instant ? next : from);
         }
 
         private void Update()
@@ -142,6 +170,11 @@ namespace CivilizationToSpace.View
                 if (spin != null)
                 {
                     spin.Rotate(Vector3.up, SpinDegreesPerSecond * Time.deltaTime, Space.Self);
+                }
+
+                if (cloudSpin != null)
+                {
+                    cloudSpin.Rotate(Vector3.up, CloudDegreesPerSecond * Time.deltaTime, Space.Self);
                 }
 
                 if (satelliteRing != null)
@@ -157,89 +190,108 @@ namespace CivilizationToSpace.View
 
             if (reduced)
             {
-                // 途中で動きを減らした場合は、そこで補間を打ち切って目的の見た目にする。
+                // 途中で動きを減らした場合は、そこで打ち切って目的の見た目にする。
                 transition = 1f;
-                Push(to);
+                planet.SetTransition(1f);
+                Settle();
                 return;
             }
 
             transition = Mathf.Min(1f, transition + Time.deltaTime / TransitionSeconds);
-            Push(Snapshot.Lerp(from, to, transition));
-        }
+            SetSurfaceAlpha(incomingMaterial, transition);
+            planet.SetTransition(transition);
 
-        private Snapshot Current()
-        {
-            return transition >= 1f ? to : Snapshot.Lerp(from, to, transition);
-        }
-
-        /// <summary>補間できる形にした視覚値。層への書き込みはここを通す。</summary>
-        private struct Snapshot
-        {
-            public Color Earth;
-            public Color Emission;
-            public float Ocean;
-            public float Vegetation;
-            public float Ice;
-            public float Cloud;
-            public float Volcano;
-            public float City;
-
-            public static Snapshot From(EraVisual visual)
+            if (transition >= 1f)
             {
-                return new Snapshot
-                {
-                    Earth = ParseColor(visual.EarthColor),
-                    Emission = ParseColor(visual.EmissionColor),
-                    Ocean = (float)visual.OceanLevel,
-                    Vegetation = (float)visual.Vegetation,
-                    Ice = (float)visual.IceCoverage,
-                    Cloud = (float)visual.CloudDensity,
-                    Volcano = (float)visual.VolcanicActivity,
-                    City = (float)visual.CityLights
-                };
-            }
-
-            public static Snapshot Lerp(Snapshot a, Snapshot b, float t)
-            {
-                return new Snapshot
-                {
-                    Earth = Color.Lerp(a.Earth, b.Earth, t),
-                    Emission = Color.Lerp(a.Emission, b.Emission, t),
-                    Ocean = Mathf.Lerp(a.Ocean, b.Ocean, t),
-                    Vegetation = Mathf.Lerp(a.Vegetation, b.Vegetation, t),
-                    Ice = Mathf.Lerp(a.Ice, b.Ice, t),
-                    Cloud = Mathf.Lerp(a.Cloud, b.Cloud, t),
-                    Volcano = Mathf.Lerp(a.Volcano, b.Volcano, t),
-                    City = Mathf.Lerp(a.City, b.City, t)
-                };
+                Settle();
             }
         }
 
-        private void Push(Snapshot state)
+        /// <summary>重ねていた次の地表を、そのまま本体の地表にする。</summary>
+        private void Settle()
         {
-            // 海→植生→氷の順に混ぜる。氷を最後にすると、凍結の時代が白く読める。
-            var surface = state.Earth;
-            surface = Color.Lerp(surface, OceanColor, state.Ocean * OceanMix);
-            surface = Color.Lerp(surface, VegetationColor, state.Vegetation * VegetationMix);
-            surface = Color.Lerp(surface, IceColor, state.Ice * IceMix);
-            surface.a = 1f;
+            currentMaterial.mainTexture = incomingMaterial.mainTexture;
+            currentMaterial.SetTexture("_EmissionMap", incomingMaterial.GetTexture("_EmissionMap"));
+            currentMaterial.SetTexture("_BumpMap", incomingMaterial.GetTexture("_BumpMap"));
+            SetSurfaceAlpha(incomingMaterial, 0f);
+        }
 
-            baseMaterial.color = surface;
-            SetEmission(baseMaterial, state.Earth * 0.10f + VolcanoColor * (state.Volcano * 0.75f));
+        /// <summary>
+        /// 膨らませた球を1枚置く。本体と重ね合わせ用で同じメッシュを共有し、
+        /// 大きさだけをわずかに変えて重なりを避ける。
+        /// </summary>
+        private void CreatePlanetShell(Transform parent, string name, float scale, Material material)
+        {
+            var shell = new GameObject(name, typeof(MeshFilter), typeof(MeshRenderer));
+            shell.hideFlags = createdFlags;
+            shell.transform.SetParent(parent, false);
+            shell.transform.localScale = Vector3.one * scale;
+            shell.GetComponent<MeshFilter>().sharedMesh = planet.Mesh;
+            shell.GetComponent<MeshRenderer>().sharedMaterial = material;
+        }
 
-            SetAlpha(volcanoMaterial, VolcanoColor, state.Volcano * 0.55f);
-            SetAlpha(cityMaterial, CityColor, state.City * 0.40f);
-            SetAlpha(cloudMaterial, CloudColor, state.Cloud * 0.32f);
+        private PlanetSurfaceBaker.Surface GetOrBake(EraVisual visual, int eraIndex)
+        {
+            PlanetSurfaceBaker.Surface surface;
+            if (baked.TryGetValue(eraIndex, out surface))
+            {
+                return surface;
+            }
 
-            SetAlpha(atmosphereMaterial, state.Emission, 0.32f);
-            SetEmission(atmosphereMaterial, state.Emission * 0.75f);
+            surface = PlanetSurfaceBaker.Bake(visual, eraIndex);
+            surface.Albedo.hideFlags = createdFlags;
+            surface.Emission.hideFlags = createdFlags;
+            surface.Clouds.hideFlags = createdFlags;
+            baked[eraIndex] = surface;
+            return surface;
+        }
+
+        /// <summary>
+        /// まだ焼いていない時代を1つだけ焼く。焼くものが無ければ false を返す。
+        /// 再生中に初めて使う時代を焼くと、その瞬間だけ画面が止まるため、
+        /// 1フレームに1時代ずつ先に用意しておく。
+        /// </summary>
+        public bool BakeNext(IReadOnlyList<EraData> eras)
+        {
+            for (var i = 0; i < eras.Count; i++)
+            {
+                if (baked.ContainsKey(i))
+                {
+                    continue;
+                }
+
+                GetOrBake(eras[i].Visual, i);
+                return true;
+            }
+
+            return false;
+        }
+
+        private static void AssignSurface(Material material, PlanetSurfaceBaker.Surface surface)
+        {
+            material.mainTexture = surface.Albedo;
+            material.SetTexture("_EmissionMap", surface.Emission);
+            material.SetTexture("_BumpMap", surface.Normal);
+            material.EnableKeyword("_NORMALMAP");
+            material.SetFloat("_BumpScale", 1f);
+        }
+
+        private static void SetSurfaceAlpha(Material material, float alpha)
+        {
+            var color = material.color;
+            color.a = Mathf.Clamp01(alpha);
+            material.color = color;
         }
 
         private void BuildSatellites()
         {
             satellites = new GameObject[SatellitePoolSize];
-            var material = CreateOpaque(SatelliteColor);
-            SetEmission(material, SatelliteColor * 0.45f);
+
+            var material = new Material(Shader.Find("Standard"));
+            material.hideFlags = createdFlags;
+            material.color = new Color(0.78f, 0.83f, 0.88f);
+            material.EnableKeyword("_EMISSION");
+            material.SetColor("_EmissionColor", new Color(0.35f, 0.37f, 0.40f));
 
             var ring = new GameObject("Satellites");
             ring.hideFlags = createdFlags;
@@ -274,48 +326,53 @@ namespace CivilizationToSpace.View
             }
         }
 
-        private void CreateSphere(string name, float radiusScale, Material material)
+        private void CreateSphere(Transform parent, string name, float radiusScale, Material material)
         {
             var sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             sphere.name = name;
             sphere.hideFlags = createdFlags;
             SafeDestroy(sphere.GetComponent<Collider>());
-            sphere.transform.SetParent(spin != null ? spin : transform, false);
+            sphere.transform.SetParent(parent != null ? parent : transform, false);
             sphere.transform.localScale = Vector3.one * (BaseRadius * 2f * radiusScale);
             sphere.GetComponent<Renderer>().sharedMaterial = material;
         }
 
-        private Material CreateOpaque(Color color)
+        /// <summary>
+        /// 地表用の材質。焼いた絵を貼り、自ら光る量も絵で与える。
+        /// 重ねる層は半透明にして、不透明度で移り変わらせる。
+        /// </summary>
+        private Material CreateSurfaceMaterial(bool transparent, int queueOffset, bool emissive)
         {
-            var material = new Material(Shader.Find("Standard"));
+            var material = transparent
+                ? CreateBlended(
+                    Color.white,
+                    queueOffset,
+                    UnityEngine.Rendering.BlendMode.SrcAlpha,
+                    UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha)
+                : new Material(Shader.Find("Standard"));
+
             material.hideFlags = createdFlags;
-            material.color = color;
-            material.SetFloat("_Glossiness", 0.12f);
+            material.SetFloat("_Glossiness", 0.08f);
             material.SetFloat("_Metallic", 0f);
-            return material;
-        }
 
-        /// <summary>通常の半透明（Fade）。内側の層より後に描くようキューをずらす。</summary>
-        private Material CreateTransparent(Color color, int queueOffset)
-        {
-            var material = CreateBlended(
-                color,
-                queueOffset,
-                UnityEngine.Rendering.BlendMode.SrcAlpha,
-                UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-            material.SetFloat("_Mode", 2f);
-            return material;
-        }
+            if (emissive)
+            {
+                // 発光マップを貼る材質だけ発光を有効にする。
+                // マップを渡さずに有効にすると、既定の白い画像が使われて全面が光る。
+                material.EnableKeyword("_EMISSION");
+                material.SetColor("_EmissionColor", Color.white);
+            }
+            else
+            {
+                material.DisableKeyword("_EMISSION");
+                material.SetColor("_EmissionColor", Color.black);
+            }
 
-        /// <summary>加算合成。下の層を隠さず、光だけを足す。</summary>
-        private Material CreateAdditive(Color color, int queueOffset)
-        {
-            var material = CreateBlended(
-                color,
-                queueOffset,
-                UnityEngine.Rendering.BlendMode.SrcAlpha,
-                UnityEngine.Rendering.BlendMode.One);
-            material.SetFloat("_Mode", 3f);
+            if (!transparent)
+            {
+                material.color = Color.white;
+            }
+
             return material;
         }
 
@@ -327,6 +384,7 @@ namespace CivilizationToSpace.View
         {
             var material = new Material(Shader.Find("Standard"));
             material.hideFlags = createdFlags;
+            material.SetFloat("_Mode", 2f);
             material.SetInt("_SrcBlend", (int)source);
             material.SetInt("_DstBlend", (int)destination);
             material.SetInt("_ZWrite", 0);
@@ -368,37 +426,30 @@ namespace CivilizationToSpace.View
                 SafeDestroy(transform.GetChild(i).gameObject);
             }
 
-            SafeDestroy(baseMaterial);
+            SafeDestroy(currentMaterial);
+            SafeDestroy(incomingMaterial);
             SafeDestroy(cloudMaterial);
-            SafeDestroy(volcanoMaterial);
-            SafeDestroy(cityMaterial);
             SafeDestroy(atmosphereMaterial);
+
+            if (planet != null)
+            {
+                SafeDestroy(planet.Mesh);
+                planet = null;
+            }
+
+            foreach (var surface in baked.Values)
+            {
+                SafeDestroy(surface.Albedo);
+                SafeDestroy(surface.Emission);
+                SafeDestroy(surface.Clouds);
+            }
+
+            baked.Clear();
             satellites = null;
             spin = null;
+            cloudSpin = null;
             satelliteRing = null;
-            hasState = false;
-        }
-
-        private static void SetAlpha(Material material, Color color, float alpha)
-        {
-            color.a = Mathf.Clamp01(alpha);
-            material.color = color;
-        }
-
-        private static void SetEmission(Material material, Color color)
-        {
-            material.EnableKeyword("_EMISSION");
-            material.SetColor("_EmissionColor", color);
-        }
-
-        /// <summary>
-        /// 16進色を解釈する。検証を通ったデータは必ず解釈できるが、
-        /// 解釈できない場合も落とさず中立の色へ寄せる。
-        /// </summary>
-        private static Color ParseColor(string value)
-        {
-            Color parsed;
-            return ColorUtility.TryParseHtmlString(value, out parsed) ? parsed : (Color)FallbackColor;
+            hasSurface = false;
         }
     }
 }
