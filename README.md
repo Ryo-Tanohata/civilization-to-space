@@ -10,6 +10,8 @@
 
 **Unityでの最小再現（R1-P1）が動作します。** `unity/CivilizationToSpace/` を Unity 6000.4.8f1 で開き、`EarthTimelineDemo` シーンを Play すると、同じ6時代データを読み込んだ象徴的な地球を、選択・自動再生・視点操作で見られます。起動手順と検証結果は[R1-P1実装報告](docs/reports/R1_P1_UNITY_IMPLEMENTATION.md)にあります。
 
+**重力計算で地球の形成を再現するページがあります。** `site/formation.html` は、微惑星どうしの重力と合体を実際に計算して地球ができるまでを描きます。何を計算し何を計算していないかは[形成シミュレーションの報告](docs/reports/FORMATION_SIMULATION.md)にあります。
+
 **同じ内容をブラウザでも動かせます。** `site/unity/` にWebGLビルドを置いているため、スマートフォンからも開けます。地球の形成4段階・6時代・月への展開5段階を通して見られ、指2本で寄り引きできます。追加した操作と、公開ビルドに残っていた不具合2件の対応は[WebGL版の対応報告](docs/reports/UNITY_WEBGL_FONT_FIX.md)にあります。
 
 R1のブラウザモックレビューは[実施済み](docs/reports/R1_P0_HUMAN_REVIEW.md)です。人によるUnityレビューは未実施で、FR-04（Futureの2案切替）はブラウザ・Unityとも未実装です。したがってR1全体のDefinition of Doneは未達です。文書の仕様・優先度はレビュー用の初案のままです。
