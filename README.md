@@ -8,7 +8,9 @@
 
 同じページに、R2「生命圏の比較」がブラウザ拡張として加わっています。画面上部の切替で、6時代の観察と、生命圏に関わる4つの比較条件のA/B比較を行き来できます。R2-P0は人によるブラウザレビューを完了しました（[R2-P0レビュー報告](docs/reports/R2_P0_HUMAN_REVIEW.md)）。
 
-人によるモックレビューは未実施で、Unityプロジェクトは未着手です。文書の仕様・優先度はレビュー用の初案のままです。
+**Unityでの最小再現（R1-P1）が動作します。** `unity/CivilizationToSpace/` を Unity 2022.3.11f1 で開き、`EarthTimelineDemo` シーンを Play すると、同じ6時代データを読み込んだ象徴的な地球を、選択・自動再生・視点操作で見られます。起動手順と検証結果は[R1-P1実装報告](docs/reports/R1_P1_UNITY_IMPLEMENTATION.md)にあります。
+
+R1のブラウザモックレビューは[実施済み](docs/reports/R1_P0_HUMAN_REVIEW.md)です。人によるUnityレビューは未実施で、FR-04（Futureの2案切替）はブラウザ・Unityとも未実装です。したがってR1全体のDefinition of Doneは未達です。文書の仕様・優先度はレビュー用の初案のままです。
 
 ## R1: Earth Through Time
 
@@ -49,8 +51,12 @@ docs/
   design/EARTH_ERA_CATALOG.md
   design/STORYBOARD.md
   design/BROWSER_MOCK_SPEC.md
+  planning/IMPLEMENTATION_ORDER_R1_P1.md
+  design/DATA_INTERCHANGE_R1.md
   reports/P0_BROWSER_MOCK_IMPLEMENTATION.md
   reports/R2_P0_HUMAN_REVIEW.md
+  reports/R1_P0_HUMAN_REVIEW.md
+  reports/R1_P1_UNITY_IMPLEMENTATION.md
 site/
   index.html                       画面構造（R1・R2の両パネル）
   styles.css                       R1のCSSのみの象徴的地球とレイアウト
@@ -59,9 +65,18 @@ site/
   r2.js                            R2の状態管理・データ検証・比較表示
   data/earth-eras.json             6時代データの正本
   data/biosphere-scenarios.json    4比較条件データの正本
+unity/CivilizationToSpace/
+  Assets/Scripts/Core/             データ読込・検証・時代の状態・再生（描画に依存しない）
+  Assets/Scripts/View/             地球の表現・画面・カメラ・日本語表示
+  Assets/Scripts/AppRoot.cs        組み立て。R2-P1が参照する唯一の入口
+  Assets/Editor/                   生成・同期・検証の道具
+  Assets/Scenes/EarthTimelineDemo.unity
+  Assets/StreamingAssets/earth-eras.json   正本の派生コピー（編集禁止）
 ```
 
-`site/` は外部ライブラリ・CDN・npm・Node.js・外部APIに依存せず、ローカルHTTPサーバーとブラウザだけで動作します。unity/（Unity）、blender/（制作素材）は将来の承認後に作成します。
+`site/` は外部ライブラリ・CDN・npm・Node.js・外部APIに依存せず、ローカルHTTPサーバーとブラウザだけで動作します。
+
+`unity/` はUnity 2022.3.11f1・Built-in Render Pipeline で動作し、追加パッケージはUnity同梱の `com.unity.ugui` のみです。外部通信を行いません。時代データの正本は `site/data/earth-eras.json` だけであり、`StreamingAssets/` のコピーはblobハッシュの一致で同一性を示します。blender/（制作素材）は将来の承認後に作成します。
 
 ## 公開
 
@@ -84,3 +99,7 @@ site/
 - [R2要件](docs/requirements/REQUIREMENTS_R2.md)
 - [R2実装順序](docs/planning/IMPLEMENTATION_ORDER_R2.md)
 - [R2-P0レビュー報告](docs/reports/R2_P0_HUMAN_REVIEW.md)
+- [R1-P0レビュー報告](docs/reports/R1_P0_HUMAN_REVIEW.md)
+- [R1-P1実装順序](docs/planning/IMPLEMENTATION_ORDER_R1_P1.md)
+- [データ交換形式](docs/design/DATA_INTERCHANGE_R1.md)
+- [R1-P1実装報告](docs/reports/R1_P1_UNITY_IMPLEMENTATION.md)
