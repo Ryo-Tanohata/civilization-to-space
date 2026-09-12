@@ -21,7 +21,8 @@ namespace CivilizationToSpace.Core
             double transfer,
             double facility,
             double surfaceLights,
-            double orbitStation)
+            double orbitStation,
+            double lagrangeColony)
         {
             Id = id;
             DisplayName = displayName;
@@ -34,6 +35,7 @@ namespace CivilizationToSpace.Core
             Facility = facility;
             SurfaceLights = surfaceLights;
             OrbitStation = orbitStation;
+            LagrangeColony = lagrangeColony;
         }
 
         public string Id { get; }
@@ -58,6 +60,12 @@ namespace CivilizationToSpace.Core
         /// 月面の施設とは別のもので、月へ向かう前から置かれる。
         /// </summary>
         public double OrbitStation { get; }
+
+        /// <summary>
+        /// ラグランジュ点（L4・L5）に置くコロニーの見せ方の強さ。
+        /// 寸法・人数・建設量を表さない。欠けている段階では0になる。
+        /// </summary>
+        public double LagrangeColony { get; }
     }
 
     /// <summary>検証済みの月への展開。段階は sortOrder の昇順で並ぶ。</summary>

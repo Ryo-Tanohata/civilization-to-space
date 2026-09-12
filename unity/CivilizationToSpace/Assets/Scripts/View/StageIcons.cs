@@ -36,6 +36,7 @@ namespace CivilizationToSpace.View
         private static readonly Color EarthBlue = new Color(0.13f, 0.34f, 0.55f, 1f);
         private static readonly Color Route = new Color(0.70f, 0.90f, 1f, 1f);
         private static readonly Color Facility = new Color(0.45f, 0.78f, 0.98f, 1f);
+        private static readonly Color Colony = new Color(0.82f, 0.93f, 1f, 1f);
 
         // ------------------------------------------------------------------
         // 形成過程
@@ -192,6 +193,7 @@ namespace CivilizationToSpace.View
             var facility = (float)phase.Facility;
             var surface = (float)phase.SurfaceLights;
             var station = (float)phase.OrbitStation;
+            var colony = (float)phase.LagrangeColony;
 
             var ex = Middle - 13f;
             var ey = Middle + 5f;
@@ -246,7 +248,55 @@ namespace CivilizationToSpace.View
                 }
             }
 
+            if (colony > 0.02f)
+            {
+                DrawColony(canvas, ex, ey, mx, my, colony);
+            }
+
             return canvas.ToSprite();
+        }
+
+        /// <summary>
+        /// L4（地球・月と正三角形をつくる位置）に、回転する円筒形の居住地を描く。
+        /// 地球から月への向きを60度まわした先が、その位置になる。
+        /// **大きさは実物の比ではない。** 見えるまで拡げている。
+        /// </summary>
+        private static void DrawColony(Canvas canvas, float ex, float ey, float mx, float my, float amount)
+        {
+            var dx = mx - ex;
+            var dy = my - ey;
+
+            // 画面のyは下向きなので、-60度のほうが空いている側へ来る。
+            const float Cos = 0.5f;
+            const float Sin = -0.8660254f;
+
+            var lx = ex + dx * Cos - dy * Sin;
+            var ly = ey + dx * Sin + dy * Cos;
+
+            // 絵の端で切れないよう、少し内側へ寄せる。正三角形の関係は崩れるが、
+            // この大きさでは位置関係が読めれば足りる。
+            lx = Middle + (lx - Middle) * 0.82f;
+            ly = Middle + (ly - Middle) * 0.82f;
+
+            // 円筒の軸。月への向きに直交させる。
+            var length = Mathf.Sqrt(dx * dx + dy * dy);
+            if (length < 1e-3f)
+            {
+                return;
+            }
+
+            var ax = -dy / length;
+            var ay = dx / length;
+
+            // 点を並べて短い棒にする。この大きさでは、これ以上の形は潰れて読めない。
+            for (var k = -2; k <= 2; k++)
+            {
+                canvas.Disc(lx + ax * k * 1.6f, ly + ay * k * 1.6f, 2.0f, Colony, amount, false);
+            }
+
+            // 両端を明るくして、輪のある円筒に見せる。
+            canvas.Disc(lx + ax * 3.2f, ly + ay * 3.2f, 1.5f, Color.white, amount, false);
+            canvas.Disc(lx - ax * 3.2f, ly - ay * 3.2f, 1.5f, Color.white, amount, false);
         }
 
         private static Color ParseColor(string text, Color fallback)

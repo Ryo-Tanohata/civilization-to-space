@@ -45,6 +45,26 @@ namespace CivilizationToSpace.View
         /// <summary>地球を回る拠点の速さ。月より速く回して、近くを回っていることを示す。</summary>
         private const float StationDegreesPerSecond = 26f;
 
+        /// <summary>
+        /// ラグランジュ点 L4・L5 の位置。月から見て軌道上の前後60度にあたる。
+        /// 地球・月・その点が正三角形をつくる、という関係だけを写している。
+        /// </summary>
+        private const float LagrangeDegrees = 60f;
+
+        /// <summary>
+        /// コロニーの円筒の長さ（半分）と太さ。
+        ///
+        /// **実物の比ではない。** オニール型の円筒は長さ数十kmで、月（直径3474km）の
+        /// 1%ほどしかない。この画面では月の半径が0.58なので、実際の比なら0.003ほどになり
+        /// 点にもならない。見える大きさまで拡げている。
+        /// </summary>
+        private const float ColonyHalfLength = 0.34f;
+
+        private const float ColonyRadius = 0.075f;
+
+        /// <summary>コロニーの自転（度／秒）。重力の代わりを自転で作る、という点を示す。</summary>
+        private const float ColonySpinDegreesPerSecond = 42f;
+
         private static readonly Color32 Regolith = new Color32(0x8C, 0x88, 0x82, 0xFF);
         private static readonly Color32 Mare = new Color32(0x5A, 0x59, 0x58, 0xFF);
         private static readonly Color32 FacilityColor = new Color32(0xC8, 0xD2, 0xDC, 0xFF);
@@ -58,6 +78,11 @@ namespace CivilizationToSpace.View
         private Material facilityMaterial;
 
         private GameObject[] transfers;
+
+        /// <summary>L4・L5 に置くコロニー。2つとも月と同じ枠にぶら下げ、一緒に回す。</summary>
+        private Transform[] colonies;
+        private Material colonyMaterial;
+        private float colonyAmount;
         private float[] transferOffsets;
         private GameObject[] facilities;
 
@@ -160,6 +185,7 @@ namespace CivilizationToSpace.View
             BuildFacilities(flags);
             BuildTransfers(flags);
             BuildStation(flags);
+            BuildColonies(flags);
 
             Apply(null);
         }
@@ -171,8 +197,10 @@ namespace CivilizationToSpace.View
             facilityAmount = phase != null ? (float)phase.Facility : 0f;
             lightAmount = phase != null ? (float)phase.SurfaceLights : 0f;
             stationAmount = phase != null ? (float)phase.OrbitStation : 0f;
+            colonyAmount = phase != null ? (float)phase.LagrangeColony : 0f;
 
             ApplyStation();
+            ApplyColonies();
 
             var visibleTransfers = Mathf.RoundToInt(transferAmount * TransferPoolSize);
             for (var i = 0; i < transfers.Length; i++)
@@ -187,6 +215,37 @@ namespace CivilizationToSpace.View
             }
 
             facilityMaterial.SetColor("_EmissionColor", (Color)FacilityGlow * (lightAmount * 1.4f));
+        }
+
+        /// <summary>
+        /// コロニーの出し入れ。強さが上がるほど大きく見せる。
+        /// 大きさは見せ方であって、寸法でも建設量でもない。
+        /// </summary>
+        private void ApplyColonies()
+        {
+            if (colonies == null)
+            {
+                return;
+            }
+
+            var visible = colonyAmount > 0.02f;
+            var scale = Mathf.Lerp(0.55f, 1f, Mathf.Clamp01(colonyAmount));
+
+            for (var i = 0; i < colonies.Length; i++)
+            {
+                if (colonies[i] == null)
+                {
+                    continue;
+                }
+
+                colonies[i].gameObject.SetActive(visible);
+                colonies[i].localScale = Vector3.one * scale;
+            }
+
+            if (colonyMaterial != null)
+            {
+                colonyMaterial.SetColor("_EmissionColor", (Color)FacilityGlow * (colonyAmount * 0.5f));
+            }
         }
 
         private void Update()
@@ -210,6 +269,19 @@ namespace CivilizationToSpace.View
             if (stationOrbit != null && stationAmount > 0f)
             {
                 stationOrbit.Rotate(Vector3.up, StationDegreesPerSecond * Time.deltaTime, Space.Self);
+            }
+
+            // コロニーは自転させる。重力の代わりを自転で作る、という点がこの形の要だからである。
+            if (colonies != null && colonyAmount > 0f)
+            {
+                var turn = ColonySpinDegreesPerSecond * Time.deltaTime;
+                for (var i = 0; i < colonies.Length; i++)
+                {
+                    if (colonies[i] != null)
+                    {
+                        colonies[i].Rotate(Vector3.up, turn, Space.Self);
+                    }
+                }
             }
 
             MoveTransfers();
@@ -332,6 +404,80 @@ namespace CivilizationToSpace.View
             }
 
             stationObject.SetActive(false);
+        }
+
+        /// <summary>
+        /// ラグランジュ点 L4・L5 に、回転する円筒形の居住地を置く。
+        ///
+        /// 月と同じ枠（MoonOrbit）にぶら下げる。枠ごと回るので、月との角度が60度に保たれる。
+        /// **これは「そこに置ける」という仮想シナリオの絵であって、安定性を計算していない。**
+        /// 計算で確かめる版は FormationSim シーン（SimRoot）にある。そちらでは、
+        /// 月の質量比が 0.0385 を超えると留まらなくなることまで出る。
+        /// </summary>
+        private void BuildColonies(HideFlags flags)
+        {
+            colonyMaterial = StandardMaterials.CreateOpaque(true);
+            colonyMaterial.hideFlags = flags;
+            colonyMaterial.color = FacilityColor;
+            colonyMaterial.SetFloat("_Glossiness", 0.6f);
+            colonyMaterial.SetFloat("_Metallic", 0.5f);
+            colonyMaterial.EnableKeyword("_EMISSION");
+            colonyMaterial.SetColor("_EmissionColor", (Color)FacilityGlow * 0.35f);
+
+            colonies = new Transform[2];
+
+            for (var i = 0; i < colonies.Length; i++)
+            {
+                var sign = i == 0 ? 1f : -1f;
+
+                var host = new GameObject(i == 0 ? "ColonyL4" : "ColonyL5");
+                host.hideFlags = flags;
+                host.transform.SetParent(orbit, false);
+                host.transform.localPosition =
+                    Quaternion.Euler(0f, sign * LagrangeDegrees, 0f) * new Vector3(OrbitRadius, 0f, 0f);
+                host.SetActive(false);
+
+                colonies[i] = host.transform;
+
+                // 胴体。円柱の長い軸はYなので、そのまま軌道の面に垂直へ立てる。
+                // 太陽を置いていないための決めで、実際のオニール型は軸を太陽へ向ける。
+                AddColonyPart(host.transform, flags, "Hull", PrimitiveType.Cylinder,
+                    Vector3.zero, Quaternion.identity,
+                    new Vector3(ColonyRadius * 2f, ColonyHalfLength, ColonyRadius * 2f));
+
+                // 両端の輪。円筒に見せるための縁である。
+                for (var end = 0; end < 2; end++)
+                {
+                    AddColonyPart(host.transform, flags, "Rim" + (end + 1), PrimitiveType.Cylinder,
+                        new Vector3(0f, end == 0 ? ColonyHalfLength : -ColonyHalfLength, 0f),
+                        Quaternion.identity,
+                        new Vector3(ColonyRadius * 2.5f, ColonyHalfLength * 0.06f, ColonyRadius * 2.5f));
+                }
+
+                // 外の鏡。日照を取り込む板の代わりで、面積も発電量も表さない。
+                for (var mirror = 0; mirror < 2; mirror++)
+                {
+                    AddColonyPart(host.transform, flags, "Mirror" + (mirror + 1), PrimitiveType.Cube,
+                        new Vector3(mirror == 0 ? ColonyRadius * 2.6f : -ColonyRadius * 2.6f, 0f, 0f),
+                        Quaternion.Euler(0f, 0f, mirror == 0 ? 22f : -22f),
+                        new Vector3(ColonyRadius * 2.2f, ColonyHalfLength * 1.1f, 0.012f));
+                }
+            }
+        }
+
+        private void AddColonyPart(
+            Transform parent, HideFlags flags, string name, PrimitiveType shape,
+            Vector3 position, Quaternion rotation, Vector3 scale)
+        {
+            var part = GameObject.CreatePrimitive(shape);
+            part.name = name;
+            part.hideFlags = flags;
+            SafeDestroy(part.GetComponent<Collider>());
+            part.transform.SetParent(parent, false);
+            part.transform.localPosition = position;
+            part.transform.localRotation = rotation;
+            part.transform.localScale = scale;
+            part.GetComponent<Renderer>().sharedMaterial = colonyMaterial;
         }
 
         /// <summary>拠点の部品をひとつ足す。当たり判定は要らないので外す。</summary>

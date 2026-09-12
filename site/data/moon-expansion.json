@@ -3,14 +3,15 @@
   "title": "月への展開",
   "disclaimer": "これは仮想シナリオのひとつであり、予測でも計画でもありません。実現の可否・時期・確率を示しません。段階の順序と内容は象徴的な例であり、出典に基づくものではありません。",
   "interchangeNote": "このファイルはUnityのR1-P1で追加した仮想シナリオ用です。ブラウザは読み込みません。site/data/earth-eras.json とはスキーマ系列を分けています。",
-  "parameterNote": "transfer・facility・surfaceLights・orbitStationの数値は0〜1に正規化した象徴表現の演出強度であり、輸送回数・施設数・費用・人数・軌道高度などの見積もりではありません。",
+  "parameterNote": "transfer・facility・surfaceLights・orbitStation・lagrangeColonyの数値は0〜1に正規化した象徴表現の演出強度であり、輸送回数・施設数・費用・人数・軌道高度・コロニーの寸法などの見積もりではありません。",
   "status": "仮想シナリオ案",
   "phaseOrder": [
     "Station",
     "Reach",
     "Supply",
     "Resource",
-    "Habitat"
+    "Habitat",
+    "Lagrange"
   ],
   "phases": [
     {
@@ -112,6 +113,28 @@
         "tags": [
           "往復：定常",
           "月面の拠点：連なる",
+          "地球への依存：低"
+        ]
+      },
+      "status": "仮想シナリオ案"
+    },
+    {
+      "id": "Lagrange",
+      "displayName": "ラグランジュ点のコロニー",
+      "sortOrder": 6,
+      "summary": "地球と月の重力が釣り合う点（L4・L5）に、回転させて重力の代わりを作る円筒形の居住地を置く想定の段階です。オニールが1970年代に示した構想にならっています。実現の可否・時期・確率を示しません。大きさ・人数・建設に要する資源量も示しません。",
+      "visual": {
+        "transfer": 0.45,
+        "facility": 1,
+        "surfaceLights": 0.95,
+        "orbitStation": 1,
+        "lagrangeColony": 1
+      },
+      "presentation": {
+        "caption": "重力の釣り合う点に、地球にも月にも載らない居住地を置いた状態を表しています。",
+        "tags": [
+          "位置：L4・L5",
+          "重力：自転で作る",
           "地球への依存：低"
         ]
       },
