@@ -10,6 +10,9 @@
 #view-switch button { font: inherit; color: #eef4fa; background: #152538; border: 1px solid #58708a; border-radius: 5px; min-height: 44px; padding: 8px 18px; cursor: pointer; }
 #view-switch button:hover:not(:disabled) { background: #284259; }
 #view-switch button[aria-pressed="true"] { border-color: #9ee3ed; background: #244456; box-shadow: inset 0 3px #9ee3ed; font-weight: 700; }
+/* 別ページ（重力シミュレーション）への入口。見た目は切替ボタンに揃える */
+#view-switch a { display: inline-flex; align-items: center; font: inherit; color: #eef4fa; background: #152538; border: 1px solid #58708a; border-radius: 5px; min-height: 44px; padding: 8px 18px; text-decoration: none; }
+#view-switch a:hover { background: #284259; }
 
 /* ---------------- R2パネルの基本 ---------------- */
 #r2-panel { --r2-ocean: 0; --r2-ice: 0; --r2-veg: 0; --r2-oxy: 0; padding-top: 8px; }

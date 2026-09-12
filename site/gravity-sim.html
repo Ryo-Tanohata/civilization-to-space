@@ -1,0 +1,517 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="重力で天体が動き、衝突すると合体する簡易シミュレーション。">
+<title>重力と合体のシミュレーション</title>
+<style>
+:root { color-scheme: dark; font-family: system-ui, sans-serif; background: #05080f; color: #eef4fa; line-height: 1.6; }
+* { box-sizing: border-box; }
+body { margin: 0; padding: 0; background: #05080f; }
+.wrap { max-width: 1100px; margin: 0 auto; padding: 14px 14px 28px; }
+h1 { font-size: 1.25rem; margin: 0 0 4px; letter-spacing: -.01em; }
+.back { margin: 0 0 10px; font-size: .8125rem; }
+.back a { display: inline-flex; align-items: center; min-height: 44px; color: #9ee3ed; text-decoration: none; }
+.back a:hover { text-decoration: underline; }
+.lead { color: #b7c7d8; font-size: .8125rem; margin: 0 0 12px; }
+.stage { position: relative; width: 100%; aspect-ratio: 1 / 1; max-height: 62vh; border: 1px solid #2b3d52; border-radius: 8px; overflow: hidden; background: #04060c; }
+@media (min-width: 760px) { .stage { aspect-ratio: 16 / 10; max-height: none; } }
+canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.hud { position: absolute; left: 8px; top: 8px; display: grid; gap: 2px; padding: 7px 9px; background: #04060cd9; border: 1px solid #2b3d52; border-radius: 6px; font-size: .6875rem; color: #cfe0ee; font-variant-numeric: tabular-nums; pointer-events: none; }
+.hud b { color: #9ee3ed; font-weight: 700; }
+.phase { position: absolute; right: 8px; top: 8px; padding: 6px 10px; background: #04060cd9; border: 1px solid #2b3d52; border-radius: 6px; font-size: .6875rem; color: #9ee3ed; pointer-events: none; }
+
+.modes { display: flex; gap: 8px; margin: 12px 0 10px; }
+.modes button { flex: 1 1 0; font: inherit; font-size: .875rem; color: #eef4fa; background: #101d2c; border: 1px solid #46617d; border-radius: 6px; min-height: 46px; padding: 8px 10px; cursor: pointer; }
+.modes button[aria-pressed="true"] { border-color: #9ee3ed; background: #21435a; box-shadow: inset 0 3px #9ee3ed; font-weight: 700; }
+
+.transport { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.transport button { font: inherit; font-size: .9375rem; min-height: 48px; border-radius: 6px; cursor: pointer; color: #eef4fa; background: #152538; border: 1px solid #58708a; }
+.transport button.primary { background: #a9e3ec; color: #08202c; font-weight: 700; border-color: #a9e3ec; }
+.transport button:active { transform: translateY(1px); }
+
+fieldset { border: 1px solid #2b3d52; border-radius: 8px; margin: 0 0 12px; padding: 10px 12px 14px; min-width: 0; }
+legend { padding: 0 6px; font-size: .8125rem; color: #9ee3ed; font-weight: 700; }
+.row { display: grid; gap: 4px; margin-bottom: 12px; }
+.row:last-child { margin-bottom: 0; }
+.row label { font-size: .8125rem; display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.row .val { color: #9ee3ed; font-variant-numeric: tabular-nums; font-weight: 700; }
+input[type="range"] { width: 100%; min-height: 44px; margin: 0; accent-color: #9ee3ed; }
+.hint { font-size: .75rem; color: #94a9bd; margin: 2px 0 0; }
+:focus-visible { outline: 3px solid #ffda89; outline-offset: 3px; }
+/* .row { display: grid } が UA の [hidden] を打ち消すため明示する */
+[hidden] { display: none !important; }
+
+.readout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
+@media (min-width: 560px) { .readout { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.card { border: 1px solid #2b3d52; border-radius: 6px; padding: 8px 10px; background: #0a111b; }
+.card dt { font-size: .6875rem; color: #94a9bd; margin: 0; }
+.card dd { margin: 2px 0 0; font-size: 1rem; font-weight: 700; color: #eef4fa; font-variant-numeric: tabular-nums; }
+.note { font-size: .75rem; color: #94a9bd; border-left: 2px solid #46617d; padding: 2px 0 2px 10px; margin: 0 0 8px; }
+@media (prefers-reduced-motion: reduce) { .transport button:active { transform: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="back"><a href="index.html">← 地球の時代・生命圏の比較へ</a></p>
+  <h1>重力と合体のシミュレーション</h1>
+  <p class="lead">質量・位置・速度から動きを計算します。衝突した天体は質量と運動量を保ったまま合体します。実際の太陽系の再現ではなく、条件を変えて挙動を見比べるための簡易モデルです。</p>
+
+  <div class="stage">
+    <canvas id="view"></canvas>
+    <dl class="hud" id="hud">
+      <div>天体数 <b id="hud-n">0</b></div>
+      <div>総質量 <b id="hud-m">0</b></div>
+      <div>運動量 <b id="hud-p">0</b></div>
+      <div>経過 <b id="hud-t">0</b></div>
+    </dl>
+    <div class="phase" id="phase">停止中</div>
+  </div>
+
+  <div class="modes" role="group" aria-label="モードの切替">
+    <button id="mode-accretion" type="button" aria-pressed="true">集積：天体が育つ</button>
+    <button id="mode-orbit" type="button" aria-pressed="false">公転：地球と月</button>
+  </div>
+
+  <div class="transport">
+    <button id="play" class="primary" type="button" aria-pressed="false">開始</button>
+    <button id="reset" type="button">最初から</button>
+    <button id="speed" type="button">速さ 1x</button>
+  </div>
+
+  <fieldset>
+    <legend>条件</legend>
+    <div class="row">
+      <label for="g">重力の強さ <span class="val" id="g-val">1.00</span></label>
+      <input id="g" type="range" min="20" max="300" step="5" value="100">
+      <p class="hint">大きいほど強く引き合い、早く集まります。</p>
+    </div>
+    <div class="row" id="row-speed0">
+      <label for="v0">初速度 <span class="val" id="v0-val">1.00</span></label>
+      <input id="v0" type="range" min="0" max="180" step="2" value="100">
+      <p class="hint" id="v0-hint">1.00 で円に近い軌道。小さいと落ち、大きいと遠ざかります。</p>
+    </div>
+    <div class="row" id="row-count">
+      <label for="count">流入する天体の数 <span class="val" id="count-val">48</span></label>
+      <input id="count" type="range" min="8" max="120" step="4" value="48">
+      <p class="hint">画面の外から順に入ってきます。</p>
+    </div>
+  </fieldset>
+
+  <dl class="readout">
+    <div class="card"><dt>合体した回数</dt><dd id="r-merges">0</dd></div>
+    <div class="card"><dt>いちばん重い天体</dt><dd id="r-heaviest">0</dd></div>
+    <div class="card"><dt>総質量の変化</dt><dd id="r-massdrift">0.0%</dd></div>
+    <div class="card"><dt>結果</dt><dd id="r-outcome">—</dd></div>
+  </dl>
+
+  <p class="note">総質量と運動量は、流入が終わったあとは合体しても保たれます。数値は計算上の単位で、kgやkmではありません。</p>
+  <p class="note">重力は距離の2乗に反比例する力として計算し、近すぎるときの発散を防ぐ緩和を入れています。積分は速度ベルレ法です。</p>
+</div>
+
+<script>
+'use strict';
+(() => {
+  const canvas = document.getElementById('view');
+  const ctx = canvas.getContext('2d', { alpha: false });
+
+  const el = (id) => document.getElementById(id);
+  const dom = {
+    hudN: el('hud-n'), hudM: el('hud-m'), hudP: el('hud-p'), hudT: el('hud-t'), phase: el('phase'),
+    modeAcc: el('mode-accretion'), modeOrb: el('mode-orbit'),
+    play: el('play'), reset: el('reset'), speed: el('speed'),
+    g: el('g'), gVal: el('g-val'),
+    v0: el('v0'), v0Val: el('v0-val'), v0Hint: el('v0-hint'), rowSpeed0: el('row-speed0'),
+    count: el('count'), countVal: el('count-val'), rowCount: el('row-count'),
+    rMerges: el('r-merges'), rHeaviest: el('r-heaviest'), rMassDrift: el('r-massdrift'), rOutcome: el('r-outcome')
+  };
+
+  const SOFTENING2 = 4;        // 近距離での発散を抑える緩和項
+  const SUBSTEPS = 4;          // 1フレームあたりの積分回数
+  const DT = 0.016;            // 1サブステップの時間刻み
+  const SPEEDS = [0.5, 1, 2, 4];
+  // 画面上で見て分かる速さになるよう、重力定数に基準倍率をかける。
+  // スライダーの「1.00」がこの基準にあたる。単位は計算用でSIではない。
+  const G_BASE = 200;
+
+  const state = {
+    mode: 'accretion',
+    running: false,
+    speedIndex: 1,
+    G: G_BASE,
+    v0: 1,
+    spawnTarget: 48,
+    bodies: [],
+    t: 0,
+    merges: 0,
+    spawnQueue: [],
+    spawnTimer: 0,
+    massAtInflowEnd: null,
+    view: { cx: 0, cy: 0, scale: 1 },
+    stars: []
+  };
+
+  /* ---------------- 天体 ---------------- */
+  let nextId = 1;
+  const radiusOf = (m) => Math.cbrt(m) * 2.2;
+  function body(x, y, vx, vy, m, hue) {
+    return { id: nextId++, x, y, vx, vy, m, r: radiusOf(m), hue: hue === undefined ? 210 : hue };
+  }
+
+  function totalMass() { let s = 0; for (const b of state.bodies) s += b.m; return s; }
+  function totalMomentum() {
+    let px = 0, py = 0;
+    for (const b of state.bodies) { px += b.m * b.vx; py += b.m * b.vy; }
+    return Math.hypot(px, py);
+  }
+  function heaviest() { let m = 0; for (const b of state.bodies) if (b.m > m) m = b.m; return m; }
+
+  /* ---------------- 物理 ---------------- */
+  function accelerations() {
+    const n = state.bodies.length;
+    const ax = new Float64Array(n), ay = new Float64Array(n);
+    for (let i = 0; i < n; i++) {
+      const bi = state.bodies[i];
+      for (let j = i + 1; j < n; j++) {
+        const bj = state.bodies[j];
+        const dx = bj.x - bi.x, dy = bj.y - bi.y;
+        const r2 = dx * dx + dy * dy + SOFTENING2;
+        const inv = 1 / (r2 * Math.sqrt(r2));   // 1 / r^3
+        const s = state.G * inv;
+        ax[i] += s * bj.m * dx; ay[i] += s * bj.m * dy;
+        ax[j] -= s * bi.m * dx; ay[j] -= s * bi.m * dy;
+      }
+    }
+    return { ax, ay };
+  }
+
+  // 速度ベルレ法
+  function integrate(dt) {
+    const n = state.bodies.length;
+    if (n === 0) return;
+    let a = accelerations();
+    for (let i = 0; i < n; i++) {
+      const b = state.bodies[i];
+      b.vx += 0.5 * a.ax[i] * dt; b.vy += 0.5 * a.ay[i] * dt;
+      b.x += b.vx * dt; b.y += b.vy * dt;
+    }
+    a = accelerations();
+    for (let i = 0; i < n; i++) {
+      const b = state.bodies[i];
+      b.vx += 0.5 * a.ax[i] * dt; b.vy += 0.5 * a.ay[i] * dt;
+    }
+  }
+
+  // 完全非弾性衝突。質量と運動量を保存する。
+  function resolveCollisions() {
+    const list = state.bodies;
+    for (let i = 0; i < list.length; i++) {
+      for (let j = i + 1; j < list.length; j++) {
+        const a = list[i], b = list[j];
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const touch = a.r + b.r;
+        if (dx * dx + dy * dy > touch * touch) continue;
+        const m = a.m + b.m;
+        const merged = body(
+          (a.x * a.m + b.x * b.m) / m,
+          (a.y * a.m + b.y * b.m) / m,
+          (a.vx * a.m + b.vx * b.m) / m,   // 運動量保存
+          (a.vy * a.m + b.vy * b.m) / m,
+          m,
+          a.m >= b.m ? a.hue : b.hue
+        );
+        list.splice(j, 1); list.splice(i, 1);
+        list.push(merged);
+        state.merges++;
+        i = -1; break;   // 先頭から取り直す
+      }
+    }
+  }
+
+  function spawnStep(dt) {
+    if (state.mode !== 'accretion' || state.spawnQueue.length === 0) return;
+    state.spawnTimer -= dt;
+    while (state.spawnTimer <= 0 && state.spawnQueue.length > 0) {
+      state.bodies.push(state.spawnQueue.shift());
+      state.spawnTimer += 0.09;
+    }
+    if (state.spawnQueue.length === 0) state.massAtInflowEnd = totalMass();
+  }
+
+  function stepOnce(dt) {
+    spawnStep(dt);
+    integrate(dt);
+    resolveCollisions();
+    state.t += dt;
+  }
+
+  /* ---------------- 初期条件 ---------------- */
+  function seededRandom(seed) {
+    let s = seed >>> 0;
+    return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+  }
+
+  function buildAccretion() {
+    const rnd = seededRandom(20260912);
+    state.bodies = [];
+    state.spawnQueue = [];
+    state.spawnTimer = 0;
+    state.massAtInflowEnd = null;
+    const n = state.spawnTarget;
+    const R = 210;
+    for (let i = 0; i < n; i++) {
+      const ang = rnd() * Math.PI * 2;
+      const dist = R * (0.85 + rnd() * 0.3);
+      const x = Math.cos(ang) * dist, y = Math.sin(ang) * dist;
+      // 内向き成分 + 接線成分（渦を作り、まっすぐ落ちきらないようにする）
+      const inward = 0.55 + rnd() * 0.35;
+      const tang = (0.30 + rnd() * 0.45) * (rnd() < 0.5 ? -1 : 1);
+      const ux = -x / dist, uy = -y / dist;
+      const tx = -uy, ty = ux;
+      const sp = Math.sqrt(G_BASE) * 0.78;
+      state.spawnQueue.push(body(x, y, (ux * inward + tx * tang) * sp, (uy * inward + ty * tang) * sp,
+        0.7 + rnd() * 1.1, 200 + rnd() * 40));
+    }
+    state.view = { cx: 0, cy: 0, scale: 1 };
+  }
+
+  function buildOrbit() {
+    state.bodies = [];
+    state.spawnQueue = [];
+    state.massAtInflowEnd = null;
+    const M = 260, m = 3.2, d = 130;
+    // 円軌道になる速度を基準にし、初速度スライダーで倍率をかける
+    const vCirc = Math.sqrt(state.G * (M + m) / d);
+    const v = vCirc * state.v0;
+    const f = m / (M + m);
+    state.bodies.push(body(-d * f, 0, 0, -v * f, M, 205));
+    state.bodies.push(body(d * (1 - f), 0, 0, v * (1 - f), m, 45));
+    state.view = { cx: 0, cy: 0, scale: 1 };
+  }
+
+  function rebuild() {
+    state.t = 0;
+    state.merges = 0;
+    nextId = 1;
+    if (state.mode === 'accretion') buildAccretion(); else buildOrbit();
+    updateReadout();
+    draw();
+  }
+
+  /* ---------------- 描画 ---------------- */
+  function makeStars(w, h) {
+    const rnd = seededRandom(7);
+    const out = [];
+    const n = Math.round((w * h) / 9000);
+    for (let i = 0; i < n; i++) out.push({ x: rnd() * w, y: rnd() * h, a: 0.25 + rnd() * 0.6, s: rnd() < 0.9 ? 1 : 1.8 });
+    return out;
+  }
+
+  function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const rect = canvas.getBoundingClientRect();
+    const w = Math.max(1, Math.round(rect.width * dpr));
+    const h = Math.max(1, Math.round(rect.height * dpr));
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w; canvas.height = h;
+      state.stars = makeStars(w, h);
+    }
+    return { w, h, dpr };
+  }
+
+  // 自動フレーミング。基本は全天体が入るように合わせるが、
+  // 遠くへ飛び去った天体まで収めようとすると主星が点になるため、
+  // いちばん重い天体が一定の大きさを保つよう縮小に下限を設ける。
+  // はぐれた天体は画面外へ出す。
+  const MIN_PRIMARY_RATIO = 0.02;   // 主星の半径が短辺に占める最小割合
+  function frame(w, h) {
+    const bs = state.bodies;
+    if (bs.length === 0) { state.view.scale += (1 - state.view.scale) * 0.1; return; }
+    let M = 0, cx = 0, cy = 0;
+    for (const b of bs) { M += b.m; cx += b.x * b.m; cy += b.y * b.m; }
+    cx /= M; cy /= M;
+    let rad = 34, primary = bs[0];
+    for (const b of bs) {
+      rad = Math.max(rad, Math.hypot(b.x - cx, b.y - cy) + b.r);
+      if (b.m > primary.m) primary = b;
+    }
+    const short = Math.min(w, h);
+    const fitAll = short / (rad * 2 * 1.3);
+    // 下限は、天体がまとまってきた後だけ効かせる。
+    // 流入中（多数の小天体が散在）に効かせると全部が画面外へ出てしまう。
+    const keepPrimary = bs.length <= 8 ? (short * MIN_PRIMARY_RATIO) / Math.max(primary.r, 0.5) : 0;
+    const target = Math.max(fitAll, keepPrimary);
+    const k = 0.06;
+    state.view.scale += (target - state.view.scale) * k;
+    state.view.cx += (cx - state.view.cx) * k;
+    state.view.cy += (cy - state.view.cy) * k;
+  }
+
+  function draw() {
+    const { w, h } = resize();
+    frame(w, h);
+    ctx.fillStyle = '#04060c';
+    ctx.fillRect(0, 0, w, h);
+    for (const s of state.stars) {
+      ctx.globalAlpha = s.a;
+      ctx.fillStyle = '#cfe0ee';
+      ctx.fillRect(s.x, s.y, s.s, s.s);
+    }
+    ctx.globalAlpha = 1;
+
+    const sc = state.view.scale;
+    const ox = w / 2 - state.view.cx * sc, oy = h / 2 - state.view.cy * sc;
+    for (const b of state.bodies) {
+      const px = b.x * sc + ox, py = b.y * sc + oy;
+      const pr = Math.max(1.5, b.r * sc);
+      const grad = ctx.createRadialGradient(px - pr * 0.3, py - pr * 0.35, pr * 0.1, px, py, pr);
+      grad.addColorStop(0, `hsl(${b.hue} 70% 72%)`);
+      grad.addColorStop(1, `hsl(${b.hue} 65% 32%)`);
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(px, py, pr, 0, Math.PI * 2); ctx.fill();
+      if (pr > 6) {
+        ctx.strokeStyle = `hsl(${b.hue} 80% 78% / .35)`;
+        ctx.lineWidth = Math.max(1, pr * 0.06);
+        ctx.stroke();
+      }
+    }
+  }
+
+  /* ---------------- 表示の更新 ---------------- */
+  const fmt = (v, d) => v.toFixed(d === undefined ? 1 : d);
+  function updateReadout() {
+    const m = totalMass();
+    dom.hudN.textContent = String(state.bodies.length);
+    dom.hudM.textContent = fmt(m);
+    dom.hudP.textContent = fmt(totalMomentum());
+    dom.hudT.textContent = fmt(state.t, 0);
+    dom.rMerges.textContent = String(state.merges);
+    dom.rHeaviest.textContent = fmt(heaviest());
+    if (state.massAtInflowEnd) {
+      const drift = (m - state.massAtInflowEnd) / state.massAtInflowEnd * 100;
+      dom.rMassDrift.textContent = `${drift >= 0 ? '+' : ''}${drift.toFixed(2)}%`;
+    } else {
+      dom.rMassDrift.textContent = state.mode === 'accretion' ? '流入中' : '0.00%';
+    }
+    dom.rOutcome.textContent = outcomeText();
+    dom.phase.textContent = phaseText();
+  }
+
+  function phaseText() {
+    if (!state.running) return state.t === 0 ? '停止中' : '一時停止';
+    if (state.mode === 'accretion') {
+      if (state.spawnQueue.length > 0) return '小天体が流入中';
+      return state.bodies.length > 1 ? '衝突と合体' : '原始天体ができた';
+    }
+    return '公転中';
+  }
+
+  function outcomeText() {
+    if (state.mode === 'accretion') {
+      if (state.spawnQueue.length > 0) return '流入中';
+      const n = state.bodies.length;
+      if (n === 0) return '—';
+      if (n === 1) return '1個にまとまった';
+      const share = heaviest() / totalMass();
+      if (share >= 0.5) return `大きな天体1個（全体の${Math.round(share * 100)}%）と残り${n - 1}個`;
+      return `${n}個が残っている`;
+    }
+    if (state.bodies.length === 1) return '合体した';
+    const [a, b] = state.bodies;
+    if (!a || !b) return '—';
+    const d = Math.hypot(b.x - a.x, b.y - a.y);
+    if (d > 900) return '遠ざかった';
+    return '公転している';
+  }
+
+  /* ---------------- ループ ---------------- */
+  let raf = 0, last = 0;
+  function loop(now) {
+    raf = requestAnimationFrame(loop);
+    if (!last) last = now;
+    const elapsed = Math.min((now - last) / 1000, 0.05);
+    last = now;
+    if (state.running) {
+      const mult = SPEEDS[state.speedIndex];
+      const steps = Math.max(1, Math.round(SUBSTEPS * mult));
+      for (let i = 0; i < steps; i++) stepOnce(DT);
+      updateReadout();
+    }
+    draw();
+  }
+
+  /* ---------------- 操作 ---------------- */
+  function setMode(mode) {
+    state.mode = mode;
+    dom.modeAcc.setAttribute('aria-pressed', String(mode === 'accretion'));
+    dom.modeOrb.setAttribute('aria-pressed', String(mode === 'orbit'));
+    dom.rowCount.hidden = mode !== 'accretion';
+    dom.rowSpeed0.hidden = mode !== 'orbit';
+    setRunning(false);
+    rebuild();
+  }
+  function setRunning(on) {
+    state.running = on;
+    dom.play.textContent = on ? '一時停止' : (state.t === 0 ? '開始' : '再開');
+    dom.play.setAttribute('aria-pressed', String(on));
+    dom.phase.textContent = phaseText();
+  }
+
+  dom.modeAcc.addEventListener('click', () => setMode('accretion'));
+  dom.modeOrb.addEventListener('click', () => setMode('orbit'));
+  dom.play.addEventListener('click', () => setRunning(!state.running));
+  dom.reset.addEventListener('click', () => { setRunning(false); rebuild(); });
+  dom.speed.addEventListener('click', () => {
+    state.speedIndex = (state.speedIndex + 1) % SPEEDS.length;
+    dom.speed.textContent = `速さ ${SPEEDS[state.speedIndex]}x`;
+  });
+  dom.g.addEventListener('input', () => {
+    const k = Number(dom.g.value) / 100;
+    state.G = k * G_BASE;
+    dom.gVal.textContent = k.toFixed(2);
+    if (state.t === 0) rebuild();
+  });
+  dom.v0.addEventListener('input', () => {
+    state.v0 = Number(dom.v0.value) / 100;
+    dom.v0Val.textContent = state.v0.toFixed(2);
+    dom.v0Hint.textContent = state.v0 < 0.75 ? '落ちて衝突しやすくなります。'
+      : state.v0 > 1.3 ? '遠ざかりやすくなります。' : '円に近い軌道になります。';
+    if (state.t === 0) rebuild();
+  });
+  dom.count.addEventListener('input', () => {
+    state.spawnTarget = Number(dom.count.value);
+    dom.countVal.textContent = String(state.spawnTarget);
+    if (state.t === 0) rebuild();
+  });
+  window.addEventListener('resize', () => { resize(); draw(); });
+
+  // 検証用の入口（テストからのみ使う）
+  window.__sim = {
+    state,
+    stepOnce,
+    rebuild,
+    setMode: (m) => { state.mode = m; rebuild(); },
+    totalMass, totalMomentum, heaviest,
+    energy() {
+      let ke = 0, pe = 0;
+      for (const b of state.bodies) ke += 0.5 * b.m * (b.vx * b.vx + b.vy * b.vy);
+      for (let i = 0; i < state.bodies.length; i++) {
+        for (let j = i + 1; j < state.bodies.length; j++) {
+          const a = state.bodies[i], c = state.bodies[j];
+          const r = Math.sqrt((c.x - a.x) ** 2 + (c.y - a.y) ** 2 + SOFTENING2);
+          pe -= state.G * a.m * c.m / r;
+        }
+      }
+      return { ke, pe, total: ke + pe };
+    },
+    run(seconds) { const n = Math.round(seconds / DT); for (let i = 0; i < n; i++) stepOnce(DT); }
+  };
+
+  setMode('accretion');
+  dom.rowSpeed0.hidden = true;
+  raf = requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
