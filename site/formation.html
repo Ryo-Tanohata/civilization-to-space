@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="微惑星の集積から原始地球、ジャイアントインパクト、月の分離までを重力の計算で動かす。">
+  <title>地球ができるまで — Civilization to Space</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="formation.css">
+  <script src="formation-sim.js" defer></script>
+  <script src="formation.js" defer></script>
+</head>
+<body>
+  <header class="masthead">
+    <p class="eyebrow">CIVILIZATION TO SPACE / 形成過程</p>
+    <h1>地球ができるまで</h1>
+    <p id="disclaimer">微惑星の集積から、原始地球、ジャイアントインパクト、月の分離まで。位置は用意した絵ではなく、重力の計算で決まる。</p>
+  </header>
+
+  <main>
+    <noscript><p class="notice">この画面の表示と操作にはJavaScriptが必要です。</p></noscript>
+
+    <p class="page-note"><a href="index.html">← 地球の時代・生命圏の比較へ</a></p>
+    <p class="page-note">重力と合体そのものを条件を変えて触るには <a href="gravity-sim.html">重力シミュレーション</a>（2D・原始天体ができるまで）があります。こちらは<b>同じ計算を3Dで、月が分かれるところまで通す</b>ページです。</p>
+
+    <div id="formation-stage">
+      <canvas id="formation-canvas" aria-label="形成過程の様子"></canvas>
+      <p id="formation-phase" role="status">読み込んでいます…</p>
+      <p id="formation-readout"></p>
+    </div>
+
+    <div class="formation-controls">
+      <button id="formation-play" type="button" class="formation-primary">一時停止</button>
+      <button id="formation-speed" type="button">速さ ×1</button>
+      <button id="formation-reset-view" type="button">視点をもどす</button>
+      <button id="formation-reseed" type="button">別の種でやり直す</button>
+    </div>
+
+    <details id="formation-settings">
+      <summary>条件を変える</summary>
+
+      <p class="formation-note">変えたら下の「この条件でやり直す」を押します。最初から計算し直します。</p>
+
+      <p class="formation-field">
+        <label for="formation-count">微惑星の数<b id="formation-count-value">380個</b></label>
+        <input id="formation-count" type="range" min="0" max="5" step="1" value="3">
+      </p>
+
+      <p class="formation-field">
+        <label for="formation-aim">衝突天体の当て方<b id="formation-aim-value">斜めから</b></label>
+        <input id="formation-aim" type="range" min="0" max="4" step="1" value="2">
+      </p>
+
+      <p class="formation-field">
+        <label for="formation-ejecta">破片になる質量<b id="formation-ejecta-value">2.2%</b></label>
+        <input id="formation-ejecta" type="range" min="0" max="4" step="1" value="2">
+      </p>
+
+      <p class="formation-field">
+        <label for="formation-attraction">破片が集まる力<b id="formation-attraction-value">60倍</b></label>
+        <input id="formation-attraction" type="range" min="0" max="4" step="1" value="3">
+      </p>
+
+      <p class="formation-field">
+        <button id="formation-apply" type="button" class="formation-primary">この条件でやり直す</button>
+      </p>
+    </details>
+
+    <section class="formation-honesty">
+      <h2>これは何を計算していて、何を計算していないか</h2>
+      <ul>
+        <li><b>計算している：</b>天体どうしの引力を総当たりで足し、速度と位置を更新している。触れた対は質量と運動量を保って合体する。段階は時間ではなく計算された状態から進む（例：いちばん重い塊が全体の78%を超えたら「原始地球」）。</li>
+        <li><b>計算していない：</b>衝突で破片が飛び散る過程。物質の流体としての振る舞いは解いておらず、決めた量の破片を決めた範囲へ置く模型に置き換えている。衝突から取っているのは円盤の向きだけで、当て方を変えると向きが変わる。</li>
+        <li><b>強めている：</b>破片どうしの引力を既定で60倍にしている。実際の月は円盤が何十回も回って集まる。その回数ぶんの時間を縮めるかわりである。<b>「条件を変える」で1倍に戻すと、月にならないことを確かめられる。</b></li>
+        <li><b>単位がない：</b>地球の最終質量を1とした相対値であり、実際の質量・距離・年数ではない。年代も規模も読み取れない。読み取れるのは順序と、条件と結果の関係だけである。</li>
+      </ul>
+    </section>
+
+    <p class="page-note">ドラッグ（スマートフォンでは指でなぞる）で視点が回り、ホイールまたは指2本の間隔で寄ります。視点の操作で計算は止まりません。</p>
+    <p class="page-note">同じ種なら何度でも同じ形成過程になります。実装の詳細と測った値は <code>docs/reports/ANDROID_FORMATION_SIM.md</code> にあります。</p>
+  </main>
+</body>
+</html>
