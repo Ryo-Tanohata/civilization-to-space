@@ -3,9 +3,10 @@
   "title": "月への展開",
   "disclaimer": "これは仮想シナリオのひとつであり、予測でも計画でもありません。実現の可否・時期・確率を示しません。段階の順序と内容は象徴的な例であり、出典に基づくものではありません。",
   "interchangeNote": "このファイルはUnityのR1-P1で追加した仮想シナリオ用です。ブラウザは読み込みません。site/data/earth-eras.json とはスキーマ系列を分けています。",
-  "parameterNote": "transferとfacilityの数値は0〜1に正規化した象徴表現の演出強度であり、輸送回数・施設数・費用・人数などの見積もりではありません。",
+  "parameterNote": "transfer・facility・surfaceLights・orbitStationの数値は0〜1に正規化した象徴表現の演出強度であり、輸送回数・施設数・費用・人数・軌道高度などの見積もりではありません。",
   "status": "仮想シナリオ案",
   "phaseOrder": [
+    "Station",
     "Reach",
     "Supply",
     "Resource",
@@ -13,14 +14,36 @@
   ],
   "phases": [
     {
+      "id": "Station",
+      "displayName": "地球周回の拠点",
+      "sortOrder": 1,
+      "summary": "月へ向かう前に、地球を回る軌道上へ人が滞在できる拠点を置く段階です。月面にはまだ何もありません。",
+      "visual": {
+        "transfer": 0.1,
+        "facility": 0,
+        "surfaceLights": 0,
+        "orbitStation": 0.35
+      },
+      "presentation": {
+        "caption": "地球を回る小さな拠点だけがある段階を表しています。",
+        "tags": [
+          "軌道上の拠点：小さい",
+          "月への往復：ごくわずか",
+          "月面の拠点：なし"
+        ]
+      },
+      "status": "仮想シナリオ案"
+    },
+    {
       "id": "Reach",
       "displayName": "到達",
-      "sortOrder": 1,
+      "sortOrder": 2,
       "summary": "地球から月へ到達する段階です。往復はまだ限られており、月面には何も残っていません。",
       "visual": {
         "transfer": 0.25,
         "facility": 0,
-        "surfaceLights": 0
+        "surfaceLights": 0,
+        "orbitStation": 0.6
       },
       "presentation": {
         "caption": "行き来が始まっただけの段階を表しています。",
@@ -34,12 +57,13 @@
     {
       "id": "Supply",
       "displayName": "補給拠点",
-      "sortOrder": 2,
+      "sortOrder": 3,
       "summary": "月面に物資を降ろす場所ができた段階です。運んだものに頼っており、現地で作るものはまだありません。",
       "visual": {
         "transfer": 0.6,
         "facility": 0.3,
-        "surfaceLights": 0.2
+        "surfaceLights": 0.2,
+        "orbitStation": 0.8
       },
       "presentation": {
         "caption": "運び込みに支えられた拠点を表しています。",
@@ -54,12 +78,13 @@
     {
       "id": "Resource",
       "displayName": "資源利用",
-      "sortOrder": 3,
+      "sortOrder": 4,
       "summary": "月にあるものを使い始めた段階です。運ぶ量が減り、拠点が広がります。何をどれだけ使えるかは示しません。",
       "visual": {
         "transfer": 0.45,
         "facility": 0.65,
-        "surfaceLights": 0.5
+        "surfaceLights": 0.5,
+        "orbitStation": 0.8
       },
       "presentation": {
         "caption": "現地のものを使い始めた状態を表しています。",
@@ -74,12 +99,13 @@
     {
       "id": "Habitat",
       "displayName": "居住",
-      "sortOrder": 4,
+      "sortOrder": 5,
       "summary": "人が住み続けられる想定の段階です。地球化を意味しません。生命維持の設計も、住める人数も示しません。",
       "visual": {
         "transfer": 0.3,
         "facility": 1,
-        "surfaceLights": 0.9
+        "surfaceLights": 0.9,
+        "orbitStation": 1
       },
       "presentation": {
         "caption": "拠点が連なった状態を表しています。地球化ではありません。",
