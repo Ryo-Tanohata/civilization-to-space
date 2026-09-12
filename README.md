@@ -8,7 +8,9 @@
 
 同じページに、R2「生命圏の比較」がブラウザ拡張として加わっています。画面上部の切替で、6時代の観察と、生命圏に関わる4つの比較条件のA/B比較を行き来できます。R2-P0は人によるブラウザレビューを完了しました（[R2-P0レビュー報告](docs/reports/R2_P0_HUMAN_REVIEW.md)）。
 
-**Unityでの最小再現（R1-P1）が動作します。** `unity/CivilizationToSpace/` を Unity 2022.3.11f1 で開き、`EarthTimelineDemo` シーンを Play すると、同じ6時代データを読み込んだ象徴的な地球を、選択・自動再生・視点操作で見られます。起動手順と検証結果は[R1-P1実装報告](docs/reports/R1_P1_UNITY_IMPLEMENTATION.md)にあります。
+**Unityでの最小再現（R1-P1）が動作します。** `unity/CivilizationToSpace/` を Unity 6000.4.8f1 で開き、`EarthTimelineDemo` シーンを Play すると、同じ6時代データを読み込んだ象徴的な地球を、選択・自動再生・視点操作で見られます。起動手順と検証結果は[R1-P1実装報告](docs/reports/R1_P1_UNITY_IMPLEMENTATION.md)にあります。
+
+**同じ内容をブラウザでも動かせます。** `site/unity/` にWebGLビルドを置いているため、スマートフォンからも開けます。地球の形成4段階・6時代・月への展開5段階を通して見られ、指2本で寄り引きできます。追加した操作と、公開ビルドに残っていた不具合2件の対応は[WebGL版の対応報告](docs/reports/UNITY_WEBGL_FONT_FIX.md)にあります。
 
 R1のブラウザモックレビューは[実施済み](docs/reports/R1_P0_HUMAN_REVIEW.md)です。人によるUnityレビューは未実施で、FR-04（Futureの2案切替）はブラウザ・Unityとも未実装です。したがってR1全体のDefinition of Doneは未達です。文書の仕様・優先度はレビュー用の初案のままです。
 
@@ -77,7 +79,7 @@ unity/CivilizationToSpace/
 
 `site/` は外部ライブラリ・CDN・npm・Node.js・外部APIに依存せず、ローカルHTTPサーバーとブラウザだけで動作します。
 
-`unity/` はUnity 2022.3.11f1・Built-in Render Pipeline で動作し、追加パッケージはUnity同梱の `com.unity.ugui` のみです。外部通信を行いません。時代データの正本は `site/data/earth-eras.json` だけであり、`StreamingAssets/` のコピーはblobハッシュの一致で同一性を示します。blender/（制作素材）は将来の承認後に作成します。
+`unity/` はUnity 6000.4.8f1・Built-in Render Pipeline で動作し、追加パッケージはUnity同梱の `com.unity.ugui` のみです。日本語表示のため、SIL Open Font License 1.1 の Noto Sans JP から必要な文字だけを抜き出したフォントを `Assets/Resources/Fonts/` に同梱しています（出典と改変内容は同ディレクトリの `NOTICE.md`）。外部通信を行いません。時代データの正本は `site/data/earth-eras.json` だけであり、`StreamingAssets/` のコピーはblobハッシュの一致で同一性を示します。blender/（制作素材）は将来の承認後に作成します。
 
 ## 公開
 
