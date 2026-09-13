@@ -195,6 +195,44 @@ namespace CivilizationToSpace.View
             material.color = new Color(rgb.r, rgb.g, rgb.b, current.a);
         }
 
+        /// <summary>
+        /// 地球の一部を描かないようにする。ぶつかって抉れた部分を表す。
+        ///
+        /// 球を小さくするだけでは「縮んだ」ようにしか見えず、壊れたことが伝わらない。
+        /// 実際にその範囲を描かないことで、欠けた形を作る。
+        /// </summary>
+        /// <param name="worldCenter">削る球の中心（ワールド座標）。</param>
+        /// <param name="radius">削る球の半径。0で削らない。</param>
+        public void SetCut(Vector3 worldCenter, float radius)
+        {
+            var center = new Vector4(worldCenter.x, worldCenter.y, worldCenter.z, 0f);
+            ApplyCut(currentMaterial, center, radius);
+            ApplyCut(incomingMaterial, center, radius);
+            ApplyCut(cloudMaterial, center, radius);
+            ApplyCut(atmosphereMaterial, center, radius);
+
+            if (glowMaterials == null)
+            {
+                return;
+            }
+
+            foreach (var glow in glowMaterials)
+            {
+                ApplyCut(glow, center, radius);
+            }
+        }
+
+        private static void ApplyCut(Material material, Vector4 center, float radius)
+        {
+            if (material == null)
+            {
+                return;
+            }
+
+            material.SetVector("_CutCenter", center);
+            material.SetFloat("_CutRadius", radius);
+        }
+
         /// <summary>動きの設定を渡す。渡さない場合は常に動く。</summary>
         public void SetMotionSettings(MotionSettings settings)
         {

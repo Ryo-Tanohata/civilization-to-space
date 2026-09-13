@@ -427,6 +427,13 @@ namespace CivilizationToSpace
                 {
                     moon.SetMolten(molten);
                 }
+
+                // ぶつかって抉れた部分を地球へ伝える。形成過程でなければ抉らない。
+                if (earth != null)
+                {
+                    var cut = timeline.HeadIndex >= 0 ? formation.CutRadius : 0f;
+                    earth.SetCut(EarthPosition + formation.CutCenter, cut);
+                }
             }
 
             // まだ焼いていない時代を1フレームに1つずつ用意する。

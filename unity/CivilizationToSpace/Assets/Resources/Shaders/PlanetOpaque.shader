@@ -24,6 +24,8 @@ Shader "CivilizationToSpace/PlanetOpaque"
         _BumpScale ("凹凸の強さ", Float) = 0
         _Glossiness ("滑らかさ", Range(0,1)) = 0
         _Metallic ("金属らしさ", Range(0,1)) = 0
+        _CutCenter ("削る中心（ワールド座標）", Vector) = (0,0,0,0)
+        _CutRadius ("削る半径", Float) = 0
     }
 
     SubShader
@@ -43,16 +45,26 @@ Shader "CivilizationToSpace/PlanetOpaque"
         half _BumpScale;
         half _Glossiness;
         half _Metallic;
+        float4 _CutCenter;
+        half _CutRadius;
 
         struct Input
         {
             float2 uv_MainTex;
             float2 uv_EmissionMap;
             float2 uv_BumpMap;
+            float3 worldPos;
         };
 
         void surf(Input IN, inout SurfaceOutputStandard o)
         {
+            // 衝突で抉れた部分を描かない。中心からこの半径の内側を落とす。
+            // 球を小さくするのではなく、実際に欠けた形を作るためである。
+            if (_CutRadius > 0)
+            {
+                clip(distance(IN.worldPos, _CutCenter.xyz) - _CutRadius);
+            }
+
             fixed4 c = tex2D(_MainTex, IN.uv_MainTex) * _Color;
             o.Albedo = c.rgb;
             o.Alpha = 1;

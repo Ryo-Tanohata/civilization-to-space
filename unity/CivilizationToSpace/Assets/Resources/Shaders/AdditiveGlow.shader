@@ -9,6 +9,8 @@ Shader "CivilizationToSpace/AdditiveGlow"
         _EmissionColor ("光の色と強さ", Color) = (1,1,1,1)
         _EmissionMap ("光る形", 2D) = "white" {}
         _Color ("濃さ（アルファ）", Color) = (1,1,1,1)
+        _CutCenter ("削る中心（ワールド座標）", Vector) = (0,0,0,0)
+        _CutRadius ("削る半径", Float) = 0
     }
 
     SubShader
@@ -31,6 +33,8 @@ Shader "CivilizationToSpace/AdditiveGlow"
             float4 _EmissionMap_ST;
             fixed4 _EmissionColor;
             fixed4 _Color;
+            float4 _CutCenter;
+            half _CutRadius;
 
             struct appdata
             {
@@ -42,6 +46,7 @@ Shader "CivilizationToSpace/AdditiveGlow"
             {
                 float4 pos : SV_POSITION;
                 float2 uv : TEXCOORD0;
+                float3 worldPos : TEXCOORD1;
             };
 
             v2f vert(appdata v)
@@ -49,11 +54,18 @@ Shader "CivilizationToSpace/AdditiveGlow"
                 v2f o;
                 o.pos = UnityObjectToClipPos(v.vertex);
                 o.uv = TRANSFORM_TEX(v.uv, _EmissionMap);
+                o.worldPos = mul(unity_ObjectToWorld, v.vertex).xyz;
                 return o;
             }
 
             fixed4 frag(v2f i) : SV_Target
             {
+                // 地球が欠けた部分では、にじみも出さない。
+                if (_CutRadius > 0)
+                {
+                    clip(distance(i.worldPos, _CutCenter.xyz) - _CutRadius);
+                }
+
                 fixed3 lit = tex2D(_EmissionMap, i.uv).rgb * _EmissionColor.rgb;
                 return fixed4(lit, _Color.a);
             }

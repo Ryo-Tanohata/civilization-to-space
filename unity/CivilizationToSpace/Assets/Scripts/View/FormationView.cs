@@ -87,8 +87,18 @@ namespace CivilizationToSpace.View
         /// <summary>砕けてから、球へ戻りきるまでの時間（秒）。</summary>
         private const float ShatterSeconds = 2.8f;
 
-        /// <summary>いちばん崩れたときに、地球が縮む割合。</summary>
-        private const float ShatterMinScale = 0.68f;
+        /// <summary>
+        /// いちばん崩れたときに、地球が縮む割合。
+        /// 欠けで壊れ具合を表すようにしたので、縮みはごくわずかにとどめる。
+        /// 大きく縮めると、壊れたのではなく遠ざかったように見える。
+        /// </summary>
+        private const float ShatterMinScale = 0.94f;
+
+        /// <summary>抉れる範囲の半径。地球の半径を1としたときの倍率。</summary>
+        private const float ShatterCutRadius = 1.05f;
+
+        /// <summary>抉れる中心を、地球の中心からどれだけ衝突側へ寄せるか。</summary>
+        private const float ShatterCutOffset = 0.95f;
 
         /// <summary>塊が散らばる距離。地球の半径を1としたときの倍率。</summary>
         private const float ShatterSpread = 1.35f;
@@ -229,6 +239,12 @@ namespace CivilizationToSpace.View
 
         /// <summary>月が現れる度合い。0で見えず、1で本来の大きさ。</summary>
         public float MoonEmergence { get; private set; }
+
+        /// <summary>抉れている球の中心（この見せ物の中の座標）。</summary>
+        public Vector3 CutCenter { get; private set; }
+
+        /// <summary>抉れている球の半径。0で抉れていない。</summary>
+        public float CutRadius { get; private set; }
 
         /// <summary>
         /// 地球と月がどれだけ溶けて見えるか。0で通常、1でもっとも赤い。
@@ -807,6 +823,7 @@ namespace CivilizationToSpace.View
             var active = impactHappened && sinceImpact < ShatterSeconds;
             if (!active)
             {
+                CutRadius = 0f;
                 for (var i = 0; i < shards.Length; i++)
                 {
                     if (shards[i].activeSelf)
@@ -826,11 +843,21 @@ namespace CivilizationToSpace.View
             var back = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.3f, 1f, t));
             var reach = outward * (1f - back);
 
+            // 抉れた範囲。ぶつかった側へ寄せた球を、地球から差し引く。
+            // 一気に開いて、戻りにつれて閉じる。閉じきると元の丸い地球になる。
+            var opening = Mathf.Clamp01(sinceImpact / (ShatterOutSeconds * 0.5f)) * (1f - back);
+            CutCenter = impactPoint.normalized * (earthRadius * ShatterCutOffset)
+                        + impactPoint.normalized * (earthRadius * 0.35f * (1f - opening));
+            CutRadius = earthRadius * ShatterCutRadius * opening;
+
             for (var i = 0; i < shards.Length; i++)
             {
                 shards[i].SetActive(true);
+
+                // 塊は抉れた側から出す。全方向へ均等に出すと、欠けた場所と結びつかない。
+                var direction = (shardDirections[i] + impactPoint.normalized * 1.1f).normalized;
                 shards[i].transform.localPosition =
-                    shardDirections[i] * (surface * 0.92f + earthRadius * ShatterSpread * reach);
+                    direction * (surface * 0.92f + earthRadius * ShatterSpread * reach);
 
                 // 戻りきるところで消える。地球へ吸い込まれて一体になったことを表す。
                 shards[i].transform.localScale = shardSizes[i] * (1f - back);
