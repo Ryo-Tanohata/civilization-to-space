@@ -39,6 +39,15 @@ namespace CivilizationToSpace.View
         /// <summary>集積の始まりに置く数。向かい合う2個から始める。</summary>
         private const int AccretionSeedCount = 2;
 
+        /// <summary>
+        /// 2個のままで見せる区間。集積の時間に対する割合。
+        /// すぐに数を増やすと、向かい合って近づく2個がその他大勢に紛れてしまう。
+        /// </summary>
+        private const float AccretionSeedHold = 0.4f;
+
+        /// <summary>最初の2個が進む速さ。ほかより遅くして、近づく様子を追えるようにする。</summary>
+        private const float AccretionSeedSpeed = 0.22f;
+
         /// <summary>ぶつかって飛び出す大きな塊の半径。地球の半径を1としたときの倍率。</summary>
         private const float FragmentScale = 0.30f;
 
@@ -265,7 +274,7 @@ namespace CivilizationToSpace.View
                 return;
             }
 
-            elapsed += Time.deltaTime;
+            elapsed += SceneClock.Delta;
 
             if (accreting)
             {
@@ -281,7 +290,7 @@ namespace CivilizationToSpace.View
 
             if (debrisRoot != null)
             {
-                debrisRoot.Rotate(Vector3.up, 22f * Time.deltaTime, Space.Self);
+                debrisRoot.Rotate(Vector3.up, 22f * SceneClock.Delta, Space.Self);
             }
 
             MoveSwarm();
@@ -292,7 +301,7 @@ namespace CivilizationToSpace.View
             // 揺れが終わらなくなる。
             if (impactHappened)
             {
-                sinceImpact += Time.deltaTime;
+                sinceImpact += SceneClock.Delta;
             }
 
             SinkImpactor();
@@ -333,7 +342,12 @@ namespace CivilizationToSpace.View
                     continue;
                 }
 
-                swarmProgress[i] += Time.deltaTime * (0.30f + (i % 5) * 0.07f);
+                // 最初の2個は同じ速さで進める。速さが違うと、
+                // 向かい合わせに置いても同じところで出会わない。
+                var speed = i < AccretionSeedCount
+                    ? AccretionSeedSpeed
+                    : 0.30f + (i % 5) * 0.07f;
+                swarmProgress[i] += SceneClock.Delta * speed;
 
                 if (swarmProgress[i] >= 1f)
                 {
@@ -344,7 +358,7 @@ namespace CivilizationToSpace.View
                 }
 
                 swarm[i].transform.localPosition = SwarmPosition(i, swarmProgress[i], surface);
-                swarm[i].transform.Rotate(Vector3.one, 120f * Time.deltaTime, Space.Self);
+                swarm[i].transform.Rotate(Vector3.one, 120f * SceneClock.Delta, Space.Self);
             }
         }
 
@@ -365,7 +379,10 @@ namespace CivilizationToSpace.View
             if (accreting)
             {
                 var t = Mathf.Clamp01(elapsed / AccretionSeconds);
-                visible = Mathf.RoundToInt(Mathf.Lerp(AccretionSeedCount, full, t));
+
+                // はじめの区間は2個のまま置き、出会うところを見せてから増やしていく。
+                var ramp = Mathf.InverseLerp(AccretionSeedHold, 1f, t);
+                visible = Mathf.RoundToInt(Mathf.Lerp(AccretionSeedCount, full, ramp));
             }
             else
             {
@@ -468,7 +485,7 @@ namespace CivilizationToSpace.View
             var eased = t * t;
             var contact = impactorStart.normalized * (earthRadius * CurrentScale() + earthRadius * 0.5f);
             impactor.transform.localPosition = Vector3.Lerp(impactorStart, contact, eased);
-            impactor.transform.Rotate(Vector3.one, 40f * Time.deltaTime, Space.Self);
+            impactor.transform.Rotate(Vector3.one, 40f * SceneClock.Delta, Space.Self);
 
             if (t < 1f)
             {
@@ -509,7 +526,7 @@ namespace CivilizationToSpace.View
             var depth = earthRadius * 0.5f * t;
             impactor.transform.localPosition = impactPoint - impactPoint.normalized * depth;
             impactor.transform.localScale = impactorScale * (1f - t);
-            impactor.transform.Rotate(Vector3.one, 90f * Time.deltaTime, Space.Self);
+            impactor.transform.Rotate(Vector3.one, 90f * SceneClock.Delta, Space.Self);
 
             if (t >= 1f)
             {
@@ -591,7 +608,7 @@ namespace CivilizationToSpace.View
             var eased = 1f - Mathf.Exp(-sinceImpact / FragmentEaseSeconds);
             fragment.transform.localPosition =
                 fragmentOrigin + fragmentDirection * (earthRadius * FragmentTravel * eased);
-            fragment.transform.Rotate(Vector3.one, 55f * Time.deltaTime, Space.Self);
+            fragment.transform.Rotate(Vector3.one, 55f * SceneClock.Delta, Space.Self);
         }
 
         /// <summary>ぶつかった場所のまわりに、光をいくつか散らす。</summary>
@@ -653,7 +670,7 @@ namespace CivilizationToSpace.View
 
                 debris[i].transform.localPosition =
                     Vector3.Lerp(debris[i].transform.localPosition, debrisTargets[i], eased * 0.12f);
-                debris[i].transform.Rotate(Vector3.one, 60f * Time.deltaTime, Space.Self);
+                debris[i].transform.Rotate(Vector3.one, 60f * SceneClock.Delta, Space.Self);
             }
         }
 
@@ -724,7 +741,7 @@ namespace CivilizationToSpace.View
                     continue;
                 }
 
-                flashLife[i] -= Time.deltaTime;
+                flashLife[i] -= SceneClock.Delta;
                 if (flashLife[i] <= 0f)
                 {
                     flashes[i].SetActive(false);
