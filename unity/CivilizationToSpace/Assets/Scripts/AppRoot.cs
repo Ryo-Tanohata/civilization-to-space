@@ -26,6 +26,49 @@ namespace CivilizationToSpace
         /// <summary>地球を置く位置。画面の左寄りに見えるよう、カメラを右へずらしてある。</summary>
         private static readonly Vector3 EarthPosition = Vector3.zero;
 
+        /// <summary>
+        /// 太陽に見立てた光の向き。平行光なので、向きだけで位置が決まる。
+        ///
+        /// 地球も月も、飛んでいる機体も、すべてこの一つの光で照らす。
+        /// そのため、どれも同じ側が昼になり、反対側が夜になる。
+        /// 天体ごとに別々の明るさを与えていないので、食い違いようがない。
+        /// **公転面・自転軸の傾き・季節は表していない。** 光の向きは固定である。
+        /// </summary>
+        public static readonly Vector3 SunAngles = new Vector3(28f, -36f, 0f);
+
+        /// <summary>太陽の強さ。</summary>
+        public const float SunIntensity = 2.4f;
+
+        /// <summary>
+        /// 環境光。どこからともなく当たる明るさで、夜側の暗さを決める。
+        ///
+        /// 以前は (0.16, 0.18, 0.23) で、夜側もかなり見えていた。
+        /// 宇宙には空気が無く、光を回り込ませるものが無い。
+        /// 落とすほど昼と夜の差がはっきりする。完全な0にしないのは、
+        /// 夜側が真っ黒になると輪郭も地形も読めなくなるためである。
+        /// </summary>
+        public static readonly Color SpaceAmbient = new Color(0.040f, 0.048f, 0.066f, 1f);
+
+        /// <summary>
+        /// 太陽と環境光を場面へ当てる。
+        ///
+        /// 場面の資産にも同じ値が入っているが、実行時にここで入れ直す。
+        /// 値の正本をひとつにしておかないと、場面を作り直したときだけ
+        /// 見え方が変わる、という食い違いが起きる。
+        /// </summary>
+        public static void ApplySunLight(Light sun)
+        {
+            if (sun != null && sun.type == LightType.Directional)
+            {
+                sun.transform.rotation = Quaternion.Euler(SunAngles);
+                sun.intensity = SunIntensity;
+                sun.color = Color.white;
+            }
+
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
+            RenderSettings.ambientLight = SpaceAmbient;
+        }
+
         /// <summary>編集中のプレビューに付ける名前。実行時の Earth と取り違えないようにする。</summary>
         private const string PreviewName = "Earth (編集中プレビュー・保存されません)";
 
@@ -84,6 +127,8 @@ namespace CivilizationToSpace
             // 場面の時計は static なので、前回の再生で止めたままだと
             // 次の起動でも止まったまま始まってしまう。必ず通常へ戻す。
             View.SceneClock.Resume();
+
+            ApplySunLight(FindAnyObjectByType<Light>());
 
             Load();
         }

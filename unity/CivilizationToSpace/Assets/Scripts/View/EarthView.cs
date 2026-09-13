@@ -225,6 +225,11 @@ namespace CivilizationToSpace.View
             // 赤へ寄せるほど、発光の絵が溶岩の色に染まり、明るさも増す。
             material.SetColor("_EmissionColor", Color.Lerp(Color.white, MoltenColor * 2.2f, molten));
 
+            // 光る絵を、日の当たらない側でだけ出すかどうか。
+            // 冷えた地球で光っているのは街の明かりで、昼側からは見えない。
+            // 溶けているあいだは溶岩なので、昼夜に関わらず光る。
+            material.SetFloat("_NightOnly", 1f - molten);
+
             // 地色にも掛ける。不透明度は移り変わりに使っているので、そこは触らない。
             var rgb = Color.Lerp(Color.white, MoltenAlbedo, molten);
             var current = material.color;

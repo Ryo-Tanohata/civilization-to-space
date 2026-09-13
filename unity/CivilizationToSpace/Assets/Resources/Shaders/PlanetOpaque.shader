@@ -32,6 +32,10 @@ Shader "CivilizationToSpace/PlanetOpaque"
         _EmissionMapNext ("次の自ら光る絵", 2D) = "white" {}
         _BumpMapNext ("次の凹凸", 2D) = "bump" {}
         _Blend ("次の絵の混ざり具合", Range(0,1)) = 0
+
+        // 1にすると、自ら光る絵は日の当たらない側でだけ出る。
+        // 街の明かりに使う。溶岩は昼夜に関わらず光るので0のままにする。
+        _NightOnly ("夜側だけ光らせる", Range(0,1)) = 0
     }
 
     SubShader
@@ -55,6 +59,7 @@ Shader "CivilizationToSpace/PlanetOpaque"
         half _Glossiness;
         half _Metallic;
         half _Blend;
+        half _NightOnly;
         float4 _CutCenter;
         half _CutRadius;
 
@@ -64,6 +69,12 @@ Shader "CivilizationToSpace/PlanetOpaque"
             float2 uv_EmissionMap;
             float2 uv_BumpMap;
             float3 worldPos;
+
+            // 太陽の向きと見比べるために、その点が外を向いている向きが要る。
+            // 凹凸の絵を使っているので、INTERNAL_DATA と WorldNormalVector で
+            // 実際に描いている法線から求める。
+            float3 worldNormal;
+            INTERNAL_DATA
         };
 
         void surf(Input IN, inout SurfaceOutputStandard o)
@@ -96,18 +107,29 @@ Shader "CivilizationToSpace/PlanetOpaque"
             o.Metallic = _Metallic;
             o.Smoothness = _Glossiness;
 
-            fixed3 glow = lerp(
-                tex2D(_EmissionMap, IN.uv_EmissionMap).rgb,
-                tex2D(_EmissionMapNext, IN.uv_EmissionMap).rgb,
-                _Blend);
-            o.Emission = glow * _EmissionColor.rgb;
-
             // 凹凸の絵を渡していない材質では _BumpScale が0のままで、平らな法線になる。
             float3 packed = lerp(
                 UnpackNormal(tex2D(_BumpMap, IN.uv_BumpMap)),
                 UnpackNormal(tex2D(_BumpMapNext, IN.uv_BumpMap)),
                 _Blend);
             o.Normal = normalize(lerp(float3(0, 0, 1), packed, _BumpScale));
+
+            fixed3 glow = lerp(
+                tex2D(_EmissionMap, IN.uv_EmissionMap).rgb,
+                tex2D(_EmissionMapNext, IN.uv_EmissionMap).rgb,
+                _Blend);
+
+            // 太陽に対してどちらを向いているか。平行光なので、
+            // _WorldSpaceLightPos0 は光へ向かう向きそのものである。
+            // 正なら日が当たっている側、負なら当たっていない側になる。
+            //
+            // 街の明かりは、日が当たっている側では見えない。
+            // これまでは昼側でも光っており、どちらが昼かが読めなかった。
+            // 境目は少しぼかす。切り立たせると帯が線に見える。
+            float3 facing = normalize(WorldNormalVector(IN, o.Normal));
+            float toward = dot(facing, normalize(_WorldSpaceLightPos0.xyz));
+            float night = saturate(-toward * 2.2 + 0.25);
+            o.Emission = glow * _EmissionColor.rgb * lerp(1.0, night, _NightOnly);
         }
         ENDCG
     }
