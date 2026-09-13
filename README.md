@@ -25,6 +25,7 @@ R1のブラウザモックレビューは[実施済み](docs/reports/R1_P0_HUMAN
 - [Lunar and Planetary Institute「Active Accretion」](https://www.lpi.usra.edu/education/orexlaunch/Active%20Accretion.pdf)
 
 - [NASA Science「Moon Formation」](https://science.nasa.gov/moon/formation/)（クレジット：NASA）— 火星ほどの大きさの天体が若い地球へ衝突したとする記述
+- [NASA Astrobiology「Tracking Formation of the Earth and Moon」](https://astrobiology.nasa.gov/news/tracking-formation-of-the-earth-and-moon/)・[Lunar and Planetary Institute「The Moon's Formation and Evolution」](https://www.lpi.usra.edu/education/explore/marvelMoon/background/moon-formation/) — 飛び散った物質が地球を巡る円盤になり、そこから月が集まったとする記述。集積は数百年ほどで、その大半は初めの100年ほど。地球側のマグマオーシャンが固まるまではおよそ1000年。Unityの画面で、地球が丸く戻るより月が集まるほうに時間をかけているのはこの関係によります（年数そのものは表していません）。
 
 映像そのものは引用していません。参考にしたのは順序と、何が何から生じたかという関係だけです。
 

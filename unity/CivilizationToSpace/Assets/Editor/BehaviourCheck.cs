@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using CivilizationToSpace.Core;
 using CivilizationToSpace.View;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -129,11 +130,17 @@ namespace CivilizationToSpace.EditorTools
                     break;
 
                 case 1:
-                    Record("U-23 1倍で約4秒に1時代進む",
+                    // 形成過程の段階だけ長く取っている。どちらの長さを見るかは、
+                    // 進み始めた位置が時代より手前かどうかで決まる。
+                    var firstStep = startIndex < timeline.EraOffset
+                        ? TimelinePlayback.FormationStepSeconds
+                        : TimelinePlayback.BaseStepSeconds;
+                    Record("U-23 1倍で1段階進む（形成過程は約8秒・時代は約4秒）",
                         !waitTimedOut && timeline.Index == startIndex + 1 &&
-                        Mathf.Abs(Time.time - startTime - 4f) < 1f,
+                        Mathf.Abs(Time.time - startTime - firstStep) < 1f,
                         "位置 " + startIndex + " → " + timeline.Index +
                         " / 経過 " + (Time.time - startTime).ToString("F2") + "秒" +
+                        "（見込み " + firstStep.ToString("F0") + "秒）" +
                         (waitTimedOut ? "（時間切れ）" : string.Empty));
                     playback.SetSpeed(2f);
                     Record("U-24 速度を変えても再生は続く", playback.IsPlaying && Mathf.Approximately(playback.Speed, 2f),
@@ -144,11 +151,15 @@ namespace CivilizationToSpace.EditorTools
                     break;
 
                 case 2:
-                    Record("U-25 2倍で約2秒に1時代進む",
+                    var doubledStep = (startIndex < timeline.EraOffset
+                        ? TimelinePlayback.FormationStepSeconds
+                        : TimelinePlayback.BaseStepSeconds) * 0.5f;
+                    Record("U-25 2倍でその半分の時間に1段階進む",
                         !waitTimedOut && timeline.Index == startIndex + 1 &&
-                        Mathf.Abs(Time.time - startTime - 2f) < 0.8f,
+                        Mathf.Abs(Time.time - startTime - doubledStep) < 0.8f,
                         "位置 " + startIndex + " → " + timeline.Index +
                         " / 経過 " + (Time.time - startTime).ToString("F2") + "秒" +
+                        "（見込み " + doubledStep.ToString("F0") + "秒）" +
                         (waitTimedOut ? "（時間切れ）" : string.Empty));
                     timeline.Select(0);
                     Record("U-26 手で時代を変えると再生が止まる", !playback.IsPlaying && timeline.Index == 0,

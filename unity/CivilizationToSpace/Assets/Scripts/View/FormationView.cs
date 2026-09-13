@@ -84,8 +84,36 @@ namespace CivilizationToSpace.View
         /// <summary>砕けてから、いちばん散らばるまでの時間（秒）。</summary>
         private const float ShatterOutSeconds = 0.8f;
 
-        /// <summary>砕けてから、球へ戻りきるまでの時間（秒）。</summary>
-        private const float ShatterSeconds = 2.8f;
+        /// <summary>
+        /// 砕けてから、球へ戻りきるまでの時間（秒）。
+        ///
+        /// 以前は2.8秒で、ぶつかった直後に元の丸い地球へ戻っていた。
+        /// 地球ほどの大きさの、しかも溶けた天体は自らの引力で丸くなるが、
+        /// 「欠けた → すぐ元通り」に見えるほど速くはない。
+        /// 破片が回り込みながら戻る時間を取り、丸くなるまでを長くしている。
+        /// **この秒数は見え方で決めた値であり、実際の時間ではない。**
+        /// </summary>
+        private const float ShatterSeconds = 4.0f;
+
+        /// <summary>
+        /// 散った塊が地球のまわりを回り込む角度の上限（度）。
+        ///
+        /// まっすぐ出てまっすぐ戻ると、跳ね返って落ちただけに見える。
+        /// 飛び出した物質は地球を回る軌道に乗ったとされるため、
+        /// 出るときも戻るときも、横へ回り込ませる。
+        /// **軌道を解いているわけではなく、回り込んで見えるようにしているだけである。**
+        /// </summary>
+        private const float ShardSwingDegrees = 145f;
+
+        /// <summary>
+        /// 散った塊のうち、地球へ戻らず輪に残る割合。
+        ///
+        /// 飛び散った物質の多くは地球へ落ち戻り、残りが地球を巡る円盤になって
+        /// そこから月が集まった、とされる。落ち戻る側を多数にしている。
+        /// 出典: NASA Astrobiology "Tracking Formation of the Earth and Moon",
+        /// LPI "The Moon's Formation and Evolution"。
+        /// </summary>
+        private const float ShardEscapeShare = 0.3f;
 
         /// <summary>
         /// いちばん崩れたときに、地球が縮む割合。
@@ -107,10 +135,64 @@ namespace CivilizationToSpace.View
         private const float DebrisRadius = 2.0f;
 
         /// <summary>大きな天体が近づいてぶつかるまでの時間（秒）。</summary>
-        private const float ImpactTravelSeconds = 2.4f;
+        private const float ImpactTravelSeconds = 3.8f;
+
+        /// <summary>
+        /// 大きな天体が現れる距離。画面に収めている半径を1としたときの倍率。
+        ///
+        /// 以前は地球の半径の3.3倍という、画面の中ほどの位置だった。
+        /// そこにいきなり現れるため、近づいてきたのではなく湧いたように見えていた。
+        ///
+        /// 画面の広さから決めているのは、収めている半径だけが
+        /// 「どこまでが画面の内か」を知っている値だからである。
+        /// 地球の半径を基準にすると、画面の縦横比や説明欄の開閉で
+        /// 画面の外から入るか、内側に湧くかが変わってしまう。
+        ///
+        /// 1.35倍は、収めている縁のすぐ外にあたる。これより遠くすると、
+        /// 近づく時間の大半を画面の外で使い、見えている時間が短くなる。
+        /// </summary>
+        private const float ImpactorStartFrames = 1.35f;
+
+        /// <summary>
+        /// 大きな天体が現れる向き。ここから地球の中心へ向かって落ちてくる。
+        /// 画面の右上の外から入り、手前側の地表へ当たるようにしている。
+        /// 当たる場所が奥側だと、抉れた跡が地球の裏に隠れて見えない。
+        /// </summary>
+        private static readonly Vector3 ImpactorStartDirection =
+            new Vector3(0.56f, 0.74f, -0.37f);
+
+        /// <summary>
+        /// 近づくにつれてどれだけ速くなるか。0で等速、1で最後だけ速い。
+        ///
+        /// 以前は1（速さが0から始まる）で、遠くではほとんど止まって見え、
+        /// 画面へ入ってから一気に詰め寄っていた。
+        /// ぶつかってきた天体は止まっていたところから落ちたのではなく、
+        /// もともと太陽のまわりを回っていたとされるので、
+        /// はじめから速さを持たせ、近づくぶんだけ速くする。
+        /// </summary>
+        private const float ImpactApproachCurve = 0.55f;
 
         /// <summary>ぶつかったあと、破片が輪へ落ち着くまでの時間（秒）。</summary>
         private const float DebrisSpreadSeconds = 1.6f;
+
+        /// <summary>
+        /// 破片が集まって月になるまでの時間（秒）。
+        ///
+        /// 以前は段階の切り替えと同じ1.3秒で、月がその場で膨らむだけだった。
+        /// 月は地球を巡る破片の円盤から集まってできたとされ、
+        /// 集積は数百年、その大半は初めの100年ほどとされる。
+        /// ここでは「輪の破片が寄り集まって球になる」ことだけを、
+        /// 段階のあいだをかけて見せる。**年数は表していない。**
+        /// 出典: NASA Astrobiology "Tracking Formation of the Earth and Moon"。
+        /// </summary>
+        private const float MoonAccretionSeconds = 5.4f;
+
+        /// <summary>
+        /// 月へ吸い寄せられる破片の、出発をずらす幅。
+        /// 0だと全部が一斉に動き、1だと最後の1個が終わりぎわに出発する。
+        /// 一斉に消えると、集まったのではなく消えたように見える。
+        /// </summary>
+        private const float MoonGatherStagger = 0.55f;
 
         /// <summary>塊が次の大きさになるまでの時間（秒）。</summary>
         private const float GrowSeconds = 1.4f;
@@ -204,6 +286,12 @@ namespace CivilizationToSpace.View
 
         /// <summary>ぶつかって破片を撒いている最中か。そのあいだは破片を自前で扱う。</summary>
         private bool debrisBurst;
+
+        /// <summary>いま月が破片から集まっている最中か。そのあいだは破片を自前で扱う。</summary>
+        private bool moonAccreting;
+
+        /// <summary>この段階に入った時点の破片の量。月へ渡すぶんを数えるのに使う。</summary>
+        private float debrisEntry;
         private float scaleFrom = 1f;
         private float scaleTo = 1f;
 
@@ -227,6 +315,13 @@ namespace CivilizationToSpace.View
         private Vector3[] shardDirections;
         private Vector3[] shardSizes;
 
+        /// <summary>塊が回り込む軸と、回り込む角度。まっすぐ出入りさせないために持つ。</summary>
+        private Vector3[] shardAxes;
+        private float[] shardSwings;
+
+        /// <summary>その塊が地球へ戻らず輪に残るか。残るぶんが月のもとになる。</summary>
+        private bool[] shardEscapes;
+
         /// <summary>塊が飛び出した場所と向き。</summary>
         private Vector3 fragmentOrigin;
         private Vector3 fragmentDirection;
@@ -239,6 +334,13 @@ namespace CivilizationToSpace.View
 
         /// <summary>月が現れる度合い。0で見えず、1で本来の大きさ。</summary>
         public float MoonEmergence { get; private set; }
+
+        /// <summary>
+        /// 月ができる場所（この見せ物の中の座標）。<see cref="AppRoot"/> が渡す。
+        /// 破片をそこへ寄せ集めるために要る。渡されないうちは原点のままで、
+        /// そのときは破片を寄せずに輪へ置いたままにする。
+        /// </summary>
+        public Vector3 MoonAnchor { get; set; }
 
         /// <summary>抉れている球の中心（この見せ物の中の座標）。</summary>
         public Vector3 CutCenter { get; private set; }
@@ -299,6 +401,14 @@ namespace CivilizationToSpace.View
                 : (stage != null ? (float)stage.BodyScale : (next != null ? (float)next.BodyScale : 1f));
             scaleTo = next != null ? (float)next.BodyScale : 1f;
 
+            // 撒いている最中の破片は debrisShown に数えていない。
+            // そのまま次の段階へ移ると、いま出ている破片をいったん全部消してから
+            // 出し直すことになり、輪が一瞬またたく。撒いた量を引き継いでおく。
+            if (debrisBurst && stage != null)
+            {
+                debrisShown = (float)stage.Debris;
+            }
+
             stage = next;
             elapsed = 0f;
             impactHappened = false;
@@ -326,6 +436,14 @@ namespace CivilizationToSpace.View
                     debris[i].SetActive(false);
                 }
             }
+            else
+            {
+                // 前の段階で月へ寄せた破片が、寄せた先に置き去りにならないようにする。
+                for (var i = 0; i < debris.Length; i++)
+                {
+                    debris[i].transform.localPosition = debrisTargets[i];
+                }
+            }
 
             // 大きな塊は、ぶつかる段階でだけ出す。次の段階では月として別に現れる。
             if (fragment != null)
@@ -342,9 +460,16 @@ namespace CivilizationToSpace.View
             moonTarget = next != null ? (float)next.Moon : 1f;
             swarmTarget = next != null ? (float)next.Swarm : 0f;
 
+            // 月が現れる段階では、破片が寄り集まって月になるところを見せる。
+            // それまでの段階から続けて入ってきたときだけで、
+            // 月ができたあとの段階へ戻ってきたときは、ふつうの寄せ方に任せる。
+            moonAccreting = next != null && next.Moon > 0.5d && moonShown < 0.5f;
+            debrisEntry = Mathf.Max(debrisShown, debrisTarget);
+
             // 動きを減らしているときは、途中を見せずにその段階の姿にする。
             if (motion != null && motion.Reduced)
             {
+                moonAccreting = false;
                 moonShown = moonTarget;
                 swarmShown = swarmTarget;
                 debrisShown = debrisTarget;
@@ -484,7 +609,20 @@ namespace CivilizationToSpace.View
         {
             var step = SceneClock.Delta / StageBlendSeconds;
 
-            moonShown = Mathf.MoveTowards(moonShown, moonTarget, step);
+            if (moonAccreting)
+            {
+                // 破片が寄り集まって球になるまで。段階のあいだをかけて育てる。
+                // 大きさは質量の3乗根で効くので、集まりはじめの見かけの育ちが速い。
+                //
+                // すでに見えているぶんより小さくはしない。前の段階から戻ってきて
+                // 月が残っているときに、いったん縮んでから育て直すと画が飛ぶ。
+                moonShown = Mathf.Max(moonShown, Mathf.Pow(MoonGathering(), 0.72f));
+            }
+            else
+            {
+                moonShown = Mathf.MoveTowards(moonShown, moonTarget, step);
+            }
+
             MoonEmergence = moonShown;
 
             // 集積の段階は、数の増やし方をそちらが持っている。
@@ -498,8 +636,8 @@ namespace CivilizationToSpace.View
                 }
             }
 
-            // ぶつかって撒いている最中は、破片をそちらが持っている。
-            if (!debrisBurst)
+            // ぶつかって撒いている最中と、月へ寄せている最中は、破片をそちらが持っている。
+            if (!debrisBurst && !moonAccreting)
             {
                 var before = debrisShown;
                 debrisShown = Mathf.MoveTowards(debrisShown, debrisTarget, step);
@@ -704,8 +842,11 @@ namespace CivilizationToSpace.View
 
             var t = Mathf.Clamp01(elapsed / ImpactTravelSeconds);
 
-            // 近づくほど速くする。等速だと、ぶつかる瞬間が分かりにくい。
-            var eased = t * t;
+            // はじめから速さを持たせ、近づくぶんだけ速くする。
+            // 以前は t*t で、速さが0から始まっていた。遠くにいるあいだは
+            // ほとんど動かず、画面へ入ってから一気に詰め寄るため、
+            // 「遠くから近づいてきた」ではなく「急に現れた」に見えていた。
+            var eased = t * (1f - ImpactApproachCurve) + t * t * ImpactApproachCurve;
             var contact = impactorStart.normalized * (earthRadius * CurrentScale() + earthRadius * 0.5f);
             impactor.transform.localPosition = Vector3.Lerp(impactorStart, contact, eased);
             impactor.transform.Rotate(Vector3.one, 40f * SceneClock.Delta, Space.Self);
@@ -812,6 +953,15 @@ namespace CivilizationToSpace.View
         /// 実際の形を解いているわけではない。塊を外へ散らし、地球を縮め、
         /// そのあと塊を引き戻して地球を元へ戻す、という見せ方である。
         /// **崩れる量も戻る速さも、こちらで決めた値であり、物理の計算ではない。**
+        ///
+        /// **塊の道すじについて。** 以前は出た向きへまっすぐ出て、同じ道を戻っていた。
+        /// 跳ね返って落ちただけに見えるうえ、飛び出した物質が地球のまわりを
+        /// 巡ったという説明と噛み合わない。いまは回り込ませ、
+        /// 多くは地球へ落ち戻り、一部は落ちずに外の輪へ残る。
+        /// 残ったぶんが次の段階で月になる破片にあたる。
+        /// 出典: NASA Astrobiology "Tracking Formation of the Earth and Moon",
+        /// LPI "The Moon's Formation and Evolution"。
+        /// **軌道を解いてはいない。楕円かどうかも、回る速さも表していない。**
         /// </summary>
         private void ShatterEarth()
         {
@@ -856,11 +1006,25 @@ namespace CivilizationToSpace.View
 
                 // 塊は抉れた側から出す。全方向へ均等に出すと、欠けた場所と結びつかない。
                 var direction = (shardDirections[i] + impactPoint.normalized * 1.1f).normalized;
-                shards[i].transform.localPosition =
-                    direction * (surface * 0.92f + earthRadius * ShatterSpread * reach);
 
-                // 戻りきるところで消える。地球へ吸い込まれて一体になったことを表す。
-                shards[i].transform.localScale = shardSizes[i] * (1f - back);
+                // 落ちずに残る塊は、外の輪の高さまで出て、そこにとどまる。
+                // 落ち戻る塊だけが縮んで消え、地球と一体になる。
+                var escaping = shardEscapes[i];
+                var distance = escaping
+                    ? surface * 0.92f + earthRadius * (DebrisRadius - 0.92f) * outward
+                    : surface * 0.92f + earthRadius * ShatterSpread * reach;
+
+                // 回り込み。時間とともに角度が増えるだけで、戻らない。
+                // 行きと帰りで同じ道を通らないので、周回しながら落ちるように見える。
+                var swing = Quaternion.AngleAxis(shardSwings[i] * t, shardAxes[i]);
+                shards[i].transform.localPosition = swing * (direction * distance);
+
+                // 落ち戻る塊は、戻りきるところで消える。地球と一体になったことを表す。
+                // 残る塊は終わりぎわに消し、同じ場所にある破片の輪へ引き継ぐ。
+                // 輪はこのあと月の材料になるので、見た目を二重に持たない。
+                var settle = Mathf.InverseLerp(0.78f, 1f, t);
+                shards[i].transform.localScale =
+                    shardSizes[i] * (escaping ? 1f - settle : 1f - back);
                 shards[i].transform.Rotate(Vector3.one, 150f * SceneClock.Delta, Space.Self);
             }
         }
@@ -955,10 +1119,105 @@ namespace CivilizationToSpace.View
             }
         }
 
+        /// <summary>
+        /// 破片が月へ集まっていく度合い。0でまだ輪のまま、1で集まりきった状態。
+        /// 月の大きさも、寄せる破片の数も、この一つの値から出す。
+        /// 二つの時計で別々に進めると、月が育ちきったのに破片がまだ残る、
+        /// といったずれが出る。
+        /// </summary>
+        private float MoonGathering()
+        {
+            var t = Mathf.Clamp01(elapsed / MoonAccretionSeconds);
+            return Mathf.SmoothStep(0f, 1f, t);
+        }
+
+        /// <summary>
+        /// 輪の破片を月へ寄せ集める。
+        ///
+        /// 月は、ぶつかった衝撃で飛び散った物質が地球を巡る円盤になり、
+        /// そこから集まってできたとされる。以前はその円盤をそのまま残したまま、
+        /// 月だけが軌道上で膨らんでいた。破片が月の材料であることが見て取れないため、
+        /// 輪から月へ向かって順に動かし、着いたところで見えなくする。
+        /// 全部は寄せず、輪にはいくらか残す。
+        /// 出典: NASA Astrobiology "Tracking Formation of the Earth and Moon"。
+        /// **軌道も、集まるのにかかった年数も表していない。**
+        /// </summary>
+        private void GatherDebrisIntoMoon()
+        {
+            // 月の位置を渡されていないときは、寄せ先が分からない。
+            // 輪をそのまま回しておくほうが、原点へ吸い込むより無害である。
+            if (MoonAnchor.sqrMagnitude < 0.0001f)
+            {
+                return;
+            }
+
+            var gathered = MoonGathering();
+            var t = Mathf.Clamp01(elapsed / MoonAccretionSeconds);
+            var moon = debrisRoot.InverseTransformPoint(transform.TransformPoint(MoonAnchor));
+
+            var stay = Mathf.RoundToInt(debrisTarget * DebrisPoolSize);
+            var from = Mathf.Max(stay, Mathf.RoundToInt(debrisEntry * DebrisPoolSize));
+            var feeding = Mathf.Max(1, from - stay);
+
+            for (var i = 0; i < debris.Length; i++)
+            {
+                if (i >= from)
+                {
+                    debris[i].SetActive(false);
+                    continue;
+                }
+
+                debris[i].SetActive(true);
+                debris[i].transform.Rotate(Vector3.one, 60f * SceneClock.Delta, Space.Self);
+
+                if (i < stay)
+                {
+                    // 輪に残る破片。月ができたあとも残る円盤にあたる。
+                    debris[i].transform.localScale = debrisSizes[i];
+                    debris[i].transform.localPosition = Vector3.Lerp(
+                        debris[i].transform.localPosition, debrisTargets[i], 0.08f);
+                    continue;
+                }
+
+                // 月へ渡る破片。順に出発させ、一度に消えないようにする。
+                var order = (float)(i - stay) / feeding;
+                var own = Mathf.InverseLerp(order * MoonGatherStagger, 1f, t);
+                var pull = Mathf.SmoothStep(0f, 1f, own);
+
+                // まっすぐ向かわせず、いったん外へ膨らませてから寄せる。
+                // 直線で結ぶと、引かれたのではなく並べ替えたように見える。
+                var straight = Vector3.Lerp(debrisTargets[i], moon, pull);
+                var bulge = Vector3.Cross(moon - debrisTargets[i], Vector3.up).normalized;
+                var arc = bulge * (earthRadius * 0.35f * Mathf.Sin(pull * Mathf.PI));
+                debris[i].transform.localPosition = straight + arc;
+
+                // 着くにつれて小さくなる。月へ取り込まれたことを表す。
+                debris[i].transform.localScale = debrisSizes[i] * (1f - pull);
+            }
+
+            // 集まりきったら、ふつうの寄せ方へ戻す。
+            if (gathered >= 0.999f)
+            {
+                moonAccreting = false;
+                debrisShown = debrisTarget;
+            }
+        }
+
         /// <summary>広がった破片を、輪の位置へ落ち着かせる。</summary>
         private void MoveDebris()
         {
-            if (debris == null || !impactHappened)
+            if (debris == null)
+            {
+                return;
+            }
+
+            if (moonAccreting)
+            {
+                GatherDebrisIntoMoon();
+                return;
+            }
+
+            if (!impactHappened)
             {
                 return;
             }
@@ -1129,7 +1388,9 @@ namespace CivilizationToSpace.View
 
                 item.transform.localPosition = debrisTargets[i];
                 item.transform.localRotation = Random.rotation;
-                item.transform.localScale = Vector3.one * (earthRadius * (0.028f + (i % 3) * 0.012f));
+                // 以前は0.028〜0.052で、画面では2〜4画素にしかならなかった。
+                // 輪があることは分かっても、その一粒一粒が月へ寄っていく様子は読めない。
+                item.transform.localScale = Vector3.one * (earthRadius * (0.041f + (i % 3) * 0.017f));
                 item.GetComponent<Renderer>().sharedMaterial = material;
                 item.SetActive(false);
 
@@ -1142,8 +1403,8 @@ namespace CivilizationToSpace.View
         {
             var material = CreateRockMaterial(HotRockColor, 0.5f, flags);
 
-            impactorStart = new Vector3(
-                earthRadius * 3.0f, earthRadius * 1.1f, -earthRadius * 0.8f);
+            impactorStart =
+                ImpactorStartDirection.normalized * (FramedRadius * ImpactorStartFrames);
 
             impactor = PrimitiveMeshes.Create(PrimitiveType.Sphere, "GiantImpactor", flags);
             impactor.transform.SetParent(impactorRoot, false);
@@ -1163,6 +1424,14 @@ namespace CivilizationToSpace.View
             shards = new GameObject[ShardPoolSize];
             shardDirections = new Vector3[ShardPoolSize];
             shardSizes = new Vector3[ShardPoolSize];
+            shardAxes = new Vector3[ShardPoolSize];
+            shardSwings = new float[ShardPoolSize];
+            shardEscapes = new bool[ShardPoolSize];
+
+            // 輪に残す塊の数。割合から出し、飛び飛びに選ぶ。
+            // 続けて選ぶと片側だけが残り、輪ではなく塊の列に見える。
+            var escapeCount = Mathf.RoundToInt(ShardPoolSize * ShardEscapeShare);
+            var escapeEvery = escapeCount > 0 ? Mathf.Max(1, ShardPoolSize / escapeCount) : 0;
 
             var material = CreateRockMaterial(HotRockColor, 0.30f, flags);
 
@@ -1181,6 +1450,14 @@ namespace CivilizationToSpace.View
 
                 // 全方向へ均等に散らす。偏ると片側だけ欠けたように見える。
                 shardDirections[i] = Random.onUnitSphere;
+
+                // 回り込む軸。出る向きと直交する側へ取り、その場で自転しないようにする。
+                var axis = Vector3.Cross(shardDirections[i], Random.onUnitSphere);
+                shardAxes[i] = axis.sqrMagnitude < 0.001f ? Vector3.up : axis.normalized;
+                shardSwings[i] =
+                    ShardSwingDegrees * Random.Range(0.35f, 1f) * (i % 2 == 0 ? 1f : -1f);
+
+                shardEscapes[i] = escapeEvery > 0 && i % escapeEvery == 0;
             }
         }
 

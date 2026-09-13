@@ -24,6 +24,19 @@ namespace CivilizationToSpace.Core
         public const float BaseStepSeconds = 4f;
 
         /// <summary>
+        /// 1倍のときの、形成過程の1段階あたりの秒数。
+        ///
+        /// 時代は4秒だが、形成過程だけは長く取る。巨大衝突の段階では
+        /// 「遠くから近づく → ぶつかる → 砕ける → 引力で丸く戻る」を
+        /// ひと続きで見せる必要があり、4秒では近づいている途中で次の段階へ移る。
+        /// 月の形成も、破片が集まって球になるまでに時間がかかる。
+        ///
+        /// 時代の4秒は site/app.js と対応させているが、
+        /// 形成過程はUnityだけにある段階なので、ブラウザとの対応は崩れない。
+        /// </summary>
+        public const float FormationStepSeconds = 8f;
+
+        /// <summary>
         /// 選べる速度。8倍では1段階0.5秒になり、通しで約8秒になる。
         /// これより速くすると、段階が切り替わったことを目で追えない。
         /// </summary>
@@ -67,10 +80,23 @@ namespace CivilizationToSpace.Core
             get { return speed; }
         }
 
-        /// <summary>現在の速度での1時代あたりの秒数。</summary>
-        public float StepSeconds
+        /// <summary>現在の速度での1時代あたりの秒数。表示に使う。</summary>
+        public float EraStepSeconds
         {
             get { return BaseStepSeconds / speed; }
+        }
+
+        /// <summary>
+        /// いま指している段階を、次へ進めるまでの秒数。
+        /// 形成過程のあいだだけ長く、時代へ入ると4秒へ戻る。
+        /// </summary>
+        public float StepSeconds
+        {
+            get
+            {
+                var seconds = timeline.HeadIndex >= 0 ? FormationStepSeconds : BaseStepSeconds;
+                return seconds / speed;
+            }
         }
 
         /// <summary>選べる速度。表示の順序もこの並びに従う。</summary>

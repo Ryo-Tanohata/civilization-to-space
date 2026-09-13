@@ -408,8 +408,11 @@ namespace CivilizationToSpace
             playback.Tick(View.SceneClock.Delta);
 
             // 月が破片から集まってくる様子を、大きさの変化で表す。
+            // 破片の寄せ先も渡す。形成の側は月がどこにできるかを知らないので、
+            // ここで結び付けないと、破片が集まる先と月の位置が食い違う。
             if (moon != null && formation != null)
             {
+                formation.MoonAnchor = moon.MoonCenter - EarthPosition;
                 moon.SetBodyScale(timeline.HeadIndex >= 0 ? formation.MoonEmergence : 1f);
             }
 

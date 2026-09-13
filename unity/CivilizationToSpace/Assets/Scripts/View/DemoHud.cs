@@ -418,7 +418,7 @@ namespace CivilizationToSpace.View
             }
 
             return "再生中 " + FormatSpeed(playback.Speed) +
-                   "（1時代あたり約" + FormatSeconds(playback.StepSeconds) + "秒）・ " + position;
+                   "（1時代あたり約" + FormatSeconds(playback.EraStepSeconds) + "秒）・ " + position;
         }
 
         private static string FormatSpeed(float speed)
