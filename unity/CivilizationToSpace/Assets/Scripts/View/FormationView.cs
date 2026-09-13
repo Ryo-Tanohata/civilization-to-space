@@ -36,17 +36,29 @@ namespace CivilizationToSpace.View
         /// <summary>集積の段階で、2個から全部まで増えきるまでの時間（秒）。</summary>
         private const float AccretionSeconds = 3.4f;
 
-        /// <summary>集積の始まりに置く数。向かい合う2個から始める。</summary>
-        private const int AccretionSeedCount = 2;
+        /// <summary>
+        /// 合体が進みきったときに残る数。
+        /// ここまで減った2つがぶつかって、塊が育っていく。
+        /// </summary>
+        private const int AccretionEndCount = 2;
+
+        /// <summary>粒だったころの大きさ。地球の半径を1としたときの倍率。</summary>
+        private const float AccretionDustSize = 0.028f;
+
+        /// <summary>微惑星まで育ったときの大きさ。地球の半径を1としたときの倍率。</summary>
+        private const float AccretionBodySize = 0.16f;
 
         /// <summary>
-        /// 2個のままで見せる区間。集積の時間に対する割合。
-        /// すぐに数を増やすと、向かい合って近づく2個がその他大勢に紛れてしまう。
+        /// 数が減りきるまでの区間。集積の時間に対する割合。
+        /// ここを過ぎると、残った微惑星どうしがぶつかる場面になる。
         /// </summary>
-        private const float AccretionSeedHold = 0.4f;
+        private const float AccretionMergeSpan = 0.72f;
 
-        /// <summary>最初の2個が進む速さ。ほかより遅くして、近づく様子を追えるようにする。</summary>
-        private const float AccretionSeedSpeed = 0.22f;
+        /// <summary>塊が育ち始める時点。集積の時間に対する割合。</summary>
+        private const float AccretionGrowFrom = 0.62f;
+
+        /// <summary>軌道面の傾きの散らばり（度）。小さいほど円盤に近づく。</summary>
+        private const float AccretionDiskTilt = 14f;
 
         /// <summary>ぶつかって飛び出す大きな塊の半径。地球の半径を1としたときの倍率。</summary>
         private const float FragmentScale = 0.30f;
@@ -113,6 +125,9 @@ namespace CivilizationToSpace.View
 
         /// <summary>軌道上のどこから始めるか。</summary>
         private float[] swarmPhase;
+
+        /// <summary>粒ごとの元の大きさ。集積では全体の大きさだけを動かす。</summary>
+        private Vector3[] swarmSizes;
 
         private GameObject[] debris;
         private Vector3[] debrisTargets;
@@ -281,7 +296,7 @@ namespace CivilizationToSpace.View
                 // 集積の段階は、数と大きさを同じ時計で増やす。
                 // 微惑星が増えるにつれて塊が育つ、という関係を目で追えるようにする。
                 ApplySwarmCount();
-                ApplyScale(Mathf.Clamp01(elapsed / AccretionSeconds));
+                ApplyScale(AccretionGrowth());
             }
             else
             {
@@ -342,12 +357,7 @@ namespace CivilizationToSpace.View
                     continue;
                 }
 
-                // 最初の2個は同じ速さで進める。速さが違うと、
-                // 向かい合わせに置いても同じところで出会わない。
-                var speed = i < AccretionSeedCount
-                    ? AccretionSeedSpeed
-                    : 0.30f + (i % 5) * 0.07f;
-                swarmProgress[i] += SceneClock.Delta * speed;
+                swarmProgress[i] += SceneClock.Delta * (0.30f + (i % 5) * 0.07f);
 
                 if (swarmProgress[i] >= 1f)
                 {
@@ -375,43 +385,74 @@ namespace CivilizationToSpace.View
             var amount = stage != null ? (float)stage.Swarm : 0f;
             var full = Mathf.RoundToInt(amount * SwarmPoolSize);
 
-            int visible;
-            if (accreting)
+            if (!accreting)
             {
-                var t = Mathf.Clamp01(elapsed / AccretionSeconds);
+                for (var i = 0; i < swarm.Length; i++)
+                {
+                    swarm[i].SetActive(i < full);
+                    swarm[i].transform.localScale = swarmSizes[i];
+                }
 
-                // はじめの区間は2個のまま置き、出会うところを見せてから増やしていく。
-                var ramp = Mathf.InverseLerp(AccretionSeedHold, 1f, t);
-                visible = Mathf.RoundToInt(Mathf.Lerp(AccretionSeedCount, full, ramp));
+                return;
             }
-            else
-            {
-                visible = full;
-            }
+
+            // 数は多いところから減り、そのぶん一粒ずつが大きくなる。
+            // 「たくさんの粒がぶつかって、より大きなかけらへ育つ」という順序にあたる。
+            var t = Mathf.Clamp01(elapsed / AccretionSeconds);
+            var merged = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(t / AccretionMergeSpan));
+
+            var visible = Mathf.Max(
+                AccretionEndCount, Mathf.RoundToInt(Mathf.Lerp(full, AccretionEndCount, merged)));
+            var size = Mathf.Lerp(AccretionDustSize, AccretionBodySize, merged) * earthRadius;
 
             for (var i = 0; i < swarm.Length; i++)
             {
-                swarm[i].SetActive(i < visible);
+                var on = i < visible;
+                swarm[i].SetActive(on);
+                if (on)
+                {
+                    // 粒ごとの差は残したまま、全体の大きさだけを動かす。
+                    swarm[i].transform.localScale = swarmSizes[i].normalized * (size * 1.732f);
+                }
             }
+        }
+
+        /// <summary>
+        /// 集積の段階で、中心の塊が育つ度合い。
+        /// 粒が微惑星へまとまるまでは育てず、そのあとで大きくする。
+        /// 先に育てると、粒が集まる前から惑星があるように見えてしまう。
+        /// </summary>
+        private float AccretionGrowth()
+        {
+            var t = Mathf.Clamp01(elapsed / AccretionSeconds);
+            return Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(AccretionGrowFrom, 1f, t));
         }
 
         /// <summary>
         /// 微惑星ひとつの位置を、楕円軌道の上で求める。
         ///
-        /// **この形にしている根拠。**
-        /// 地球は、重力で引き寄せられた小天体が衝突と合体を繰り返して育った、
-        /// というのが標準的な説明である。NASAの天体生物学の教材は
-        /// 「planetesimals が質量を得るほど重力が強まり、まわりの大小の物体を引き寄せた」
-        /// 「原始惑星が育つと、その強い重力が微惑星との高速の衝突を数多く生んだ」と述べ、
-        /// 最後は月を生んだ巨大衝突で地球の成長が終わった、としている。
-        /// 重力に引かれた軌道は円ではなく楕円になり、ぶつかるまでのあいだ
-        /// 天体は地球のまわりを回りながら近づく。まっすぐ落とすと、その過程が消えてしまう。
+        /// **この順序にしている根拠。**
+        /// 順番は次のとおりで、ひとつ飛ばすと話が変わってしまう。
+        ///   1. 円盤に多数の塵とかけらがある
+        ///   2. 引力による衝突が頻繁に起こり、徐々に大きなかけらへ育って微惑星となる
+        ///   3. その微惑星どうしが衝突を繰り返す
+        ///   4. さらに大きな惑星へ育つ
         ///
-        /// 参照した公的資料：
+        /// はじめから大きな天体を2つ置くと、2が抜けて「もともと大きかった」話になる。
+        /// そのためここでは、多数の小さな粒から始め、数を減らしながら一粒を大きくし、
+        /// 最後に残った塊どうしがぶつかって中心が育つ、という順で見せている。
+        ///
+        /// 参照した資料：
+        ///   丸山茂徳ほか・冥王代生命学研究グループ
+        ///   （平成26年度 文部科学省科学研究費補助金・新学術領域研究）による
+        ///   太陽系と地球の誕生から生命の誕生・進化までの映像資料
         ///   NASA Astrobiology「How did our Solar System form?」
         ///   https://astrobiology.nasa.gov/education/alp/how-did-our-solar-system-form/
         ///   Lunar and Planetary Institute「Active Accretion」
         ///   https://www.lpi.usra.edu/education/orexlaunch/Active%20Accretion.pdf
+        ///
+        /// **数値はすべて見せ方である。** 粒の数・大きさ・軌道の傾き・周回数は
+        /// 実際の個数でも寸法でも軌道要素でも、かかった時間でもない。
         ///
         /// **数値の意味。** 半長径・離心率・周回数は見やすさのために決めた値であり、
         /// 実際の軌道要素でも、衝突の頻度でも、かかった時間でもない。
@@ -439,27 +480,22 @@ namespace CivilizationToSpace.View
         /// <summary>
         /// 微惑星に軌道面と形を割り当てる。
         ///
-        /// 最初の2個だけは決め打ちにする。同じ面の上で向かい合わせに置き、
-        /// 互いに引かれて楕円を描きながら近づく様子を、はっきり見せるためである。
-        /// 3個目からは向きを散らし、あちこちから集まってくるようにする。
+        /// 軌道面はばらばらではなく、ひとつの面の近くへ寄せる。
+        /// もとになった塵とかけらは円盤状に広がっていたとされており、
+        /// 球状に散らすと、その円盤が消えてしまう。
         /// </summary>
         private void ResetSwarmOrbit(int index)
         {
-            if (index < AccretionSeedCount)
-            {
-                // 画面の手前側に寝かせた面。横から見て楕円と分かる向きにする。
-                swarmAxisU[index] = new Vector3(1f, 0f, 0f);
-                swarmAxisV[index] = new Vector3(0f, 0.32f, 0.95f).normalized;
-                swarmEccentricity[index] = 0.5f;
-                swarmPhase[index] = index * Mathf.PI;
-                return;
-            }
+            // 真上からわずかに傾けた向きを軌道面の法線にする。傾きが小さいほど円盤に近い。
+            var normal = Quaternion.Euler(
+                Random.Range(-AccretionDiskTilt, AccretionDiskTilt),
+                Random.Range(0f, 360f),
+                Random.Range(-AccretionDiskTilt, AccretionDiskTilt)) * Vector3.up;
 
-            var normal = Random.onUnitSphere;
-            var u = Vector3.Cross(normal, Vector3.up);
+            var u = Vector3.Cross(normal, Vector3.forward);
             if (u.sqrMagnitude < 0.001f)
             {
-                u = Vector3.Cross(normal, Vector3.forward);
+                u = Vector3.Cross(normal, Vector3.right);
             }
 
             swarmAxisU[index] = u.normalized;
@@ -778,6 +814,7 @@ namespace CivilizationToSpace.View
             swarmAxisV = new Vector3[SwarmPoolSize];
             swarmEccentricity = new float[SwarmPoolSize];
             swarmPhase = new float[SwarmPoolSize];
+            swarmSizes = new Vector3[SwarmPoolSize];
 
             var material = CreateRockMaterial(RockColor, 0.25f, flags);
 
@@ -786,19 +823,15 @@ namespace CivilizationToSpace.View
                 var item = PrimitiveMeshes.Create(PrimitiveType.Cube, "Planetesimal" + (i + 1), flags);
                 item.transform.SetParent(swarmRoot, false);
 
-                // 最初の2個は、これから塊の芯になるので大きめにする。
-                var size = i < AccretionSeedCount
-                    ? earthRadius * 0.13f
-                    : earthRadius * (0.05f + (i % 4) * 0.018f);
+                var size = earthRadius * (0.05f + (i % 4) * 0.018f);
                 item.transform.localScale = Vector3.one * size;
                 item.transform.localRotation = Random.rotation;
                 item.GetComponent<Renderer>().sharedMaterial = material;
                 item.SetActive(false);
 
                 swarm[i] = item;
-
-                // 最初の2個は同じところから始め、同時に近づいて出会うようにする。
-                swarmProgress[i] = i < AccretionSeedCount ? 0f : i / (float)SwarmPoolSize;
+                swarmSizes[i] = item.transform.localScale;
+                swarmProgress[i] = i / (float)SwarmPoolSize;
                 ResetSwarmOrbit(i);
             }
         }
