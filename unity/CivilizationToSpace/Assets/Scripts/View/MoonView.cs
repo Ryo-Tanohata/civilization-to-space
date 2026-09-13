@@ -35,6 +35,15 @@ namespace CivilizationToSpace.View
         /// <summary>行き来する物体の持ち数。</summary>
         private const int TransferPoolSize = 6;
 
+        /// <summary>
+        /// 打ち上げに使う区間。行き来1回ぶんに対する割合。
+        /// この間は地表からまっすぐ上がり、そのあと月への弧へ移る。
+        /// </summary>
+        private const float LaunchSpan = 0.16f;
+
+        /// <summary>打ち上げで地表からどれだけ上がるか。地球の半径を1としたときの倍率。</summary>
+        private const float LaunchRise = 0.55f;
+
         /// <summary>月面に置く拠点の持ち数。</summary>
         private const int FacilityPoolSize = 14;
 
@@ -77,6 +86,9 @@ namespace CivilizationToSpace.View
         private static readonly Color32 FacilityGlow = new Color32(0xFF, 0xD2, 0x93, 0xFF);
         private static readonly Color32 TransferColor = new Color32(0xE6, 0xEC, 0xF2, 0xFF);
 
+        /// <summary>打ち上げの噴射の色。</summary>
+        private static readonly Color32 FlameColor = new Color32(0xFF, 0xB4, 0x54, 0xFF);
+
         /// <summary>できたばかりの、まだ溶けている月の色。</summary>
         private static readonly Color32 MoltenColor = new Color32(0xFF, 0x4A, 0x10, 0xFF);
 
@@ -90,6 +102,12 @@ namespace CivilizationToSpace.View
         private Material facilityMaterial;
 
         private GameObject[] transfers;
+
+        /// <summary>打ち上げ地点の向き。地球の中心から見て、どちら側から上がるか。</summary>
+        private Vector3[] transferLaunch;
+
+        /// <summary>噴射の光。打ち上げのあいだだけ、機体の後ろに出す。</summary>
+        private GameObject[] transferFlames;
 
         /// <summary>L4・L5 に置くコロニー。2つとも月と同じ枠にぶら下げ、一緒に回す。</summary>
         private Transform[] colonies;
@@ -455,10 +473,17 @@ namespace CivilizationToSpace.View
             var speed = 0.10f + transferAmount * 0.16f;
             var moon = MoonCenter;
 
+            var surface = EarthView.Radius;
+
             for (var i = 0; i < transfers.Length; i++)
             {
                 if (!transfers[i].activeSelf)
                 {
+                    if (transferFlames[i].activeSelf)
+                    {
+                        transferFlames[i].SetActive(false);
+                    }
+
                     continue;
                 }
 
@@ -476,8 +501,46 @@ namespace CivilizationToSpace.View
                 var bulge = Mathf.Sin(t * Mathf.PI) * 1.5f;
                 var side = Vector3.Cross((to - from).normalized, Vector3.up).normalized;
 
-                transfers[i].transform.position = straight + side * (bulge * (i % 2 == 0 ? 1f : -1f))
-                                                  + Vector3.up * (bulge * 0.35f);
+                var arc = straight + side * (bulge * (i % 2 == 0 ? 1f : -1f))
+                          + Vector3.up * (bulge * 0.35f);
+
+                // 行きの出だしは、地表から上がるところを見せる。
+                // これまでは地球の中心から湧いて出ていた。
+                var launching = forward && t < LaunchSpan;
+                var previous = transfers[i].transform.position;
+
+                if (launching)
+                {
+                    var rise = t / LaunchSpan;
+                    var lifted = earthCenter
+                                 + transferLaunch[i] * (surface + surface * LaunchRise * rise);
+
+                    // 上がりきる手前で、月への弧へなめらかに移す。
+                    transfers[i].transform.position = Vector3.Lerp(lifted, arc, rise * rise);
+                }
+                else
+                {
+                    transfers[i].transform.position = arc;
+                }
+
+                // 進む向きへ機体を向ける。横倒しのままでは打ち上げに見えない。
+                var travel = transfers[i].transform.position - previous;
+                if (travel.sqrMagnitude > 0.000001f)
+                {
+                    transfers[i].transform.rotation =
+                        Quaternion.FromToRotation(Vector3.up, travel.normalized);
+                }
+
+                // 噴射の光。上がっているあいだだけ、機体の後ろへ置く。
+                transferFlames[i].SetActive(launching);
+                if (launching)
+                {
+                    var back = -transfers[i].transform.up;
+                    transferFlames[i].transform.position =
+                        transfers[i].transform.position + back * 0.26f;
+                    transferFlames[i].transform.localScale =
+                        Vector3.one * (0.34f * (1f - t / LaunchSpan) + 0.10f);
+                }
             }
         }
 
@@ -620,6 +683,13 @@ namespace CivilizationToSpace.View
             transfers = new GameObject[TransferPoolSize];
             transferOffsets = new float[TransferPoolSize];
             transferScales = new Vector3[TransferPoolSize];
+            transferLaunch = new Vector3[TransferPoolSize];
+            transferFlames = new GameObject[TransferPoolSize];
+
+            // 噴射の光。加算なので、重なったところが明るくなるだけになる。
+            var flameMaterial = StandardMaterials.CreateGlow();
+            flameMaterial.hideFlags = flags;
+            flameMaterial.SetColor("_EmissionColor", (Color)FlameColor * 2.4f);
 
             var material = StandardMaterials.CreateOpaque(true);
             material.hideFlags = flags;
@@ -630,13 +700,27 @@ namespace CivilizationToSpace.View
             {
                 var item = PrimitiveMeshes.Create(PrimitiveType.Capsule, "Transfer" + (i + 1), flags);
                 item.transform.SetParent(transform, false);
-                item.transform.localScale = new Vector3(0.11f, 0.22f, 0.11f);
+                // 地球と月を一緒に収める引きでは、小さすぎると点にしか見えない。
+                // 打ち上げが読み取れる大きさにしてある。実物の比ではない。
+                item.transform.localScale = new Vector3(0.17f, 0.36f, 0.17f);
                 item.GetComponent<Renderer>().sharedMaterial = material;
                 item.SetActive(false);
 
                 transfers[i] = item;
                 transferOffsets[i] = i * (2f / TransferPoolSize);
                 transferScales[i] = item.transform.localScale;
+
+                // 打ち上げ地点は機体ごとに散らす。同じ場所から出ると並んで見える。
+                transferLaunch[i] = new Vector3(
+                    Mathf.Cos(i * 2.399963f), Mathf.Sin(i * 1.7f) * 0.5f, Mathf.Sin(i * 2.399963f))
+                    .normalized;
+
+                var flame = PrimitiveMeshes.Create(PrimitiveType.Sphere, "Flame" + (i + 1), flags);
+                flame.transform.SetParent(transform, false);
+                flame.transform.localScale = Vector3.one * 0.30f;
+                flame.GetComponent<Renderer>().sharedMaterial = flameMaterial;
+                flame.SetActive(false);
+                transferFlames[i] = flame;
             }
         }
 
