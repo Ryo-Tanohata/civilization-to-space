@@ -78,6 +78,18 @@ namespace CivilizationToSpace.View
         /// <summary>飛びのく勢いが収まるまでの時間（秒）。</summary>
         private const float FragmentEaseSeconds = 0.65f;
 
+        /// <summary>
+        /// 飛び出した塊が、地球を回る軌道へ落ち着くまでの時間（秒）。
+        /// ぶつかってからの秒数で数える。
+        ///
+        /// これまでは弾き出したところで終わりにしており、次の段階へ移ると
+        /// その塊は消え、月は別の場所に現れていた。飛び出した物がどこへ行ったのかが
+        /// 画面から読み取れず、月が別に湧いたように見えていた。
+        /// **これは軌道の計算ではない。** 月ができる位置へ寄せているだけである。
+        /// </summary>
+        private const float FragmentSettleFrom = 1.2f;
+        private const float FragmentSettleTo = 3.2f;
+
         /// <summary>ぶつかって砕けたときに飛び散る塊の持ち数。</summary>
         private const int ShardPoolSize = 26;
 
@@ -514,8 +526,15 @@ namespace CivilizationToSpace.View
                 }
             }
 
-            // 大きな塊は、ぶつかる段階でだけ出す。次の段階では月として別に現れる。
-            if (fragment != null)
+            // 大きな塊は、ぶつかる段階で出し、月ができる段階へも持ち越す。
+            // 以前はここで必ず消していたため、飛び出した塊がその場から消え、
+            // 月は別の場所に現れていた。何がどこへ行ったのかがつながらない。
+            // 動きを減らしているときは持ち越さない。Update が早く返るため、
+            // 置いたままになって月と重なる。
+            var keepFragment = fragment != null && fragment.activeSelf
+                               && next != null && next.Moon > 0.5d
+                               && !(motion != null && motion.Reduced);
+            if (fragment != null && !keepFragment)
             {
                 fragment.SetActive(false);
             }
@@ -624,6 +643,7 @@ namespace CivilizationToSpace.View
 
             SinkImpactor();
             MoveImpactorShards();
+            HoldFragmentAsSeed();
             ShakeEarth();
             ShatterEarth();
             MoveFragment();
@@ -1225,7 +1245,14 @@ namespace CivilizationToSpace.View
             fragment.transform.localScale = Vector3.one * (earthRadius * FragmentScale);
         }
 
-        /// <summary>弾き出した塊を、勢いを落としながら遠ざける。</summary>
+        /// <summary>
+        /// 弾き出した塊を、勢いを落としながら遠ざけ、地球を回る軌道へ落ち着かせる。
+        ///
+        /// 落ち着く先は月ができる位置そのものにしてある。
+        /// その位置は地球のまわりを回り続けているので、
+        /// 塊はそこへ着いたあと、そのまま地球を公転する。
+        /// 次の段階では、この塊のまわりへ破片が集まり、月へ育つ。
+        /// </summary>
         private void MoveFragment()
         {
             if (fragment == null || !impactHappened || !fragment.activeSelf)
@@ -1235,9 +1262,50 @@ namespace CivilizationToSpace.View
 
             // 最初が速く、だんだん収まる。放り出されて離れていく感じにする。
             var eased = 1f - Mathf.Exp(-sinceImpact / FragmentEaseSeconds);
-            fragment.transform.localPosition =
-                fragmentOrigin + fragmentDirection * (earthRadius * FragmentTravel * eased);
+            var flung = fragmentOrigin + fragmentDirection * (earthRadius * FragmentTravel * eased);
+
+            // 月ができる位置を渡されていないときは、飛ばしたままにする。
+            if (MoonAnchor.sqrMagnitude < 0.0001f)
+            {
+                fragment.transform.localPosition = flung;
+            }
+            else
+            {
+                var settle = Mathf.SmoothStep(
+                    0f, 1f, Mathf.InverseLerp(FragmentSettleFrom, FragmentSettleTo, sinceImpact));
+                fragment.transform.localPosition = Vector3.Lerp(flung, MoonAnchor, settle);
+            }
+
             fragment.transform.Rotate(Vector3.one, 55f * SceneClock.Delta, Space.Self);
+        }
+
+        /// <summary>
+        /// 軌道へ落ち着いた塊を、月が育つあいだ見せ続ける。
+        ///
+        /// 月がこの塊より大きくなったところで引っ込める。
+        /// 同じ場所にあり、大きいほうが小さいほうを覆うので、
+        /// 消えたことは画面に出ない。塊がそのまま月になったように見える。
+        /// </summary>
+        private void HoldFragmentAsSeed()
+        {
+            if (fragment == null || !fragment.activeSelf || impactHappened)
+            {
+                return;
+            }
+
+            if (MoonAnchor.sqrMagnitude > 0.0001f)
+            {
+                fragment.transform.localPosition = MoonAnchor;
+            }
+
+            fragment.transform.Rotate(Vector3.one, 55f * SceneClock.Delta, Space.Self);
+
+            // 球の大きさは直径で指定してあるので、半径は半分になる。
+            var seedRadius = earthRadius * FragmentScale * 0.5f;
+            if (MoonView.BodyRadius * MoonEmergence >= seedRadius)
+            {
+                fragment.SetActive(false);
+            }
         }
 
         /// <summary>ぶつかった場所のまわりに、光をいくつか散らす。</summary>
