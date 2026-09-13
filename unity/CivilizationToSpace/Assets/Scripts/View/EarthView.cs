@@ -11,8 +11,11 @@ namespace CivilizationToSpace.View
     /// 海陸の分布・植生・氷・火山・都市光を絵として持たせ、時代を切り替えると
     /// 大陸の位置と形、緑や氷の広がりが変わるようにしている。
     ///
-    /// 時代の切り替えは、次の地表を重ねて濃くしていくことで移り変わらせる。
-    /// 画素を毎フレーム合成すると重いため、球を2枚重ねて不透明度だけを動かす。
+    /// 時代の切り替えは、次の地表の絵を同じ材質へもう一組渡し、
+    /// シェーダーの中で混ぜることで移り変わらせる。
+    /// 以前は半透明の殻を上に重ねていたが、重ね終わって不透明の本体へ
+    /// 差し替える1フレームだけ明るさが飛んでいた。1枚で混ぜれば、
+    /// 混ぜ終わった姿と差し替えた姿が同じ式になり、飛びようがない。
     ///
     /// ブラウザとの見た目の一致は求めない。色・半径・合成はすべて描画側の都合であり、
     /// 共通データではない。いずれの色も特定の時代を表さない。
@@ -77,7 +80,6 @@ namespace CivilizationToSpace.View
         private Transform satelliteRing;
 
         private Material currentMaterial;
-        private Material incomingMaterial;
         private Material cloudMaterial;
         private Material atmosphereMaterial;
 
@@ -95,6 +97,10 @@ namespace CivilizationToSpace.View
 
         private float transition = 1f;
         private bool hasSurface;
+
+        /// <summary>大気の色。移り変わりのあいだ、前の色から次の色へ寄せる。</summary>
+        private Color atmosphereFrom = FallbackColor;
+        private Color atmosphereTo = FallbackColor;
 
         /// <summary>
         /// 溶岩の光が輪郭の外へにじむ殻を組む。
@@ -154,7 +160,6 @@ namespace CivilizationToSpace.View
 
             molten = next;
             ApplyMolten(currentMaterial);
-            ApplyMolten(incomingMaterial);
             ApplyGlow();
         }
 
@@ -207,7 +212,6 @@ namespace CivilizationToSpace.View
         {
             var center = new Vector4(worldCenter.x, worldCenter.y, worldCenter.z, 0f);
             ApplyCut(currentMaterial, center, radius);
-            ApplyCut(incomingMaterial, center, radius);
             ApplyCut(cloudMaterial, center, radius);
             ApplyCut(atmosphereMaterial, center, radius);
 
@@ -256,12 +260,10 @@ namespace CivilizationToSpace.View
             planet = new PlanetMesh(BaseRadius);
             planet.Mesh.hideFlags = flags;
 
+            // 地表は1枚だけにする。次の時代の絵は同じ材質へもう一組の絵として渡し、
+            // シェーダーの中で混ぜる。重ねる殻は作らない。
             currentMaterial = CreateSurfaceMaterial(false, 0, true);
             CreatePlanetShell(spin, "Surface", 1.000f, currentMaterial);
-
-            incomingMaterial = CreateSurfaceMaterial(true, 1, true);
-            CreatePlanetShell(spin, "SurfaceNext", 1.003f, incomingMaterial);
-            SetSurfaceAlpha(incomingMaterial, 0f);
 
             BuildMagmaGlow();
 
@@ -296,21 +298,37 @@ namespace CivilizationToSpace.View
             if (instant)
             {
                 AssignSurface(currentMaterial, surface);
-                SetSurfaceAlpha(incomingMaterial, 0f);
+                AssignNextSurface(currentMaterial, surface);
+                currentMaterial.SetFloat("_Blend", 0f);
                 planet.SetImmediate(surface.Elevation);
                 transition = 1f;
             }
             else
             {
-                AssignSurface(incomingMaterial, surface);
-                SetSurfaceAlpha(incomingMaterial, 0f);
+                // 途中で次の時代へ移ったときは、そこまで混ざっていたぶんを
+                // いまの絵として確定させてから、新しい絵を次として渡す。
+                // そうしないと、混ざりかけの姿を飛ばして別の絵から始めることになる。
+                if (transition < 1f)
+                {
+                    Settle();
+                }
+
+                AssignNextSurface(currentMaterial, surface);
+                currentMaterial.SetFloat("_Blend", 0f);
 
                 // 大陸がせり上がり、また沈む様子を出すため、形も一緒に移り変わらせる。
                 planet.BeginTransition(surface.Elevation);
                 transition = 0f;
             }
 
-            cloudMaterial.mainTexture = surface.Clouds;
+            // 雲も地表と同じ要領で混ぜる。差し替えると雲の形がその場で飛ぶ。
+            if (instant)
+            {
+                cloudMaterial.mainTexture = surface.Clouds;
+            }
+
+            cloudMaterial.SetTexture("_MainTexNext", surface.Clouds);
+            cloudMaterial.SetFloat("_Blend", 0f);
 
             Color emissionColor;
             if (!ColorUtility.TryParseHtmlString(visual.EmissionColor, out emissionColor))
@@ -320,14 +338,13 @@ namespace CivilizationToSpace.View
 
             // 大気は薄くする。濃いと地表全体に膜がかかり、地形が読めなくなる。
             // 球の外側へはみ出した部分が輪郭の光として残ればよい。
-            var atmosphere = emissionColor;
-            atmosphere.a = 0.10f;
-            atmosphereMaterial.color = atmosphere;
-            atmosphereMaterial.SetColor("_EmissionColor", emissionColor * 0.45f);
+            // 色も時代ごとに変わるので、移り変わりのあいだをかけて寄せる。
+            atmosphereFrom = instant ? emissionColor : atmosphereTo;
+            atmosphereTo = emissionColor;
+            ApplyAtmosphere(instant ? 1f : 0f);
 
             hasSurface = true;
             ApplyMolten(currentMaterial);
-            ApplyMolten(incomingMaterial);
 
             // にじみは、地表の「光る絵」をそのまま使う。
             // 溶岩のあるところだけが外へ漏れる形になる。
@@ -380,7 +397,9 @@ namespace CivilizationToSpace.View
             }
 
             transition = Mathf.Min(1f, transition + SceneClock.Delta / TransitionSeconds);
-            SetSurfaceAlpha(incomingMaterial, transition);
+            currentMaterial.SetFloat("_Blend", transition);
+            cloudMaterial.SetFloat("_Blend", transition);
+            ApplyAtmosphere(transition);
             planet.SetTransition(transition);
 
             if (transition >= 1f)
@@ -389,13 +408,25 @@ namespace CivilizationToSpace.View
             }
         }
 
-        /// <summary>重ねていた次の地表を、そのまま本体の地表にする。</summary>
+        /// <summary>
+        /// 混ぜ終わった次の地表を、そのまま今の地表にする。
+        ///
+        /// 混ぜ具合が1のとき、シェーダーは次の絵だけを出している。
+        /// ここで次の絵を今の絵へ写し、混ぜ具合を0へ戻しても、
+        /// 出てくる絵は同じである。見た目は変わらない。
+        /// </summary>
         private void Settle()
         {
-            currentMaterial.mainTexture = incomingMaterial.mainTexture;
-            currentMaterial.SetTexture("_EmissionMap", incomingMaterial.GetTexture("_EmissionMap"));
-            currentMaterial.SetTexture("_BumpMap", incomingMaterial.GetTexture("_BumpMap"));
-            SetSurfaceAlpha(incomingMaterial, 0f);
+            currentMaterial.mainTexture = currentMaterial.GetTexture("_MainTexNext");
+            currentMaterial.SetTexture("_EmissionMap", currentMaterial.GetTexture("_EmissionMapNext"));
+            currentMaterial.SetTexture("_BumpMap", currentMaterial.GetTexture("_BumpMapNext"));
+            currentMaterial.SetFloat("_Blend", 0f);
+
+            cloudMaterial.mainTexture = cloudMaterial.GetTexture("_MainTexNext");
+            cloudMaterial.SetFloat("_Blend", 0f);
+
+            atmosphereFrom = atmosphereTo;
+            ApplyAtmosphere(1f);
         }
 
         /// <summary>
@@ -458,11 +489,28 @@ namespace CivilizationToSpace.View
             material.SetFloat("_BumpScale", 1f);
         }
 
-        private static void SetSurfaceAlpha(Material material, float alpha)
+        /// <summary>
+        /// 大気の色を、移り変わりの進み具合で決める。
+        /// 時代ごとに色が変わるため、そのまま入れ替えると輪郭の光がその場で変わる。
+        /// </summary>
+        private void ApplyAtmosphere(float amount)
         {
-            var color = material.color;
-            color.a = Mathf.Clamp01(alpha);
-            material.color = color;
+            var color = Color.Lerp(atmosphereFrom, atmosphereTo, Mathf.Clamp01(amount));
+            var tint = color;
+            tint.a = 0.10f;
+            atmosphereMaterial.color = tint;
+            atmosphereMaterial.SetColor("_EmissionColor", color * 0.45f);
+        }
+
+        /// <summary>
+        /// 移り変わる先の絵を渡す。シェーダーが今の絵とこれを混ぜる。
+        /// 絵の組を2つ持たせるので、層を重ねずに移り変わらせられる。
+        /// </summary>
+        private static void AssignNextSurface(Material material, PlanetSurfaceBaker.Surface surface)
+        {
+            material.SetTexture("_MainTexNext", surface.Albedo);
+            material.SetTexture("_EmissionMapNext", surface.Emission);
+            material.SetTexture("_BumpMapNext", surface.Normal);
         }
 
         private void BuildSatellites()
@@ -616,7 +664,6 @@ namespace CivilizationToSpace.View
             }
 
             SafeDestroy(currentMaterial);
-            SafeDestroy(incomingMaterial);
             SafeDestroy(cloudMaterial);
             SafeDestroy(atmosphereMaterial);
 

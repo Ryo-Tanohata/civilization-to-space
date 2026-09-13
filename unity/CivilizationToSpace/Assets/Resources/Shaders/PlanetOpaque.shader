@@ -26,6 +26,12 @@ Shader "CivilizationToSpace/PlanetOpaque"
         _Metallic ("金属らしさ", Range(0,1)) = 0
         _CutCenter ("削る中心（ワールド座標）", Vector) = (0,0,0,0)
         _CutRadius ("削る半径", Float) = 0
+
+        // 次の時代の絵。_Blend で今の絵と混ぜる。
+        _MainTexNext ("次の地表の絵", 2D) = "white" {}
+        _EmissionMapNext ("次の自ら光る絵", 2D) = "white" {}
+        _BumpMapNext ("次の凹凸", 2D) = "bump" {}
+        _Blend ("次の絵の混ざり具合", Range(0,1)) = 0
     }
 
     SubShader
@@ -40,11 +46,15 @@ Shader "CivilizationToSpace/PlanetOpaque"
         sampler2D _MainTex;
         sampler2D _EmissionMap;
         sampler2D _BumpMap;
+        sampler2D _MainTexNext;
+        sampler2D _EmissionMapNext;
+        sampler2D _BumpMapNext;
         fixed4 _Color;
         fixed4 _EmissionColor;
         half _BumpScale;
         half _Glossiness;
         half _Metallic;
+        half _Blend;
         float4 _CutCenter;
         half _CutRadius;
 
@@ -65,15 +75,38 @@ Shader "CivilizationToSpace/PlanetOpaque"
                 clip(distance(IN.worldPos, _CutCenter.xyz) - _CutRadius);
             }
 
-            fixed4 c = tex2D(_MainTex, IN.uv_MainTex) * _Color;
+            // 時代の移り変わりは、ここで絵どうしを混ぜる。
+            //
+            // **なぜ層を重ねないのか。**
+            // 以前は次の時代の地表を半透明の殻として上に重ね、不透明度を上げていた。
+            // 重ね終わったところで殻を消して本体の絵を差し替えるのだが、
+            // 半透明の層と不透明の層は明るさの出方が揃わないため、
+            // その差し替えの1フレームだけ見た目が飛んでいた。
+            // 時代が変わるたびに画面が一瞬暗くなる、という形で出ていた。
+            //
+            // 1枚の中で絵を混ぜれば、混ぜ終わった姿と差し替えた姿が同じ式になる。
+            // lerp(A, B, 1) と B は等しいので、差し替えても何も変わらない。
+            fixed4 albedo = lerp(
+                tex2D(_MainTex, IN.uv_MainTex),
+                tex2D(_MainTexNext, IN.uv_MainTex),
+                _Blend);
+            fixed4 c = albedo * _Color;
             o.Albedo = c.rgb;
             o.Alpha = 1;
             o.Metallic = _Metallic;
             o.Smoothness = _Glossiness;
-            o.Emission = tex2D(_EmissionMap, IN.uv_EmissionMap).rgb * _EmissionColor.rgb;
+
+            fixed3 glow = lerp(
+                tex2D(_EmissionMap, IN.uv_EmissionMap).rgb,
+                tex2D(_EmissionMapNext, IN.uv_EmissionMap).rgb,
+                _Blend);
+            o.Emission = glow * _EmissionColor.rgb;
 
             // 凹凸の絵を渡していない材質では _BumpScale が0のままで、平らな法線になる。
-            float3 packed = UnpackNormal(tex2D(_BumpMap, IN.uv_BumpMap));
+            float3 packed = lerp(
+                UnpackNormal(tex2D(_BumpMap, IN.uv_BumpMap)),
+                UnpackNormal(tex2D(_BumpMapNext, IN.uv_BumpMap)),
+                _Blend);
             o.Normal = normalize(lerp(float3(0, 0, 1), packed, _BumpScale));
         }
         ENDCG

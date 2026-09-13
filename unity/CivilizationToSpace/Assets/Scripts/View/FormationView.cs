@@ -210,13 +210,6 @@ namespace CivilizationToSpace.View
         /// </summary>
         private const float MoonClumpPhase = 0.58f;
 
-        /// <summary>
-        /// 塊ができているあいだに見せる、月の芯の大きさ。
-        /// 0にすると月が何も無いところから現れることになり、
-        /// 塊が合わさって月になった、という順が見えない。
-        /// </summary>
-        private const float MoonSeedScale = 0.22f;
-
         /// <summary>塊が次の大きさになるまでの時間（秒）。</summary>
         private const float GrowSeconds = 1.4f;
 
@@ -1297,14 +1290,11 @@ namespace CivilizationToSpace.View
             var t = Mathf.Clamp01(elapsed / MoonAccretionSeconds);
 
             // 前半は、破片どうしが寄り集まっていくつかの塊になる時間。
-            // 月そのものはまだ芯の大きさにとどめ、育つのは後半にする。
-            var seed = Mathf.SmoothStep(0f, MoonSeedScale, Mathf.InverseLerp(0f, MoonClumpPhase, t));
-
-            // 後半は、その塊どうしが一つに合わさって月の大きさへ育つ。
-            // 少し重ねて始めるので、芯から育ちへの移りに切れ目が出ない。
-            var merged = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(MoonClumpPhase * 0.85f, 1f, t));
-
-            return Mathf.Max(seed, merged);
+            // そのあいだ月はまだ無い。塊が一つに合わさったところで球になる。
+            //
+            // 塊が小さくなるのと月が育つのを同じ割合で進めるので、
+            // 塊の体積がそのまま月へ移ったように見える。
+            return MoonMerging(t);
         }
 
         /// <summary>
@@ -1318,6 +1308,15 @@ namespace CivilizationToSpace.View
         /// 出典: NASA Astrobiology "Tracking Formation of the Earth and Moon"。
         /// **軌道も、集まるのにかかった年数も表していない。**
         /// </summary>
+        /// <summary>
+        /// 塊どうしが一つに合わさる進み具合。0でまだ別々、1で合わさりきった状態。
+        /// 月の育ちと塊の縮みの両方がこれを見るので、ずれようがない。
+        /// </summary>
+        private static float MoonMerging(float t)
+        {
+            return Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(MoonClumpPhase, 1f, t));
+        }
+
         private void GatherDebrisIntoMoon()
         {
             // 月の位置を渡されていないときは、寄せ先が分からない。
@@ -1337,8 +1336,7 @@ namespace CivilizationToSpace.View
 
             // 前半は破片どうしが塊になる時間、後半はその塊どうしが合わさる時間。
             var joining = Mathf.Clamp01(t / MoonClumpPhase);
-            var merging = Mathf.SmoothStep(
-                0f, 1f, Mathf.InverseLerp(MoonClumpPhase * 0.85f, 1f, t));
+            var merging = MoonMerging(t);
 
             for (var i = 0; i < debris.Length; i++)
             {

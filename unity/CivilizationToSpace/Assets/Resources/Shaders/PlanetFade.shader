@@ -26,6 +26,10 @@ Shader "CivilizationToSpace/PlanetFade"
         _Metallic ("金属らしさ", Range(0,1)) = 0
         _CutCenter ("削る中心（ワールド座標）", Vector) = (0,0,0,0)
         _CutRadius ("削る半径", Float) = 0
+
+        // 次の時代の絵。_Blend で今の絵と混ぜる。雲の移り変わりに使う。
+        _MainTexNext ("次の絵", 2D) = "white" {}
+        _Blend ("次の絵の混ざり具合", Range(0,1)) = 0
     }
 
     SubShader
@@ -39,6 +43,8 @@ Shader "CivilizationToSpace/PlanetFade"
         #pragma target 3.0
 
         sampler2D _MainTex;
+        sampler2D _MainTexNext;
+        half _Blend;
         sampler2D _EmissionMap;
         sampler2D _BumpMap;
         fixed4 _Color;
@@ -66,7 +72,12 @@ Shader "CivilizationToSpace/PlanetFade"
                 clip(distance(IN.worldPos, _CutCenter.xyz) - _CutRadius);
             }
 
-            fixed4 c = tex2D(_MainTex, IN.uv_MainTex) * _Color;
+            // 時代が移るあいだ、今の絵と次の絵を混ぜる。
+            // 瞬時に差し替えると、そのフレームだけ雲の形が飛ぶ。
+            fixed4 c = lerp(
+                tex2D(_MainTex, IN.uv_MainTex),
+                tex2D(_MainTexNext, IN.uv_MainTex),
+                _Blend) * _Color;
             o.Albedo = c.rgb;
             o.Alpha = c.a;
             o.Metallic = _Metallic;

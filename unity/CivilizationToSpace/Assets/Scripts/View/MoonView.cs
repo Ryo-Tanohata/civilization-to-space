@@ -106,6 +106,9 @@ namespace CivilizationToSpace.View
         /// <summary>打ち上げ地点の向き。地球の中心から見て、どちら側から上がるか。</summary>
         private Vector3[] transferLaunch;
 
+        /// <summary>戻ってきた機体が降りる地点。上がった地点とは別に持つ。</summary>
+        private Vector3[] transferReturn;
+
         /// <summary>噴射の光。打ち上げのあいだだけ、機体の後ろに出す。</summary>
         private GameObject[] transferFlames;
 
@@ -514,18 +517,19 @@ namespace CivilizationToSpace.View
                 var arc = straight + side * (bulge * (i % 2 == 0 ? 1f : -1f))
                           + Vector3.up * (bulge * 0.35f);
 
-                // 行きの出だしは、地表から上がるところを見せる。
-                // これまでは地球の中心から湧いて出ていた。
-                var launching = forward && t < LaunchSpan;
+                // 地球のそばでは、地表との行き来を見せる。
+                // 行きは上がるところ、帰りは降りるところにあたる。
+                // これまでは帰りが地球の中心へ吸い込まれて終わっていた。
+                var nearEarth = t < LaunchSpan;
                 var previous = transfers[i].transform.position;
 
-                if (launching)
+                if (nearEarth)
                 {
                     var rise = t / LaunchSpan;
-                    var lifted = earthCenter
-                                 + transferLaunch[i] * (surface + surface * LaunchRise * rise);
+                    var pad = forward ? transferLaunch[i] : transferReturn[i];
+                    var lifted = earthCenter + pad * (surface + surface * LaunchRise * rise);
 
-                    // 上がりきる手前で、月への弧へなめらかに移す。
+                    // 上がりきる手前で、月への弧へなめらかに移す。帰りはこの逆をたどる。
                     transfers[i].transform.position = Vector3.Lerp(lifted, arc, rise * rise);
                 }
                 else
@@ -534,16 +538,21 @@ namespace CivilizationToSpace.View
                 }
 
                 // 進む向きへ機体を向ける。横倒しのままでは打ち上げに見えない。
+                //
+                // 降りてくるときだけは向きを返す。実際の着陸は、
+                // 進む向きへ機首を向けたままでは減速できず、逆を向いて噴かす。
+                // 絵としても、噴射が地表との間に入って「降りている」と読める。
                 var travel = transfers[i].transform.position - previous;
                 if (travel.sqrMagnitude > 0.000001f)
                 {
+                    var facing = nearEarth && !forward ? -travel : travel;
                     transfers[i].transform.rotation =
-                        Quaternion.FromToRotation(Vector3.up, travel.normalized);
+                        Quaternion.FromToRotation(Vector3.up, facing.normalized);
                 }
 
-                // 噴射の光。上がっているあいだだけ、機体の後ろへ置く。
-                transferFlames[i].SetActive(launching);
-                if (launching)
+                // 噴射の光。地表との行き来のあいだだけ、機体の後ろへ置く。
+                transferFlames[i].SetActive(nearEarth);
+                if (nearEarth)
                 {
                     var back = -transfers[i].transform.up;
                     transferFlames[i].transform.position =
@@ -694,6 +703,7 @@ namespace CivilizationToSpace.View
             transferOffsets = new float[TransferPoolSize];
             transferScales = new Vector3[TransferPoolSize];
             transferLaunch = new Vector3[TransferPoolSize];
+            transferReturn = new Vector3[TransferPoolSize];
             transferFlames = new GameObject[TransferPoolSize];
 
             // 噴射の光。加算なので、重なったところが明るくなるだけになる。
@@ -717,12 +727,23 @@ namespace CivilizationToSpace.View
                 item.SetActive(false);
 
                 transfers[i] = item;
-                transferOffsets[i] = i * (2f / TransferPoolSize);
+
+                // 出だしは全機を「地球から月へ」の側に置く。
+                // 2で割ると初めから半数が戻り便になり、まだ何も送っていないのに
+                // 帰ってくる機体が見えてしまう。行きを終えた機体から順に戻る。
+                transferOffsets[i] = i * (1f / TransferPoolSize);
                 transferScales[i] = item.transform.localScale;
 
                 // 打ち上げ地点は機体ごとに散らす。同じ場所から出ると並んで見える。
                 transferLaunch[i] = new Vector3(
                     Mathf.Cos(i * 2.399963f), Mathf.Sin(i * 1.7f) * 0.5f, Mathf.Sin(i * 2.399963f))
+                    .normalized;
+
+                // 降りる地点は上がった地点とずらす。同じ場所だと、
+                // 上がったものがそのまま巻き戻ったように見える。
+                transferReturn[i] = new Vector3(
+                    Mathf.Cos(i * 2.399963f + 1.1f), Mathf.Sin(i * 1.3f + 0.6f) * 0.5f,
+                    Mathf.Sin(i * 2.399963f + 1.1f))
                     .normalized;
 
                 var flame = PrimitiveMeshes.Create(PrimitiveType.Sphere, "Flame" + (i + 1), flags);
