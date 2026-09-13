@@ -16,6 +16,16 @@
 
 R1のブラウザモックレビューは[実施済み](docs/reports/R1_P0_HUMAN_REVIEW.md)です。人によるUnityレビューは未実施で、FR-04（Futureの2案切替）はブラウザ・Unityとも未実装です。したがってR1全体のDefinition of Doneは未達です。文書の仕様・優先度はレビュー用の初案のままです。
 
+## 参照した資料
+
+地球ができるまでの順序（円盤の塵 → 引力による衝突で微惑星へ → 微惑星どうしの衝突 → 惑星、そして巨大衝突と月の形成）は、次を参照しています。数値・形・色は象徴的な表現であり、出典から取った測定値ではありません。
+
+- 丸山茂徳ほか・冥王代生命学研究グループによる、太陽系と地球の誕生から生命の誕生・進化までをたどる映像資料（平成26年度 文部科学省科学研究費補助金・新学術領域研究）
+- [NASA Astrobiology「How did our Solar System form?」](https://astrobiology.nasa.gov/education/alp/how-did-our-solar-system-form/)
+- [Lunar and Planetary Institute「Active Accretion」](https://www.lpi.usra.edu/education/orexlaunch/Active%20Accretion.pdf)
+
+映像そのものは引用していません。参考にしたのは順序と、何が何から生じたかという関係だけです。
+
 ## R1: Earth Through Time
 
 Hadean、EarlyOcean、Snowball、GreenEarth、Information、Futureの6時代を選択・再生するブラウザモックを先に検証し、その後Unityへ同じ時代データの概念を移します。人類・文明の説明はInformationへの導入とし、7番目の時代を追加しません。
