@@ -28,6 +28,13 @@ R1のブラウザモックレビューは[実施済み](docs/reports/R1_P0_HUMAN
 - [NASA Astrobiology「Tracking Formation of the Earth and Moon」](https://astrobiology.nasa.gov/news/tracking-formation-of-the-earth-and-moon/)・[Lunar and Planetary Institute「The Moon's Formation and Evolution」](https://www.lpi.usra.edu/education/explore/marvelMoon/background/moon-formation/) — 飛び散った物質が地球を巡る円盤になり、そこから月が集まったとする記述。集積は数百年ほどで、その大半は初めの100年ほど。地球側のマグマオーシャンが固まるまではおよそ1000年。Unityの画面で、地球が丸く戻るより月が集まるほうに時間をかけているのはこの関係によります（年数そのものは表していません）。
 - [NTRS「Origin of the Moon, Impactor Theory」](https://ntrs.nasa.gov/api/citations/20210000977/downloads/Moon-ImpactTheory_Ahrens.pdf) — 定説とされる模型では、円盤の物質はぶつかってきた天体のマントルが主（6割超）で、原始地球からのぶんは2割ほど。砕けたかけら・輪・月を同じ岩の色にしているのはこの模型によります。ただし月の同位体組成が地球とほぼ同じである理由は決着しておらず、この点自体が論点として残っています。
 
+宇宙へ出る順序（打ち上げ → 人工衛星 → 宇宙ステーション）は、次を参照しています。
+
+- [NASA「65 Years Ago: Sputnik Ushers in the Space Age」](https://www.nasa.gov/history/65-years-ago-sputnik-ushers-in-the-space-age/) — 世界初の人工衛星スプートニク1号の打ち上げは1957年10月4日
+- [NASA「50 Years Ago: Launch of Salyut, the World's First Space Station」](https://www.nasa.gov/missions/station/50-years-ago-launch-of-salyut-the-worlds-first-space-station/) — 世界初の宇宙ステーション サリュート1号の打ち上げは1971年4月19日
+
+**人工衛星が先、宇宙ステーションが後**です（14年の差）。どちらもロケットで運び上げられています。Unityの画面でも、衛星は時代の側で先に上がり、拠点は月の段階に入ってから上がります。いずれも軌道上へ先に現れることはなく、必ず地表から機体が上がってから置かれます。高度・速度・打ち上げにかかる時間は表していません。
+
 映像そのものは引用していません。参考にしたのは順序と、何が何から生じたかという関係だけです。
 
 画面に出る絵はすべて計算で描いており、外部の図版や写真は使っていません。公的機関の図版を載せる場合は、NASAの画像はクレジット（例：NASA、NASA/JPL-Caltech）を添えて、推薦・提携を示唆せずロゴも使わない条件で、JAXAの画像は利用規約に従い出典を明記して扱います。

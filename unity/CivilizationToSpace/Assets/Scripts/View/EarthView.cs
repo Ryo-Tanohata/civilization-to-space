@@ -75,6 +75,27 @@ namespace CivilizationToSpace.View
         /// <summary>衛星の表示上限。データ側の値に上限は無いため、描画側で持ち数を決める。</summary>
         private const int SatellitePoolSize = 8;
 
+        /// <summary>
+        /// 人工衛星が地表から軌道へ上がりきるまでの時間（秒）。
+        ///
+        /// **なぜロケットを先に出すのか。**
+        /// これまで衛星は軌道上にいきなり現れていた。人工衛星は打ち上げなければ
+        /// 軌道に乗らないので、何も上がっていないのに衛星だけがあるのは順序が逆である。
+        /// 世界で最初の人工衛星スプートニク1号（1957年10月4日）も、
+        /// 最初の宇宙ステーション サリュート1号（1971年4月19日）も、
+        /// まずロケットで運び上げられている。衛星が先、ステーションが後である。
+        /// 出典: NASA「65 Years Ago: Sputnik Ushers in the Space Age」、
+        /// NASA「50 Years Ago: Launch of Salyut, the World's First Space Station」。
+        /// **この秒数は見え方で決めた値であり、実際の打ち上げ時間ではない。**
+        /// </summary>
+        private const float SatelliteLiftSeconds = 1.6f;
+
+        /// <summary>機体ごとに打ち上げをずらす幅（秒）。一斉に上がると並んで見える。</summary>
+        private const float SatelliteLiftStagger = 0.5f;
+
+        /// <summary>打ち上げの噴射の色。月への輸送と揃える。</summary>
+        private static readonly Color LaunchFlame = new Color(1f, 0.706f, 0.33f, 1f);
+
         private Transform spin;
         private Transform cloudSpin;
         private Transform satelliteRing;
@@ -87,6 +108,16 @@ namespace CivilizationToSpace.View
         private PlanetMesh planet;
 
         private GameObject[] satellites;
+
+        /// <summary>衛星を軌道へ運ぶロケットと、その噴射。上がりきったら引っ込める。</summary>
+        private GameObject[] satelliteRockets;
+        private GameObject[] satelliteFlames;
+
+        /// <summary>衛星ごとの、打ち上げてからの秒数。負なら、まだ上げていない。</summary>
+        private float[] satelliteAge;
+
+        /// <summary>いくつ上げるか。時代の値から決まる。</summary>
+        private int satelliteWanted;
 
         private HideFlags createdFlags = HideFlags.None;
         private MotionSettings motion;
@@ -382,6 +413,19 @@ namespace CivilizationToSpace.View
                 }
             }
 
+            if (!reduced)
+            {
+                for (var i = 0; i < satelliteWanted; i++)
+                {
+                    if (satelliteAge[i] >= 0f)
+                    {
+                        satelliteAge[i] += SceneClock.Delta;
+                    }
+                }
+
+                MoveSatellites();
+            }
+
             if (transition >= 1f)
             {
                 return;
@@ -516,11 +560,24 @@ namespace CivilizationToSpace.View
         private void BuildSatellites()
         {
             satellites = new GameObject[SatellitePoolSize];
+            satelliteRockets = new GameObject[SatellitePoolSize];
+            satelliteFlames = new GameObject[SatellitePoolSize];
+            satelliteAge = new float[SatellitePoolSize];
 
             var material = StandardMaterials.CreateOpaque(true);
             material.hideFlags = createdFlags;
             material.color = new Color(0.78f, 0.83f, 0.88f);
             material.SetColor("_EmissionColor", new Color(0.35f, 0.37f, 0.40f));
+
+            // 打ち上げる機体。衛星の球とは別の形にして、運ぶ側だと分かるようにする。
+            var rocketMaterial = StandardMaterials.CreateOpaque(true);
+            rocketMaterial.hideFlags = createdFlags;
+            rocketMaterial.color = new Color(0.90f, 0.93f, 0.95f);
+            rocketMaterial.SetColor("_EmissionColor", new Color(0.30f, 0.32f, 0.34f));
+
+            var flameMaterial = StandardMaterials.CreateGlow();
+            flameMaterial.hideFlags = createdFlags;
+            flameMaterial.SetColor("_EmissionColor", LaunchFlame * 2.4f);
 
             var ring = new GameObject("Satellites");
             ring.hideFlags = createdFlags;
@@ -539,16 +596,116 @@ namespace CivilizationToSpace.View
                 satellite.GetComponent<Renderer>().sharedMaterial = material;
                 satellite.SetActive(false);
                 satellites[i] = satellite;
+
+                var rocket = PrimitiveMeshes.Create(
+                    PrimitiveType.Capsule, "SatelliteRocket" + (i + 1), createdFlags);
+                rocket.transform.SetParent(ring.transform, false);
+                rocket.transform.localScale =
+                    new Vector3(BaseRadius * 0.062f, BaseRadius * 0.135f, BaseRadius * 0.062f);
+                rocket.GetComponent<Renderer>().sharedMaterial = rocketMaterial;
+                rocket.SetActive(false);
+                satelliteRockets[i] = rocket;
+
+                var flame = PrimitiveMeshes.Create(
+                    PrimitiveType.Sphere, "SatelliteFlame" + (i + 1), createdFlags);
+                flame.transform.SetParent(ring.transform, false);
+                flame.transform.localScale = Vector3.one * (BaseRadius * 0.05f);
+                flame.GetComponent<Renderer>().sharedMaterial = flameMaterial;
+                flame.SetActive(false);
+                satelliteFlames[i] = flame;
+
+                satelliteAge[i] = -1f;
             }
         }
 
+        /// <summary>
+        /// 出す衛星の数を決める。増えるぶんは打ち上げからやり直す。
+        /// 減るぶんはその場で消す。落とすところまでは表さない。
+        /// </summary>
         private void ApplySatellites(double count)
         {
             // データ側の個数に上限は無い。持ち数を超える分は描かない。
-            var visible = count > SatellitePoolSize ? SatellitePoolSize : (int)count;
+            satelliteWanted = count > SatellitePoolSize ? SatellitePoolSize : (int)count;
+
             for (var i = 0; i < satellites.Length; i++)
             {
-                satellites[i].SetActive(i < visible);
+                if (i >= satelliteWanted)
+                {
+                    satellites[i].SetActive(false);
+                    satelliteRockets[i].SetActive(false);
+                    satelliteFlames[i].SetActive(false);
+                    satelliteAge[i] = -1f;
+                    continue;
+                }
+
+                // すでに軌道にいるものは、時代が変わっても上げ直さない。
+                if (satelliteAge[i] < 0f)
+                {
+                    satelliteAge[i] = 0f;
+                }
+            }
+
+            // 動きを減らしているときは、打ち上げを見せずに軌道の姿にする。
+            if (motion != null && motion.Reduced)
+            {
+                for (var i = 0; i < satelliteWanted; i++)
+                {
+                    satelliteAge[i] = SatelliteLiftSeconds + SatelliteLiftStagger * SatellitePoolSize;
+                }
+            }
+
+            MoveSatellites();
+        }
+
+        /// <summary>
+        /// 打ち上げた機体を地表から軌道へ上げ、着いたところで衛星に切り替える。
+        ///
+        /// 人工衛星は打ち上げなければ軌道に乗らない。
+        /// 何も上がっていないのに衛星だけがあると、順序が逆に見える。
+        /// **高度も速度も打ち上げにかかる時間も表していない。**
+        /// 運ばれて軌道に乗ったこと、その順序だけを示す。
+        /// </summary>
+        private void MoveSatellites()
+        {
+            if (satellites == null)
+            {
+                return;
+            }
+
+            for (var i = 0; i < satelliteWanted; i++)
+            {
+                if (satelliteAge[i] < 0f)
+                {
+                    continue;
+                }
+
+                var lift = Mathf.Clamp01(
+                    (satelliteAge[i] - SatelliteLiftStagger * i) / SatelliteLiftSeconds);
+
+                var seat = satellites[i].transform.localPosition.normalized;
+                var arrived = lift >= 1f;
+
+                satellites[i].SetActive(arrived);
+                satelliteRockets[i].SetActive(!arrived);
+                satelliteFlames[i].SetActive(!arrived);
+
+                if (arrived)
+                {
+                    continue;
+                }
+
+                // 地表のすぐ上から、衛星の座席の高さまで上がる。
+                var height = Mathf.Lerp(BaseRadius * 1.02f, BaseRadius * 1.45f, lift);
+                var position = seat * height;
+
+                satelliteRockets[i].transform.localPosition = position;
+                satelliteRockets[i].transform.localRotation =
+                    Quaternion.FromToRotation(Vector3.up, seat);
+
+                // 噴射は機体の下、地球側へ置く。上がるほど小さくする。
+                satelliteFlames[i].transform.localPosition = position - seat * (BaseRadius * 0.06f);
+                satelliteFlames[i].transform.localScale =
+                    Vector3.one * (BaseRadius * (0.055f * (1f - lift) + 0.018f));
             }
         }
 

@@ -61,6 +61,20 @@ namespace CivilizationToSpace.View
         private const float StationDegreesPerSecond = 26f;
 
         /// <summary>
+        /// 地球を回る拠点が、地表から軌道へ上がりきるまでの時間（秒）。
+        ///
+        /// **なぜロケットを先に出すのか。**
+        /// これまで拠点は軌道上にいきなり現れていた。運び上げなければ軌道には置けない。
+        /// 歴史の順序も、まず人工衛星（スプートニク1号・1957年10月4日）が上がり、
+        /// そのあと宇宙ステーション（サリュート1号・1971年4月19日）が置かれている。
+        /// この画面でも、衛星は時代の側で先に上がり、拠点は月の段階に入ってから上がる。
+        /// 出典: NASA「65 Years Ago: Sputnik Ushers in the Space Age」、
+        /// NASA「50 Years Ago: Launch of Salyut, the World's First Space Station」。
+        /// **この秒数は見え方で決めた値であり、実際の打ち上げ時間ではない。**
+        /// </summary>
+        private const float StationLiftSeconds = 2.2f;
+
+        /// <summary>
         /// ラグランジュ点 L4・L5 の位置。月から見て軌道上の前後60度にあたる。
         /// 地球・月・その点が正三角形をつくる、という関係だけを写している。
         /// </summary>
@@ -141,6 +155,13 @@ namespace CivilizationToSpace.View
         private Transform stationOrbit;
         private Transform station;
         private Material stationMaterial;
+
+        /// <summary>拠点を軌道へ運ぶ機体と、その噴射。上がりきったら引っ込める。</summary>
+        private GameObject stationRocket;
+        private GameObject stationFlame;
+
+        /// <summary>拠点を上げはじめてからの秒数。負なら、まだ上げていない。</summary>
+        private float stationAge = -1f;
 
         /// <summary>月の中心。カメラの引きがこの位置を見る。</summary>
         public Vector3 MoonCenter
@@ -395,6 +416,13 @@ namespace CivilizationToSpace.View
                 stationOrbit.Rotate(Vector3.up, StationDegreesPerSecond * SceneClock.Delta, Space.Self);
             }
 
+            // 上げている最中の進み具合を進める。着いたら拠点へ切り替わる。
+            if (stationAge >= 0f && stationAge < StationLiftSeconds)
+            {
+                stationAge += SceneClock.Delta;
+                ApplyStation();
+            }
+
             // コロニーは自転させる。重力の代わりを自転で作る、という点がこの形の要だからである。
             if (colonies != null && colonyAmount > 0f)
             {
@@ -455,8 +483,45 @@ namespace CivilizationToSpace.View
             }
 
             var on = stationAmount > 0.01f;
-            station.gameObject.SetActive(on);
-            if (!on)
+
+            // 上げはじめる。ここから機体が地表を離れる。
+            if (on && stationAge < 0f)
+            {
+                stationAge = motion != null && motion.Reduced ? StationLiftSeconds : 0f;
+            }
+            else if (!on)
+            {
+                stationAge = -1f;
+            }
+
+            var lift = stationAge < 0f
+                ? 0f
+                : Mathf.Clamp01(stationAge / StationLiftSeconds);
+            var arrived = on && lift >= 1f;
+
+            // 着くまでは機体だけを見せる。着いたところで拠点に切り替える。
+            station.gameObject.SetActive(arrived);
+            if (stationRocket != null)
+            {
+                stationRocket.SetActive(on && !arrived);
+                stationFlame.SetActive(on && !arrived);
+
+                if (on && !arrived)
+                {
+                    // 地表のすぐ上から、拠点の軌道の高さまで上がる。
+                    var height = Mathf.Lerp(EarthView.Radius * 1.02f, StationOrbitRadius, lift);
+                    stationRocket.transform.localPosition = new Vector3(height, 0f, 0f);
+                    stationRocket.transform.localRotation =
+                        Quaternion.FromToRotation(Vector3.up, Vector3.right);
+
+                    // 噴射は機体の下、地球側へ置く。上がるほど小さくする。
+                    stationFlame.transform.localPosition = new Vector3(height - 0.16f, 0f, 0f);
+                    stationFlame.transform.localScale =
+                        Vector3.one * (0.16f * (1f - lift) + 0.05f);
+                }
+            }
+
+            if (!arrived)
             {
                 return;
             }
@@ -586,12 +651,29 @@ namespace CivilizationToSpace.View
             stationObject.transform.localPosition = new Vector3(StationOrbitRadius, 0f, 0f);
             station = stationObject.transform;
 
+            // 拠点を運び上げる機体。拠点と同じ枠にぶら下げ、同じ軌道面を上がる。
+            stationRocket = PrimitiveMeshes.Create(PrimitiveType.Capsule, "StationRocket", flags);
+            stationRocket.transform.SetParent(stationOrbit, false);
+            stationRocket.transform.localScale = new Vector3(0.14f, 0.30f, 0.14f);
+            stationRocket.SetActive(false);
+
+            stationFlame = PrimitiveMeshes.Create(PrimitiveType.Sphere, "StationFlame", flags);
+            stationFlame.transform.SetParent(stationOrbit, false);
+            stationFlame.transform.localScale = Vector3.one * 0.16f;
+            stationFlame.SetActive(false);
+
             stationMaterial = StandardMaterials.CreateOpaque(true);
             stationMaterial.hideFlags = flags;
             stationMaterial.color = FacilityColor;
             stationMaterial.SetFloat("_Glossiness", 0.55f);
             stationMaterial.SetFloat("_Metallic", 0.7f);
             stationMaterial.EnableKeyword("_EMISSION");
+            stationRocket.GetComponent<Renderer>().sharedMaterial = stationMaterial;
+
+            var liftFlame = StandardMaterials.CreateGlow();
+            liftFlame.hideFlags = flags;
+            liftFlame.SetColor("_EmissionColor", (Color)FlameColor * 2.4f);
+            stationFlame.GetComponent<Renderer>().sharedMaterial = liftFlame;
             stationMaterial.SetColor("_EmissionColor", Color.black);
 
             // 胴体。進む向き（Z）へ寝かせる。円柱の長い軸はYなので、X軸まわりに90度倒す。
