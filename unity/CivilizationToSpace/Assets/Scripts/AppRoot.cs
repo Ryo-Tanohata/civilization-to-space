@@ -81,6 +81,10 @@ namespace CivilizationToSpace
                 return;
             }
 
+            // 場面の時計は static なので、前回の再生で止めたままだと
+            // 次の起動でも止まったまま始まってしまう。必ず通常へ戻す。
+            View.SceneClock.Resume();
+
             Load();
         }
 
@@ -382,6 +386,16 @@ namespace CivilizationToSpace
             }
         }
 
+        /// <summary>
+        /// 1フレームの終わりに、コマ送りの1回ぶんを使い切る。
+        /// 場面を動かす側がすべて読み終えたあとで消す必要があるため、
+        /// Update ではなく LateUpdate で行う。
+        /// </summary>
+        private void LateUpdate()
+        {
+            View.SceneClock.EndFrame();
+        }
+
         private void Update()
         {
             if (!Application.isPlaying || playback == null)
@@ -389,7 +403,9 @@ namespace CivilizationToSpace
                 return;
             }
 
-            playback.Tick(Time.deltaTime);
+            // 自動再生も場面の時計に合わせる。コマ送り中に段階だけ進むと、
+            // 絵が止まっているのに段が変わることになる。
+            playback.Tick(View.SceneClock.Delta);
 
             // 月が破片から集まってくる様子を、大きさの変化で表す。
             if (moon != null && formation != null)

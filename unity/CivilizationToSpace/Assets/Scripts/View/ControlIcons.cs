@@ -98,6 +98,18 @@ namespace CivilizationToSpace.View
             return c.ToSprite();
         }
 
+        /// <summary>
+        /// コマ送り。三角の先に止め板を置いた、少しだけ進めることを表す形。
+        /// 再生の三角と間違えないよう、板の有無で見分けられるようにしてある。
+        /// </summary>
+        public static Sprite StepFrame()
+        {
+            var c = new Raster();
+            c.Triangle(18f, 17f, 18f, 47f, 39f, 32f, Line, 1f);
+            c.Rect(43f, 17f, 48f, 47f, Line, 1f);
+            return c.ToSprite();
+        }
+
         /// <summary>前へ・次へ。向きだけを変えた三角。</summary>
         public static Sprite Step(bool forward)
         {

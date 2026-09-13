@@ -180,7 +180,8 @@ namespace CivilizationToSpace.View
             eraSlider.maxValue = timeline.Count - 1;
             eraSlider.onValueChanged.AddListener(OnSliderChanged);
 
-            playButton.onClick.AddListener(playback.Toggle);
+            playButton.onClick.AddListener(ResumeAndToggle);
+            stepButton.onClick.AddListener(StepOnce);
             speedButton.onClick.AddListener(playback.CycleSpeed);
             motionButton.onClick.AddListener(motion.Toggle);
             resetViewButton.onClick.AddListener(framing.ResetView);
@@ -310,6 +311,10 @@ namespace CivilizationToSpace.View
                 ControlIcons.Motion(motion.Reduced));
             SetNormalColor(motionButton, motion.Reduced ? ButtonSelectedColor : ButtonColor);
 
+            // コマ送り中は時間を止めている。止めていることが分からないと、
+            // 画面が固まったのか操作待ちなのかが判断できない。
+            SetNormalColor(stepButton, stepping ? ButtonSelectedColor : ButtonColor);
+
             statusText.text = BuildStatus();
 
             // 選択中はボタンの通常色を変える。Image の色を直接触ると、
@@ -402,6 +407,11 @@ namespace CivilizationToSpace.View
         private string BuildStatus()
         {
             var position = Pad2(timeline.Index + 1) + " / " + Pad2(timeline.Count);
+            if (stepping)
+            {
+                return "コマ送り ・ " + position;
+            }
+
             if (!playback.IsPlaying)
             {
                 return "停止中 ・ " + position;
@@ -542,6 +552,7 @@ namespace CivilizationToSpace.View
             if (compact)
             {
                 playButton = CreateControlIcon(playbackRoot, "Play", ControlIcons.Play(), "再生");
+                stepButton = CreateControlIcon(playbackRoot, "Step", ControlIcons.StepFrame(), "コマ送り");
                 speedButton = UiFactory.CreateButton(playbackRoot, "Speed", 14, ButtonColor, TextColor);
                 UiFactory.SetWidth(speedButton.gameObject, ControlIconSize, 0f);
                 AttachControlInfo(speedButton, "再生の速さ");
@@ -550,6 +561,10 @@ namespace CivilizationToSpace.View
             {
                 playButton = UiFactory.CreateButton(playbackRoot, "Play", 15, ButtonColor, TextColor);
                 UiFactory.SetWidth(playButton.gameObject, 116f, 0f);
+
+                stepButton = UiFactory.CreateButton(playbackRoot, "Step", 15, ButtonColor, TextColor);
+                stepButton.GetComponentInChildren<Text>().text = "コマ送り";
+                UiFactory.SetWidth(stepButton.gameObject, 100f, 0f);
 
                 speedButton = UiFactory.CreateButton(playbackRoot, "Speed", 15, ButtonColor, TextColor);
                 UiFactory.SetWidth(speedButton.gameObject, 96f, 0f);
@@ -704,6 +719,69 @@ namespace CivilizationToSpace.View
 
         /// <summary>絵のボタンの大きさ。指で押せる下限（約44）を下回らせない。</summary>
         private const float ControlIconSize = 46f;
+
+        /// <summary>コマ送りのために時間を止めているかどうか。</summary>
+        private bool stepping;
+
+        private Button stepButton;
+
+        /// <summary>
+        /// コマ送りを1回進める。
+        ///
+        /// 微惑星が2個で近づくところや、ぶつかって分かれるところは一瞬で過ぎる。
+        /// 速度を落としても追いきれないため、場面の時間を止めて、
+        /// 押すたびに決まった量だけ進められるようにする。
+        ///
+        /// 止めるのは場面の中だけで、Unityの時間には触らない。
+        /// <c>Time.timeScale = 0</c> で全体を止めたところ、画面は止まったものの
+        /// そのあとボタンが一切効かなくなり、解除もできなくなった。
+        /// 詳しくは <see cref="SceneClock"/> にある。
+        /// </summary>
+        private void StepOnce()
+        {
+            // 自動再生とは同時に使えない。コマ送りを押した時点で止める。
+            if (playback != null && playback.IsPlaying)
+            {
+                playback.RequestStop();
+            }
+
+            stepping = true;
+            SceneClock.RequestStep();
+            Refresh();
+        }
+
+        /// <summary>
+        /// 再生を押したときは、コマ送りで止めていた場面を先に動かし直す。
+        /// 戻さないと、再生にしたつもりで画面が止まったままになる。
+        /// </summary>
+        private void ResumeAndToggle()
+        {
+            ResumeTime();
+            if (playback != null)
+            {
+                playback.Toggle();
+            }
+
+            Refresh();
+        }
+
+        /// <summary>止めていた場面を通常の進み方へ戻す。</summary>
+        private void ResumeTime()
+        {
+            if (!stepping)
+            {
+                return;
+            }
+
+            stepping = false;
+            SceneClock.Resume();
+        }
+
+        /// <summary>画面から離れるときは必ず戻す。止めたまま残さない。</summary>
+        private void OnDisable()
+        {
+            ResumeTime();
+        }
 
         /// <summary>操作ボタンを絵で作り、長押しで名前が出るようにする。</summary>
         private Button CreateControlIcon(RectTransform parent, string name, Sprite icon, string label)
