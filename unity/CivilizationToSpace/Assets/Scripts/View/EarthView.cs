@@ -29,6 +29,18 @@ namespace CivilizationToSpace.View
 
         private static readonly Color FallbackColor = new Color(0.41f, 0.47f, 0.53f);
 
+        /// <summary>溶けた地表が自ら放つ色。割れ目から覗く溶岩にあたる。</summary>
+        private static readonly Color MoltenColor = new Color(1f, 0.30f, 0.06f, 1f);
+
+        /// <summary>
+        /// 溶けているときの地色。焼いた絵に掛けて、岩の色を暗い赤へ寄せる。
+        /// 発光だけを強めても、地色が岩のままだと全体が赤く見えない。
+        /// </summary>
+        private static readonly Color MoltenAlbedo = new Color(0.62f, 0.17f, 0.10f, 1f);
+
+        /// <summary>いま溶けて見せている度合い。0で通常、1でもっとも赤い。</summary>
+        private float molten;
+
         /// <summary>自転の速さ（度／秒）。1周およそ45秒。</summary>
         private const float SpinDegreesPerSecond = 8f;
 
@@ -71,6 +83,44 @@ namespace CivilizationToSpace.View
 
         private float transition = 1f;
         private bool hasSurface;
+
+        /// <summary>
+        /// 地表を溶けた状態に見せる度合いを渡す。0で通常、1でもっとも赤い。
+        ///
+        /// 地球ができたばかりのころは全体が溶けていたとされ、
+        /// 岩の色のままだと「もう固まった地球」に見えてしまう。
+        /// 時代ごとに焼いた絵はそのまま使い、自ら光る色だけを赤へ寄せる。
+        /// 絵を焼き直さないので、時代のデータには影響しない。
+        /// </summary>
+        public void SetMolten(float amount)
+        {
+            var next = Mathf.Clamp01(amount);
+            if (Mathf.Approximately(next, molten))
+            {
+                return;
+            }
+
+            molten = next;
+            ApplyMolten(currentMaterial);
+            ApplyMolten(incomingMaterial);
+        }
+
+        private void ApplyMolten(Material material)
+        {
+            if (material == null)
+            {
+                return;
+            }
+
+            // 通常は白。白のままだと発光の絵がそのまま出る。
+            // 赤へ寄せるほど、発光の絵が溶岩の色に染まり、明るさも増す。
+            material.SetColor("_EmissionColor", Color.Lerp(Color.white, MoltenColor * 3.2f, molten));
+
+            // 地色にも掛ける。不透明度は移り変わりに使っているので、そこは触らない。
+            var rgb = Color.Lerp(Color.white, MoltenAlbedo, molten);
+            var current = material.color;
+            material.color = new Color(rgb.r, rgb.g, rgb.b, current.a);
+        }
 
         /// <summary>動きの設定を渡す。渡さない場合は常に動く。</summary>
         public void SetMotionSettings(MotionSettings settings)
@@ -200,6 +250,8 @@ namespace CivilizationToSpace.View
             atmosphereMaterial.SetColor("_EmissionColor", emissionColor * 0.45f);
 
             hasSurface = true;
+            ApplyMolten(currentMaterial);
+            ApplyMolten(incomingMaterial);
             ApplySatellites(visual.SatelliteCount);
         }
 

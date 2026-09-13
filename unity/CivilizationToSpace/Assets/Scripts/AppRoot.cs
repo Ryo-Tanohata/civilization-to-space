@@ -413,6 +413,22 @@ namespace CivilizationToSpace
                 moon.SetBodyScale(timeline.HeadIndex >= 0 ? formation.MoonEmergence : 1f);
             }
 
+            // できたばかりの地球と月は溶けていた。段階が進むと冷えて通常の色へ戻る。
+            // 地球と月で同じ値を使い、片方だけ冷えて見えないようにする。
+            if (formation != null)
+            {
+                var molten = timeline.HeadIndex >= 0 ? formation.MoltenAmount : 0f;
+                if (earth != null)
+                {
+                    earth.SetMolten(molten);
+                }
+
+                if (moon != null)
+                {
+                    moon.SetMolten(molten);
+                }
+            }
+
             // まだ焼いていない時代を1フレームに1つずつ用意する。
             // 再生中に初めて使う時代を焼くと、その瞬間だけ画面が止まる。
             if (earth != null && result != null && result.Ok)

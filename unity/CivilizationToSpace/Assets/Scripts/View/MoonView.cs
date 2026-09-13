@@ -77,6 +77,12 @@ namespace CivilizationToSpace.View
         private static readonly Color32 FacilityGlow = new Color32(0xFF, 0xD2, 0x93, 0xFF);
         private static readonly Color32 TransferColor = new Color32(0xE6, 0xEC, 0xF2, 0xFF);
 
+        /// <summary>できたばかりの、まだ溶けている月の色。</summary>
+        private static readonly Color32 MoltenColor = new Color32(0xFF, 0x4A, 0x10, 0xFF);
+
+        /// <summary>いま溶けて見せている度合い。</summary>
+        private float moltenAmount;
+
         private Transform orbit;
         private Transform body;
         private Transform spin;
@@ -158,6 +164,29 @@ namespace CivilizationToSpace.View
             }
         }
 
+        /// <summary>
+        /// 月を溶けた状態に見せる度合い。0で通常、1でもっとも赤い。
+        ///
+        /// 巨大衝突で飛び散った物質が集まってできた直後は、月もまだ熱かったとされる。
+        /// 月面の絵はそのまま使い、自ら光る色だけを赤へ寄せる。
+        /// </summary>
+        public void SetMolten(float amount)
+        {
+            if (surfaceMaterial == null)
+            {
+                return;
+            }
+
+            var next = Mathf.Clamp01(amount);
+            if (Mathf.Approximately(next, moltenAmount))
+            {
+                return;
+            }
+
+            moltenAmount = next;
+            surfaceMaterial.SetColor("_EmissionColor", (Color)MoltenColor * (moltenAmount * 1.5f));
+        }
+
         public void SetMotionSettings(MotionSettings settings)
         {
             motion = settings;
@@ -185,10 +214,12 @@ namespace CivilizationToSpace.View
             spinObject.transform.SetParent(body, false);
             spin = spinObject.transform;
 
-            surfaceMaterial = StandardMaterials.CreateOpaque(false);
+            // 溶けた月を見せるために発光を使う。既定は黒なので、通常の見え方は変わらない。
+            surfaceMaterial = StandardMaterials.CreateOpaque(true);
             surfaceMaterial.hideFlags = flags;
             surfaceMaterial.SetFloat("_Glossiness", 0.04f);
             surfaceMaterial.SetFloat("_Metallic", 0f);
+            surfaceMaterial.SetColor("_EmissionColor", Color.black);
             surfaceMaterial.mainTexture = BakeSurface(flags);
 
             var sphere = PrimitiveMeshes.Create(PrimitiveType.Sphere, "MoonSurface", flags);

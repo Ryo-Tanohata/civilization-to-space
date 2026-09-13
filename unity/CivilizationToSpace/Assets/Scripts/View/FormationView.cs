@@ -60,6 +60,9 @@ namespace CivilizationToSpace.View
         /// <summary>軌道面の傾きの散らばり（度）。小さいほど円盤に近づく。</summary>
         private const float AccretionDiskTilt = 14f;
 
+        /// <summary>溶け具合が新しい値へ移るまでの時間（秒）。</summary>
+        private const float MoltenBlendSeconds = 2.4f;
+
         /// <summary>ぶつかって飛び出す大きな塊の半径。地球の半径を1としたときの倍率。</summary>
         private const float FragmentScale = 0.30f;
 
@@ -149,6 +152,9 @@ namespace CivilizationToSpace.View
 
         /// <summary>いま集積の段階かどうか。数と大きさの増やし方を変える。</summary>
         private bool accreting;
+
+        /// <summary>この段階で目指す溶け具合。</summary>
+        private float moltenTarget;
         private float scaleFrom = 1f;
         private float scaleTo = 1f;
 
@@ -179,6 +185,15 @@ namespace CivilizationToSpace.View
 
         /// <summary>月が現れる度合い。0で見えず、1で本来の大きさ。</summary>
         public float MoonEmergence { get; private set; }
+
+        /// <summary>
+        /// 地球と月がどれだけ溶けて見えるか。0で通常、1でもっとも赤い。
+        ///
+        /// できたばかりの地球は全体が溶けており、巨大衝突のあとも
+        /// しばらくは地球も月も熱いままだったとされる。
+        /// 段階ごとの値を <see cref="AppRoot"/> が読み、地球と月の両方へ渡す。
+        /// </summary>
+        public float MoltenAmount { get; private set; }
 
         public void SetMotionSettings(MotionSettings settings)
         {
@@ -261,6 +276,12 @@ namespace CivilizationToSpace.View
 
             MoonEmergence = next != null ? (float)next.Moon : 1f;
 
+            // 溶け具合は段階の並びで決める。
+            //   集積・原始地球・巨大衝突 … 溶けたまま
+            //   月の形成 …………………… 冷えはじめる。ぶつかったあともしばらくは熱い
+            //   時代へ入ったら ………… 通常へ戻す
+            moltenTarget = next == null ? 0f : (next.Moon > 0.5d ? 0.55f : 1f);
+
             for (var i = 0; i < flashes.Length; i++)
             {
                 flashes[i].SetActive(false);
@@ -322,6 +343,7 @@ namespace CivilizationToSpace.View
             SinkImpactor();
             ShakeEarth();
             MoveFragment();
+            BlendMolten();
             MoveDebris();
             UpdateFlashes();
         }
@@ -370,6 +392,21 @@ namespace CivilizationToSpace.View
                 swarm[i].transform.localPosition = SwarmPosition(i, swarmProgress[i], surface);
                 swarm[i].transform.Rotate(Vector3.one, 120f * SceneClock.Delta, Space.Self);
             }
+        }
+
+        /// <summary>
+        /// 溶け具合を、段階の値へ少しずつ寄せる。
+        /// 急に冷えると切り替わりに見えるため、時間をかけて色を移す。
+        /// </summary>
+        private void BlendMolten()
+        {
+            if (Mathf.Approximately(MoltenAmount, moltenTarget))
+            {
+                return;
+            }
+
+            MoltenAmount = Mathf.MoveTowards(
+                MoltenAmount, moltenTarget, SceneClock.Delta / MoltenBlendSeconds);
         }
 
         /// <summary>
@@ -876,7 +913,10 @@ namespace CivilizationToSpace.View
 
             impactor = PrimitiveMeshes.Create(PrimitiveType.Sphere, "GiantImpactor", flags);
             impactor.transform.SetParent(impactorRoot, false);
-            impactorScale = Vector3.one * (earthRadius * 1.0f);
+            // ぶつかってくる天体の大きさ。地球の直径のおよそ0.6にあたる。
+            // 火星ほどの大きさの天体がぶつかったとされており、実際の比（約0.53）へ
+            // 近いところで、画面で見て分かる大きさに寄せている。
+            impactorScale = Vector3.one * (earthRadius * 1.2f);
             impactor.transform.localScale = impactorScale;
             impactor.transform.localPosition = impactorStart;
             impactor.GetComponent<Renderer>().sharedMaterial = material;
