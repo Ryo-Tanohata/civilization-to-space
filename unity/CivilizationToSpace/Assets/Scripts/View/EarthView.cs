@@ -36,10 +36,22 @@ namespace CivilizationToSpace.View
         /// 溶けているときの地色。焼いた絵に掛けて、岩の色を暗い赤へ寄せる。
         /// 発光だけを強めても、地色が岩のままだと全体が赤く見えない。
         /// </summary>
-        private static readonly Color MoltenAlbedo = new Color(0.62f, 0.17f, 0.10f, 1f);
+        private static readonly Color MoltenAlbedo = new Color(0.24f, 0.075f, 0.05f, 1f);
 
         /// <summary>いま溶けて見せている度合い。0で通常、1でもっとも赤い。</summary>
         private float molten;
+
+        /// <summary>
+        /// 溶岩の光をにじませる殻の大きさと強さ。
+        /// 内側ほど強く、外へ行くほど弱くする。段を重ねることで、
+        /// 輪郭の外側へ向かって光が薄れていくように見せる。
+        /// </summary>
+        private static readonly float[] GlowScales = { 1.030f, 1.090f, 1.180f };
+        private static readonly float[] GlowWeights = { 0.85f, 0.50f, 0.28f };
+
+        /// <summary>溶岩の光をにじませる殻。溶けていないときは消す。</summary>
+        private GameObject[] glowShells;
+        private Material[] glowMaterials;
 
         /// <summary>自転の速さ（度／秒）。1周およそ45秒。</summary>
         private const float SpinDegreesPerSecond = 8f;
@@ -85,6 +97,51 @@ namespace CivilizationToSpace.View
         private bool hasSurface;
 
         /// <summary>
+        /// 溶岩の光が輪郭の外へにじむ殻を組む。
+        ///
+        /// 地表に光る絵を貼るだけでは、光は球の内側で止まり、
+        /// 溶けた岩が放つ明るさが外へ漏れているようには見えない。
+        /// 少しずつ大きい球を重ね、外側ほど弱く光らせることで、
+        /// 輪郭の外へ向かって薄れていく明るさを作る。
+        ///
+        /// 重ね方は加算にする。加算なら、重なったところが明るくなるだけで、
+        /// 不透明度の扱いに左右されない。半透明が効かない環境でも同じに見える。
+        /// </summary>
+        private void BuildMagmaGlow()
+        {
+            glowShells = new GameObject[GlowScales.Length];
+            glowMaterials = new Material[GlowScales.Length];
+
+            for (var i = 0; i < GlowScales.Length; i++)
+            {
+                var material = StandardMaterials.CreateFadeEmissive();
+                material.hideFlags = createdFlags;
+
+                // 加算。元の絵の色は足さないので、地色は黒にする。
+                material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.One);
+                material.SetInt("_ZWrite", 0);
+                material.color = Color.black;
+                material.SetFloat("_Glossiness", 0f);
+                material.SetFloat("_Metallic", 0f);
+                material.SetColor("_EmissionColor", Color.black);
+                material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent + 4 + i;
+
+                glowMaterials[i] = material;
+
+                var shell = new GameObject("MagmaGlow" + (i + 1), typeof(MeshFilter), typeof(MeshRenderer));
+                shell.hideFlags = createdFlags;
+                shell.transform.SetParent(spin, false);
+                shell.transform.localScale = Vector3.one * GlowScales[i];
+                shell.GetComponent<MeshFilter>().sharedMesh = planet.Mesh;
+                shell.GetComponent<MeshRenderer>().sharedMaterial = material;
+                shell.SetActive(false);
+
+                glowShells[i] = shell;
+            }
+        }
+
+        /// <summary>
         /// 地表を溶けた状態に見せる度合いを渡す。0で通常、1でもっとも赤い。
         ///
         /// 地球ができたばかりのころは全体が溶けていたとされ、
@@ -103,6 +160,27 @@ namespace CivilizationToSpace.View
             molten = next;
             ApplyMolten(currentMaterial);
             ApplyMolten(incomingMaterial);
+            ApplyGlow();
+        }
+
+        /// <summary>にじみの強さを、いまの溶け具合へ合わせる。</summary>
+        private void ApplyGlow()
+        {
+            if (glowShells == null)
+            {
+                return;
+            }
+
+            var on = molten > 0.01f;
+            for (var i = 0; i < glowShells.Length; i++)
+            {
+                glowShells[i].SetActive(on);
+                if (on)
+                {
+                    glowMaterials[i].SetColor(
+                        "_EmissionColor", MoltenColor * (molten * GlowWeights[i] * 2.2f));
+                }
+            }
         }
 
         private void ApplyMolten(Material material)
@@ -114,7 +192,7 @@ namespace CivilizationToSpace.View
 
             // 通常は白。白のままだと発光の絵がそのまま出る。
             // 赤へ寄せるほど、発光の絵が溶岩の色に染まり、明るさも増す。
-            material.SetColor("_EmissionColor", Color.Lerp(Color.white, MoltenColor * 3.2f, molten));
+            material.SetColor("_EmissionColor", Color.Lerp(Color.white, MoltenColor * 2.2f, molten));
 
             // 地色にも掛ける。不透明度は移り変わりに使っているので、そこは触らない。
             var rgb = Color.Lerp(Color.white, MoltenAlbedo, molten);
@@ -151,6 +229,8 @@ namespace CivilizationToSpace.View
             incomingMaterial = CreateSurfaceMaterial(true, 1, true);
             CreatePlanetShell(spin, "SurfaceNext", 1.003f, incomingMaterial);
             SetSurfaceAlpha(incomingMaterial, 0f);
+
+            BuildMagmaGlow();
 
             var cloudObject = new GameObject("CloudSpin");
             cloudObject.hideFlags = flags;
@@ -252,6 +332,18 @@ namespace CivilizationToSpace.View
             hasSurface = true;
             ApplyMolten(currentMaterial);
             ApplyMolten(incomingMaterial);
+
+            // にじみは、地表の「光る絵」をそのまま使う。
+            // 溶岩のあるところだけが外へ漏れる形になる。
+            if (glowMaterials != null)
+            {
+                foreach (var glow in glowMaterials)
+                {
+                    glow.SetTexture("_EmissionMap", surface.Emission);
+                }
+            }
+
+            ApplyGlow();
             ApplySatellites(visual.SatelliteCount);
         }
 
