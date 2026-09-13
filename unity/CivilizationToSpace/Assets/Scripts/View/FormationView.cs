@@ -63,6 +63,12 @@ namespace CivilizationToSpace.View
         /// <summary>溶け具合が新しい値へ移るまでの時間（秒）。</summary>
         private const float MoltenBlendSeconds = 2.4f;
 
+        /// <summary>
+        /// 段階を移ったときに、数や大きさが新しい値へ追いつくまでの時間（秒）。
+        /// 1段階ぶん（1倍速で4秒）より短くして、次へ進む前に落ち着くようにする。
+        /// </summary>
+        private const float StageBlendSeconds = 1.3f;
+
         /// <summary>ぶつかって飛び出す大きな塊の半径。地球の半径を1としたときの倍率。</summary>
         private const float FragmentScale = 0.30f;
 
@@ -71,6 +77,21 @@ namespace CivilizationToSpace.View
 
         /// <summary>飛びのく勢いが収まるまでの時間（秒）。</summary>
         private const float FragmentEaseSeconds = 0.65f;
+
+        /// <summary>ぶつかって砕けたときに飛び散る塊の持ち数。</summary>
+        private const int ShardPoolSize = 26;
+
+        /// <summary>砕けてから、いちばん散らばるまでの時間（秒）。</summary>
+        private const float ShatterOutSeconds = 0.8f;
+
+        /// <summary>砕けてから、球へ戻りきるまでの時間（秒）。</summary>
+        private const float ShatterSeconds = 2.8f;
+
+        /// <summary>いちばん崩れたときに、地球が縮む割合。</summary>
+        private const float ShatterMinScale = 0.68f;
+
+        /// <summary>塊が散らばる距離。地球の半径を1としたときの倍率。</summary>
+        private const float ShatterSpread = 1.35f;
 
         /// <summary>破片の輪の半径。</summary>
         private const float DebrisRadius = 2.0f;
@@ -135,6 +156,9 @@ namespace CivilizationToSpace.View
         private GameObject[] debris;
         private Vector3[] debrisTargets;
 
+        /// <summary>破片ごとの元の大きさ。端数を大きさで表すときの基準。</summary>
+        private Vector3[] debrisSizes;
+
         private GameObject[] flashes;
         private float[] flashLife;
         private float[] flashSize;
@@ -155,6 +179,21 @@ namespace CivilizationToSpace.View
 
         /// <summary>この段階で目指す溶け具合。</summary>
         private float moltenTarget;
+
+        /// <summary>
+        /// いま見せている量と、目指す量。
+        /// 段階を移った瞬間に切り替えると、数が一度に変わって画が飛ぶ。
+        /// 目指す量だけを先に置き、見せている量は時間をかけて寄せる。
+        /// </summary>
+        private float swarmShown;
+        private float swarmTarget;
+        private float debrisShown;
+        private float debrisTarget;
+        private float moonShown;
+        private float moonTarget;
+
+        /// <summary>ぶつかって破片を撒いている最中か。そのあいだは破片を自前で扱う。</summary>
+        private bool debrisBurst;
         private float scaleFrom = 1f;
         private float scaleTo = 1f;
 
@@ -172,6 +211,11 @@ namespace CivilizationToSpace.View
 
         /// <summary>ぶつかって飛び出す大きな塊。のちの月にあたる。</summary>
         private GameObject fragment;
+
+        /// <summary>砕けた地球の塊。散らばってから、また集まって球へ戻る。</summary>
+        private GameObject[] shards;
+        private Vector3[] shardDirections;
+        private Vector3[] shardSizes;
 
         /// <summary>塊が飛び出した場所と向き。</summary>
         private Vector3 fragmentOrigin;
@@ -215,6 +259,7 @@ namespace CivilizationToSpace.View
             BuildDebris(flags);
             BuildImpactor(flags);
             BuildFragment(flags);
+            BuildShards(flags);
             BuildFlashes(flags);
 
             Apply(null, false);
@@ -254,12 +299,16 @@ namespace CivilizationToSpace.View
             ApplySwarmCount();
 
             // 破片は、ぶつかる前は出さない。ぶつかってから広がる。
-            var debrisAmount = next != null ? (float)next.Debris : 0f;
-            var visibleDebris = Mathf.RoundToInt(debrisAmount * DebrisPoolSize);
             var burstStage = next != null && next.Impactor > 0.5d;
-            for (var i = 0; i < debris.Length; i++)
+            debrisBurst = burstStage;
+            debrisTarget = burstStage ? 0f : (next != null ? (float)next.Debris : 0f);
+            if (burstStage)
             {
-                debris[i].SetActive(i < visibleDebris && !burstStage);
+                debrisShown = 0f;
+                for (var i = 0; i < debris.Length; i++)
+                {
+                    debris[i].SetActive(false);
+                }
             }
 
             // 大きな塊は、ぶつかる段階でだけ出す。次の段階では月として別に現れる。
@@ -274,7 +323,18 @@ namespace CivilizationToSpace.View
                 impactor.transform.localPosition = impactorStart;
             }
 
-            MoonEmergence = next != null ? (float)next.Moon : 1f;
+            moonTarget = next != null ? (float)next.Moon : 1f;
+            swarmTarget = next != null ? (float)next.Swarm : 0f;
+
+            // 動きを減らしているときは、途中を見せずにその段階の姿にする。
+            if (motion != null && motion.Reduced)
+            {
+                moonShown = moonTarget;
+                swarmShown = swarmTarget;
+                debrisShown = debrisTarget;
+            }
+
+            MoonEmergence = moonShown;
 
             // 溶け具合は段階の並びで決める。
             //   集積・原始地球・巨大衝突 … 溶けたまま
@@ -342,8 +402,10 @@ namespace CivilizationToSpace.View
 
             SinkImpactor();
             ShakeEarth();
+            ShatterEarth();
             MoveFragment();
             BlendMolten();
+            BlendStage();
             MoveDebris();
             UpdateFlashes();
         }
@@ -356,7 +418,8 @@ namespace CivilizationToSpace.View
                 return;
             }
 
-            earth.localScale = Vector3.one * Mathf.Lerp(scaleFrom, scaleTo, t);
+            // 砕けているあいだは、そのぶん小さくする。散らばった塊が戻るにつれて元へ戻る。
+            earth.localScale = Vector3.one * (Mathf.Lerp(scaleFrom, scaleTo, t) * ShatterScale());
         }
 
         /// <summary>
@@ -391,6 +454,77 @@ namespace CivilizationToSpace.View
 
                 swarm[i].transform.localPosition = SwarmPosition(i, swarmProgress[i], surface);
                 swarm[i].transform.Rotate(Vector3.one, 120f * SceneClock.Delta, Space.Self);
+            }
+        }
+
+        /// <summary>
+        /// 段階を移ったときの数や大きさを、少しずつ新しい値へ寄せる。
+        ///
+        /// 段階の切れ目でいきなり数が変わると、そこだけ画が飛んで見える。
+        /// 数は整数なので、そのまま増減させても1個ずつ現れて目に付く。
+        /// 端数は「いま現れかけの1個」の大きさで表し、育つように見せる。
+        /// </summary>
+        private void BlendStage()
+        {
+            var step = SceneClock.Delta / StageBlendSeconds;
+
+            moonShown = Mathf.MoveTowards(moonShown, moonTarget, step);
+            MoonEmergence = moonShown;
+
+            // 集積の段階は、数の増やし方をそちらが持っている。
+            if (!accreting)
+            {
+                var before = swarmShown;
+                swarmShown = Mathf.MoveTowards(swarmShown, swarmTarget, step);
+                if (!Mathf.Approximately(before, swarmShown))
+                {
+                    ShowPool(swarm, swarmSizes, swarmShown, SwarmPoolSize);
+                }
+            }
+
+            // ぶつかって撒いている最中は、破片をそちらが持っている。
+            if (!debrisBurst)
+            {
+                var before = debrisShown;
+                debrisShown = Mathf.MoveTowards(debrisShown, debrisTarget, step);
+                if (!Mathf.Approximately(before, debrisShown))
+                {
+                    ShowPool(debris, debrisSizes, debrisShown, DebrisPoolSize);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 持ち数のうち、いくつを出すかを決める。
+        /// 端数は、いま現れかけの1個の大きさで表す。
+        /// </summary>
+        private static void ShowPool(GameObject[] pool, Vector3[] sizes, float amount, int size)
+        {
+            if (pool == null || sizes == null)
+            {
+                return;
+            }
+
+            var exact = Mathf.Clamp01(amount) * size;
+            var whole = Mathf.FloorToInt(exact);
+            var partial = exact - whole;
+
+            for (var i = 0; i < pool.Length; i++)
+            {
+                if (i < whole)
+                {
+                    pool[i].SetActive(true);
+                    pool[i].transform.localScale = sizes[i];
+                }
+                else if (i == whole && partial > 0.02f)
+                {
+                    pool[i].SetActive(true);
+                    pool[i].transform.localScale = sizes[i] * partial;
+                }
+                else
+                {
+                    pool[i].SetActive(false);
+                }
             }
         }
 
@@ -631,6 +765,77 @@ namespace CivilizationToSpace.View
             var wave = Mathf.Sin(sinceImpact * ShakeFrequency * Mathf.PI * 2f);
             var push = -impactPoint.normalized;
             earth.localPosition = push * (wave * damping * damping * earthRadius * ShakeAmplitude);
+        }
+
+        /// <summary>
+        /// 砕けている度合いから、地球の大きさに掛ける割合を出す。
+        /// ぶつかった直後がいちばん小さく、塊が戻るにつれて1へ戻る。
+        /// </summary>
+        private float ShatterScale()
+        {
+            if (!impactHappened)
+            {
+                return 1f;
+            }
+
+            var t = Mathf.Clamp01(sinceImpact / ShatterSeconds);
+            var out1 = Mathf.Clamp01(sinceImpact / ShatterOutSeconds);
+
+            // 崩れは速く、戻りはゆっくり。引力で引き戻されて丸くなる感じにする。
+            var broken = out1 * (1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.3f, 1f, t)));
+            return Mathf.Lerp(1f, ShatterMinScale, broken);
+        }
+
+        /// <summary>
+        /// ぶつかった衝撃で地球を砕く。
+        ///
+        /// **なぜ砕くのか。** 火星ほどの天体がぶつかった場面で、地球の側が
+        /// まったく形を変えないのは不自然である。ぶつかった側だけが沈み、
+        /// 地球は丸いまま、という絵になっていた。
+        ///
+        /// 実際の形を解いているわけではない。塊を外へ散らし、地球を縮め、
+        /// そのあと塊を引き戻して地球を元へ戻す、という見せ方である。
+        /// **崩れる量も戻る速さも、こちらで決めた値であり、物理の計算ではない。**
+        /// </summary>
+        private void ShatterEarth()
+        {
+            if (shards == null)
+            {
+                return;
+            }
+
+            var active = impactHappened && sinceImpact < ShatterSeconds;
+            if (!active)
+            {
+                for (var i = 0; i < shards.Length; i++)
+                {
+                    if (shards[i].activeSelf)
+                    {
+                        shards[i].SetActive(false);
+                    }
+                }
+
+                return;
+            }
+
+            var t = Mathf.Clamp01(sinceImpact / ShatterSeconds);
+            var surface = earthRadius * CurrentScale();
+
+            // 外へ出るのは速く、戻るのはゆっくり。
+            var outward = Mathf.Clamp01(sinceImpact / ShatterOutSeconds);
+            var back = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.3f, 1f, t));
+            var reach = outward * (1f - back);
+
+            for (var i = 0; i < shards.Length; i++)
+            {
+                shards[i].SetActive(true);
+                shards[i].transform.localPosition =
+                    shardDirections[i] * (surface * 0.92f + earthRadius * ShatterSpread * reach);
+
+                // 戻りきるところで消える。地球へ吸い込まれて一体になったことを表す。
+                shards[i].transform.localScale = shardSizes[i] * (1f - back);
+                shards[i].transform.Rotate(Vector3.one, 150f * SceneClock.Delta, Space.Self);
+            }
         }
 
         /// <summary>
@@ -877,6 +1082,7 @@ namespace CivilizationToSpace.View
         {
             debris = new GameObject[DebrisPoolSize];
             debrisTargets = new Vector3[DebrisPoolSize];
+            debrisSizes = new Vector3[DebrisPoolSize];
             var material = CreateRockMaterial(DebrisColor, 0.12f, flags);
 
             for (var i = 0; i < DebrisPoolSize; i++)
@@ -901,6 +1107,7 @@ namespace CivilizationToSpace.View
                 item.SetActive(false);
 
                 debris[i] = item;
+                debrisSizes[i] = item.transform.localScale;
             }
         }
 
@@ -921,6 +1128,33 @@ namespace CivilizationToSpace.View
             impactor.transform.localPosition = impactorStart;
             impactor.GetComponent<Renderer>().sharedMaterial = material;
             impactor.SetActive(false);
+        }
+
+        /// <summary>砕けた地球の塊を組む。地表と同じ岩の見た目にする。</summary>
+        private void BuildShards(HideFlags flags)
+        {
+            shards = new GameObject[ShardPoolSize];
+            shardDirections = new Vector3[ShardPoolSize];
+            shardSizes = new Vector3[ShardPoolSize];
+
+            var material = CreateRockMaterial(HotRockColor, 0.30f, flags);
+
+            for (var i = 0; i < ShardPoolSize; i++)
+            {
+                var item = PrimitiveMeshes.Create(PrimitiveType.Cube, "Shard" + (i + 1), flags);
+                item.transform.SetParent(impactorRoot, false);
+                item.transform.localRotation = Random.rotation;
+                item.transform.localScale =
+                    Vector3.one * (earthRadius * (0.10f + (i % 4) * 0.035f));
+                item.GetComponent<Renderer>().sharedMaterial = material;
+                item.SetActive(false);
+
+                shards[i] = item;
+                shardSizes[i] = item.transform.localScale;
+
+                // 全方向へ均等に散らす。偏ると片側だけ欠けたように見える。
+                shardDirections[i] = Random.onUnitSphere;
+            }
         }
 
         /// <summary>弾き出す大きな塊を組む。ぶつかる天体と同じ岩の見た目にする。</summary>
