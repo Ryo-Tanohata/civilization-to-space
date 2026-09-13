@@ -24,7 +24,11 @@ R1のブラウザモックレビューは[実施済み](docs/reports/R1_P0_HUMAN
 - [NASA Astrobiology「How did our Solar System form?」](https://astrobiology.nasa.gov/education/alp/how-did-our-solar-system-form/)
 - [Lunar and Planetary Institute「Active Accretion」](https://www.lpi.usra.edu/education/orexlaunch/Active%20Accretion.pdf)
 
+- [NASA Science「Moon Formation」](https://science.nasa.gov/moon/formation/)（クレジット：NASA）— 火星ほどの大きさの天体が若い地球へ衝突したとする記述
+
 映像そのものは引用していません。参考にしたのは順序と、何が何から生じたかという関係だけです。
+
+画面に出る絵はすべて計算で描いており、外部の図版や写真は使っていません。公的機関の図版を載せる場合は、NASAの画像はクレジット（例：NASA、NASA/JPL-Caltech）を添えて、推薦・提携を示唆せずロゴも使わない条件で、JAXAの画像は利用規約に従い出典を明記して扱います。
 
 ## R1: Earth Through Time
 
