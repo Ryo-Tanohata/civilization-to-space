@@ -114,16 +114,11 @@ namespace CivilizationToSpace.View
 
             for (var i = 0; i < GlowScales.Length; i++)
             {
-                var material = StandardMaterials.CreateFadeEmissive();
+                // 加算の専用シェーダー。混ぜ方はシェーダー側に固定してあるので、
+                // 材質へ指定し直す必要がない。
+                var material = StandardMaterials.CreateGlow();
                 material.hideFlags = createdFlags;
-
-                // 加算。元の絵の色は足さないので、地色は黒にする。
-                material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-                material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.One);
-                material.SetInt("_ZWrite", 0);
-                material.color = Color.black;
-                material.SetFloat("_Glossiness", 0f);
-                material.SetFloat("_Metallic", 0f);
+                material.color = Color.white;
                 material.SetColor("_EmissionColor", Color.black);
                 material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent + 4 + i;
 
@@ -238,7 +233,7 @@ namespace CivilizationToSpace.View
             cloudSpin = cloudObject.transform;
 
             cloudMaterial = CreateSurfaceMaterial(true, 2, false);
-            var clouds = CreateSphere(cloudSpin, "Clouds", 1.050f, cloudMaterial);
+            CreateSphere(cloudSpin, "Clouds", 1.050f, cloudMaterial);
 
             atmosphereMaterial = CreateBlended(
                 FallbackColor,
@@ -246,46 +241,9 @@ namespace CivilizationToSpace.View
                 UnityEngine.Rendering.BlendMode.SrcAlpha,
                 UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha,
                 false);
-            var atmosphere = CreateSphere(transform, "Atmosphere", 1.075f, atmosphereMaterial);
-
-            HideShellsWhereBlendingIsUnavailable(clouds, atmosphere);
+            CreateSphere(transform, "Atmosphere", 1.075f, atmosphereMaterial);
 
             BuildSatellites();
-        }
-
-        /// <summary>
-        /// 雲と大気の殻を、WebGLでは出さない。
-        ///
-        /// **これは回避策であって原因の修復ではない。**
-        /// WebGLビルドでは、この2つの殻の半透明が効かず、不透明な球として描かれる。
-        /// いちばん外側の大気が地表を完全に覆うため、地球が単色の球に見えていた。
-        /// 実機のブラウザで、殻を外すと地表の絵が正しく出ることを確かめたうえで、
-        /// 「単色の球」より「雲と大気が無い地球」の方が良いと判断して外している。
-        ///
-        /// 原因はStandardの半透明の枝がビルドに残らないことだと見ているが、
-        /// 確定できていない。次の2つを試したが、どちらでも直らなかった。
-        ///   1. 実行時に行き着くキーワードの組み合わせ（_ALPHABLEND_ON、_EMISSION、
-        ///      _NORMALMAP の全組み合わせ）を雛形の材質として資産へ置く
-        ///   2. 専用の半透明シェーダーへ移す（描き方は変わったが見え方を揃えられなかった）
-        ///
-        /// 本筋の直し方は、雲を地表の絵へ焼き込んでしまうことだと思われる。
-        /// そうすれば半透明の殻そのものが要らなくなる。PlanetSurfaceBaker 側の仕事になる。
-        ///
-        /// Editorと他の環境では今までどおり出す。見え方は変えない。
-        /// </summary>
-        private static void HideShellsWhereBlendingIsUnavailable(GameObject clouds, GameObject atmosphere)
-        {
-#if UNITY_WEBGL && !UNITY_EDITOR
-            if (clouds != null)
-            {
-                clouds.SetActive(false);
-            }
-
-            if (atmosphere != null)
-            {
-                atmosphere.SetActive(false);
-            }
-#endif
         }
 
         /// <summary>

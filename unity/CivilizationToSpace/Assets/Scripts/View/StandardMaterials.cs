@@ -48,10 +48,20 @@ namespace CivilizationToSpace.View
             return Copy("StandardFade");
         }
 
-        /// <summary>重ねて透かし、発光もするもの。ぶつかった跡の光に使う。</summary>
+        /// <summary>重ねて透かし、発光もするもの。</summary>
         public static Material CreateFadeEmissive()
         {
             return Copy("StandardFadeEmissive");
+        }
+
+        /// <summary>
+        /// 重ねるほど明るくなるもの。ぶつかった跡の光と、溶岩のにじみに使う。
+        /// 加算は「重なったところが明るくなる」だけなので、
+        /// 不透明度の扱いに左右されず、どの環境でも同じに見える。
+        /// </summary>
+        public static Material CreateGlow()
+        {
+            return Copy("AdditiveGlow");
         }
 
         /// <summary>

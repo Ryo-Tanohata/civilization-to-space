@@ -941,14 +941,9 @@ namespace CivilizationToSpace.View
             flashSize = new float[FlashPoolSize];
             flashMaxLife = new float[FlashPoolSize];
 
-            flashMaterial = StandardMaterials.CreateFadeEmissive();
+            // 加算の専用シェーダー。混ぜ方はシェーダー側に固定してある。
+            flashMaterial = StandardMaterials.CreateGlow();
             flashMaterial.hideFlags = flags;
-            flashMaterial.SetFloat("_Mode", 3f);
-            flashMaterial.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-            flashMaterial.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.One);
-            flashMaterial.SetInt("_ZWrite", 0);
-            flashMaterial.EnableKeyword("_ALPHABLEND_ON");
-            flashMaterial.EnableKeyword("_EMISSION");
             flashMaterial.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
             flashMaterial.color = FlashColor;
             flashMaterial.SetColor("_EmissionColor", FlashColor * 2.2f);
