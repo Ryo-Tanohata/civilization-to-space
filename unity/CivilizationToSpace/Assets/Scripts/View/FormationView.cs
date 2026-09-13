@@ -209,6 +209,29 @@ namespace CivilizationToSpace.View
         /// <summary>ぶつかった天体が地球へ沈み込んで見えなくなるまでの時間（秒）。</summary>
         private const float SinkSeconds = 0.36f;
 
+        /// <summary>ぶつかってきた天体が砕けて散るかけらの持ち数。</summary>
+        private const int ImpactorShardPoolSize = 22;
+
+        /// <summary>
+        /// ぶつかってきた天体のかけらのうち、地球へ落ち込まず輪に残る割合。
+        ///
+        /// 定説とされる模型では、円盤の物質はぶつかってきた天体のマントルが
+        /// 主（6割超）で、原始地球からのぶんは2割ほどとされる。
+        /// ここで残る側を半分にしているのは、そのかけらが月の材料になるまでの
+        /// 筋道を目で追えるようにするためである。
+        /// **実際には、ぶつかってきた天体の大半は地球と一体になったとされ、
+        /// 円盤に残ったのは月2個分ほどとされる。この割合は質量比ではない。**
+        /// **また、月の同位体組成が地球とほぼ同じである理由は決着しておらず、
+        /// 「月は主に衝突天体から来た」という点自体が論点として残っている。**
+        /// 出典: NASA Astrobiology "Tracking Formation of the Earth and Moon",
+        /// LPI "The Moon's Formation and Evolution",
+        /// NTRS "Origin of the Moon, Impactor Theory"。
+        /// </summary>
+        private const float ImpactorShardKeepShare = 0.5f;
+
+        /// <summary>砕けたかけらが、元の天体の形から離れきるまでの時間（秒）。</summary>
+        private const float ImpactorBreakSeconds = 0.9f;
+
         /// <summary>ぶつかった衝撃で地球が揺れている時間（秒）。</summary>
         private const float ShakeSeconds = 0.9f;
 
@@ -220,7 +243,6 @@ namespace CivilizationToSpace.View
 
         private static readonly Color32 RockColor = new Color32(0x77, 0x6B, 0x60, 0xFF);
         private static readonly Color32 HotRockColor = new Color32(0xC8, 0x6A, 0x38, 0xFF);
-        private static readonly Color32 DebrisColor = new Color32(0xA8, 0x92, 0x7C, 0xFF);
         private static readonly Color FlashColor = new Color(1f, 0.72f, 0.38f, 1f);
 
         private Transform swarmRoot;
@@ -322,6 +344,22 @@ namespace CivilizationToSpace.View
         /// <summary>その塊が地球へ戻らず輪に残るか。残るぶんが月のもとになる。</summary>
         private bool[] shardEscapes;
 
+        /// <summary>
+        /// ぶつかってきた天体が砕けたかけら。地球の塊とは別に持つ。
+        /// 見た目も出どころも違い、こちらは月の材料になる側である。
+        /// </summary>
+        private GameObject[] impactorShards;
+
+        /// <summary>かけらが、砕ける前の天体のどこにあったか。中心からの向きと距離。</summary>
+        private Vector3[] impactorShardSeats;
+        private Vector3[] impactorShardDirections;
+        private Vector3[] impactorShardSizes;
+        private Vector3[] impactorShardAxes;
+        private float[] impactorShardSwings;
+
+        /// <summary>そのかけらが輪に残るか。残らないものは地球へ落ち込む。</summary>
+        private bool[] impactorShardKeeps;
+
         /// <summary>塊が飛び出した場所と向き。</summary>
         private Vector3 fragmentOrigin;
         private Vector3 fragmentDirection;
@@ -376,6 +414,7 @@ namespace CivilizationToSpace.View
             BuildSwarm(flags);
             BuildDebris(flags);
             BuildImpactor(flags);
+            BuildImpactorShards(flags);
             BuildFragment(flags);
             BuildShards(flags);
             BuildFlashes(flags);
@@ -449,6 +488,16 @@ namespace CivilizationToSpace.View
             if (fragment != null)
             {
                 fragment.SetActive(false);
+            }
+
+            // 砕けたかけらも持ち越さない。動きを減らしているときは
+            // Update が早く返るため、ここで消しておかないと出たままになる。
+            if (impactorShards != null)
+            {
+                for (var i = 0; i < impactorShards.Length; i++)
+                {
+                    impactorShards[i].SetActive(false);
+                }
             }
 
             impactor.SetActive(burstStage);
@@ -542,6 +591,7 @@ namespace CivilizationToSpace.View
             }
 
             SinkImpactor();
+            MoveImpactorShards();
             ShakeEarth();
             ShatterEarth();
             MoveFragment();
@@ -876,6 +926,10 @@ namespace CivilizationToSpace.View
         /// <summary>
         /// ぶつかった天体を地球へ沈ませ、縮めて見えなくする。
         /// 一瞬で消すと「当たった」ではなく「消えた」に見えるため、短く見せる。
+        ///
+        /// 縮むのは、砕けたかけらが <see cref="MoveImpactorShards"/> で
+        /// 外へ出ていくぶんである。球のまま小さくなるのではなく、
+        /// 球からかけらが抜けていって残りが地球に埋まる、という順で見える。
         /// </summary>
         private void SinkImpactor()
         {
@@ -896,6 +950,81 @@ namespace CivilizationToSpace.View
             {
                 impactor.SetActive(false);
                 impactor.transform.localScale = impactorScale;
+            }
+        }
+
+        /// <summary>
+        /// ぶつかってきた天体が砕けたかけらを動かす。
+        ///
+        /// **なぜ砕くのか。** これまで、ぶつかってきた天体は地球へ潜って
+        /// そのまま消えていた。月は飛び散った物質が集まってできたとされ、
+        /// その物質は主にぶつかってきた天体のものだったとされる。
+        /// 潜って消えるだけでは、月の材料がどこから来たのかが画面に出てこない。
+        ///
+        /// かけらは、砕ける前の天体の形の中から出て外へ広がる。
+        /// 半分は地球へ落ち込んで消え、残りは外の輪の高さまで出て、
+        /// 終わりぎわに輪へ引き継ぐ。その輪が次の段階で月になる。
+        ///
+        /// **軌道は解いていない。** 散る向きも、残る割合も、
+        /// 筋道が見えるようにこちらで決めた値である。
+        /// </summary>
+        private void MoveImpactorShards()
+        {
+            if (impactorShards == null)
+            {
+                return;
+            }
+
+            var active = impactHappened && sinceImpact < ShatterSeconds;
+            if (!active)
+            {
+                for (var i = 0; i < impactorShards.Length; i++)
+                {
+                    if (impactorShards[i].activeSelf)
+                    {
+                        impactorShards[i].SetActive(false);
+                    }
+                }
+
+                return;
+            }
+
+            var t = Mathf.Clamp01(sinceImpact / ShatterSeconds);
+
+            // 割れて離れるのは速く、そのあとの散り方はゆっくり。
+            var apart = Mathf.Clamp01(sinceImpact / ImpactorBreakSeconds);
+            var spread = Mathf.SmoothStep(0f, 1f, apart);
+
+            // 落ち込む側が地球へ吸い込まれるまでの進み具合。
+            var fall = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.25f, 0.72f, t));
+
+            // 終わりぎわに消して、同じ場所にある破片の輪へ引き継ぐ。
+            var settle = Mathf.InverseLerp(0.78f, 1f, t);
+
+            // 輪までの距離。かけらはぶつかった点から外へ向かって広がる。
+            var ringReach = earthRadius * DebrisRadius;
+
+            for (var i = 0; i < impactorShards.Length; i++)
+            {
+                impactorShards[i].SetActive(true);
+
+                // 砕ける前の座席から始め、そこから外へ離れていく。
+                var seat = impactPoint + impactorShardSeats[i];
+                var keep = impactorShardKeeps[i];
+
+                // 残る側は輪の高さへ、落ちる側はぶつかった点の近くへ引き戻す。
+                var reach = keep
+                    ? ringReach * spread
+                    : earthRadius * ShatterSpread * spread * (1f - fall);
+
+                var swing = Quaternion.AngleAxis(impactorShardSwings[i] * t, impactorShardAxes[i]);
+                var offset = swing * (impactorShardDirections[i] * reach);
+                impactorShards[i].transform.localPosition =
+                    Vector3.Lerp(seat, impactPoint.normalized * (earthRadius * 0.9f), spread) + offset;
+
+                impactorShards[i].transform.localScale =
+                    impactorShardSizes[i] * (keep ? 1f - settle : 1f - fall);
+                impactorShards[i].transform.Rotate(Vector3.one, 120f * SceneClock.Delta, Space.Self);
             }
         }
 
@@ -1369,7 +1498,12 @@ namespace CivilizationToSpace.View
             debris = new GameObject[DebrisPoolSize];
             debrisTargets = new Vector3[DebrisPoolSize];
             debrisSizes = new Vector3[DebrisPoolSize];
-            var material = CreateRockMaterial(DebrisColor, 0.12f, flags);
+            // 輪の破片は、ぶつかってきた天体のかけらと同じ熱い岩の色にする。
+            // 円盤の物質はぶつかってきた天体のものが主だったとされるためである
+            // （<see cref="ImpactorShardKeepShare"/> に出典と、決着していない点を書いた）。
+            // 冷えた灰色にしていたころは、砕けたかけらと輪と月が、
+            // 見た目の上でつながっていなかった。
+            var material = CreateRockMaterial(HotRockColor, 0.28f, flags);
 
             for (var i = 0; i < DebrisPoolSize; i++)
             {
@@ -1390,7 +1524,9 @@ namespace CivilizationToSpace.View
                 item.transform.localRotation = Random.rotation;
                 // 以前は0.028〜0.052で、画面では2〜4画素にしかならなかった。
                 // 輪があることは分かっても、その一粒一粒が月へ寄っていく様子は読めない。
-                item.transform.localScale = Vector3.one * (earthRadius * (0.041f + (i % 3) * 0.017f));
+                // 砕けたかけら（0.11〜0.245）より細かくしているのは、
+                // 大きな塊が砕けて散ったあとの、細かいほうを表すためである。
+                item.transform.localScale = Vector3.one * (earthRadius * (0.058f + (i % 3) * 0.021f));
                 item.GetComponent<Renderer>().sharedMaterial = material;
                 item.SetActive(false);
 
@@ -1416,6 +1552,62 @@ namespace CivilizationToSpace.View
             impactor.transform.localPosition = impactorStart;
             impactor.GetComponent<Renderer>().sharedMaterial = material;
             impactor.SetActive(false);
+        }
+
+        /// <summary>
+        /// ぶつかってきた天体が砕けたかけらを組む。
+        ///
+        /// 砕ける前の天体の形の中へ、あらかじめ座らせておく。
+        /// ぶつかった瞬間に、その座席の位置でかけらを出し、そこから散らす。
+        /// こうすると「球がその場で割れた」ように見える。
+        /// 適当な位置から出すと、天体が消えて別の物が湧いたように見えてしまう。
+        /// </summary>
+        private void BuildImpactorShards(HideFlags flags)
+        {
+            impactorShards = new GameObject[ImpactorShardPoolSize];
+            impactorShardSeats = new Vector3[ImpactorShardPoolSize];
+            impactorShardDirections = new Vector3[ImpactorShardPoolSize];
+            impactorShardSizes = new Vector3[ImpactorShardPoolSize];
+            impactorShardAxes = new Vector3[ImpactorShardPoolSize];
+            impactorShardSwings = new float[ImpactorShardPoolSize];
+            impactorShardKeeps = new bool[ImpactorShardPoolSize];
+
+            var material = CreateRockMaterial(HotRockColor, 0.5f, flags);
+
+            // 輪に残すものを飛び飛びに選ぶ。続けて選ぶと片側だけが残る。
+            var keepCount = Mathf.RoundToInt(ImpactorShardPoolSize * ImpactorShardKeepShare);
+            var keepEvery = keepCount > 0 ? Mathf.Max(1, ImpactorShardPoolSize / keepCount) : 0;
+
+            // 砕ける前の天体の半径。かけらはこの内側に座る。
+            var bodyRadius = earthRadius * 0.6f;
+
+            for (var i = 0; i < ImpactorShardPoolSize; i++)
+            {
+                var item = PrimitiveMeshes.Create(PrimitiveType.Cube, "ImpactorShard" + (i + 1), flags);
+                item.transform.SetParent(impactorRoot, false);
+                item.transform.localRotation = Random.rotation;
+                item.transform.localScale =
+                    Vector3.one * (earthRadius * (0.11f + (i % 4) * 0.045f));
+                item.GetComponent<Renderer>().sharedMaterial = material;
+                item.SetActive(false);
+
+                impactorShards[i] = item;
+                impactorShardSizes[i] = item.transform.localScale;
+
+                // 球の中へ散らして座らせる。3乗根を掛けると、内側へ偏らずに詰まる。
+                var seat = Random.onUnitSphere;
+                impactorShardSeats[i] = seat * (bodyRadius * Mathf.Pow(Random.value, 1f / 3f));
+
+                // 散る向きは、座っていた向きへ広がる。中心から外へ割れる形になる。
+                impactorShardDirections[i] = seat;
+
+                var axis = Vector3.Cross(seat, Random.onUnitSphere);
+                impactorShardAxes[i] = axis.sqrMagnitude < 0.001f ? Vector3.up : axis.normalized;
+                impactorShardSwings[i] =
+                    ShardSwingDegrees * Random.Range(0.4f, 1f) * (i % 2 == 0 ? 1f : -1f);
+
+                impactorShardKeeps[i] = keepEvery > 0 && i % keepEvery == 0;
+            }
         }
 
         /// <summary>砕けた地球の塊を組む。地表と同じ岩の見た目にする。</summary>

@@ -26,6 +26,7 @@ R1のブラウザモックレビューは[実施済み](docs/reports/R1_P0_HUMAN
 
 - [NASA Science「Moon Formation」](https://science.nasa.gov/moon/formation/)（クレジット：NASA）— 火星ほどの大きさの天体が若い地球へ衝突したとする記述
 - [NASA Astrobiology「Tracking Formation of the Earth and Moon」](https://astrobiology.nasa.gov/news/tracking-formation-of-the-earth-and-moon/)・[Lunar and Planetary Institute「The Moon's Formation and Evolution」](https://www.lpi.usra.edu/education/explore/marvelMoon/background/moon-formation/) — 飛び散った物質が地球を巡る円盤になり、そこから月が集まったとする記述。集積は数百年ほどで、その大半は初めの100年ほど。地球側のマグマオーシャンが固まるまではおよそ1000年。Unityの画面で、地球が丸く戻るより月が集まるほうに時間をかけているのはこの関係によります（年数そのものは表していません）。
+- [NTRS「Origin of the Moon, Impactor Theory」](https://ntrs.nasa.gov/api/citations/20210000977/downloads/Moon-ImpactTheory_Ahrens.pdf) — 定説とされる模型では、円盤の物質はぶつかってきた天体のマントルが主（6割超）で、原始地球からのぶんは2割ほど。砕けたかけら・輪・月を同じ岩の色にしているのはこの模型によります。ただし月の同位体組成が地球とほぼ同じである理由は決着しておらず、この点自体が論点として残っています。
 
 映像そのものは引用していません。参考にしたのは順序と、何が何から生じたかという関係だけです。
 
