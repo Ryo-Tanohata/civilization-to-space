@@ -26,6 +26,12 @@ namespace CivilizationToSpace.View
         /// <summary>月自身の自転（度／秒）。</summary>
         private const float SpinDegreesPerSecond = 4f;
 
+        /// <summary>
+        /// 段階を移ったときに、見た目が新しい値へ追いつくまでの時間（秒）。
+        /// 1段階ぶんの時間（1倍速で4秒）より短くして、次へ進む前に落ち着くようにする。
+        /// </summary>
+        private const float BlendSeconds = 1.6f;
+
         /// <summary>行き来する物体の持ち数。</summary>
         private const int TransferPoolSize = 6;
 
@@ -93,6 +99,17 @@ namespace CivilizationToSpace.View
         private float facilityAmount;
         private float lightAmount;
         private float stationAmount;
+
+        /// <summary>目指す値。段階を移ると先にこちらが変わり、見た目があとから追いつく。</summary>
+        private float targetTransfer;
+        private float targetFacility;
+        private float targetLight;
+        private float targetStation;
+        private float targetColony;
+
+        /// <summary>持ち物の本来の大きさ。端数を大きさで表すときの基準にする。</summary>
+        private Vector3[] transferScales;
+        private Vector3[] facilityScales;
 
         private Transform stationOrbit;
         private Transform station;
@@ -188,30 +205,76 @@ namespace CivilizationToSpace.View
         }
 
         /// <summary>段階を写す。null を渡すと何も無い状態になる。</summary>
+        /// <summary>
+        /// 段階を写す。null を渡すと何も無い状態になる。
+        ///
+        /// ここでは目指す値を置くだけで、すぐには反映しない。
+        /// 段階を移るたびに拠点や明かりが瞬時に増減すると、
+        /// 時系列が地続きに見えず、別の絵へ切り替わったように見えるためである。
+        /// 実際の見た目は <see cref="Update"/> が時間をかけて寄せていく。
+        /// </summary>
         public void Apply(MoonPhase phase)
         {
-            transferAmount = phase != null ? (float)phase.Transfer : 0f;
-            facilityAmount = phase != null ? (float)phase.Facility : 0f;
-            lightAmount = phase != null ? (float)phase.SurfaceLights : 0f;
-            stationAmount = phase != null ? (float)phase.OrbitStation : 0f;
-            colonyAmount = phase != null ? (float)phase.LagrangeColony : 0f;
+            targetTransfer = phase != null ? (float)phase.Transfer : 0f;
+            targetFacility = phase != null ? (float)phase.Facility : 0f;
+            targetLight = phase != null ? (float)phase.SurfaceLights : 0f;
+            targetStation = phase != null ? (float)phase.OrbitStation : 0f;
+            targetColony = phase != null ? (float)phase.LagrangeColony : 0f;
 
+            // 動きを減らしているときは、途中を見せずにその段階の姿にする。
+            if (motion != null && motion.Reduced)
+            {
+                transferAmount = targetTransfer;
+                facilityAmount = targetFacility;
+                lightAmount = targetLight;
+                stationAmount = targetStation;
+                colonyAmount = targetColony;
+            }
+
+            ApplyAmounts();
+        }
+
+        /// <summary>いまの値を見た目へ写す。数は端数ぶんだけ大きさで表す。</summary>
+        private void ApplyAmounts()
+        {
             ApplyStation();
             ApplyColonies();
 
-            var visibleTransfers = Mathf.RoundToInt(transferAmount * TransferPoolSize);
-            for (var i = 0; i < transfers.Length; i++)
-            {
-                transfers[i].SetActive(i < visibleTransfers);
-            }
-
-            var visibleFacilities = Mathf.RoundToInt(facilityAmount * FacilityPoolSize);
-            for (var i = 0; i < facilities.Length; i++)
-            {
-                facilities[i].SetActive(i < visibleFacilities);
-            }
+            ApplyPool(transfers, transferAmount, TransferPoolSize, transferScales);
+            ApplyPool(facilities, facilityAmount, FacilityPoolSize, facilityScales);
 
             facilityMaterial.SetColor("_EmissionColor", (Color)FacilityGlow * (lightAmount * 1.4f));
+        }
+
+        /// <summary>
+        /// 持ち数のうち、いくつを出すかを決める。
+        ///
+        /// 個数は整数なので、そのまま増減させると1個ずつ現れて目に付く。
+        /// 端数は「いま生えかけの1個」の大きさで表し、少しずつ育つように見せる。
+        /// </summary>
+        private static void ApplyPool(GameObject[] pool, float amount, int size, Vector3[] baseScales)
+        {
+            var exact = Mathf.Clamp01(amount) * size;
+            var whole = Mathf.FloorToInt(exact);
+            var partial = exact - whole;
+
+            for (var i = 0; i < pool.Length; i++)
+            {
+                if (i < whole)
+                {
+                    pool[i].SetActive(true);
+                    pool[i].transform.localScale = baseScales[i];
+                }
+                else if (i == whole && partial > 0.02f)
+                {
+                    pool[i].SetActive(true);
+                    pool[i].transform.localScale = baseScales[i] * partial;
+                }
+                else
+                {
+                    pool[i].SetActive(false);
+                }
+            }
         }
 
         /// <summary>
@@ -253,25 +316,27 @@ namespace CivilizationToSpace.View
                 return;
             }
 
+            BlendAmounts();
+
             if (orbit != null)
             {
-                orbit.Rotate(Vector3.up, OrbitDegreesPerSecond * Time.deltaTime, Space.Self);
+                orbit.Rotate(Vector3.up, OrbitDegreesPerSecond * SceneClock.Delta, Space.Self);
             }
 
             if (spin != null)
             {
-                spin.Rotate(Vector3.up, SpinDegreesPerSecond * Time.deltaTime, Space.Self);
+                spin.Rotate(Vector3.up, SpinDegreesPerSecond * SceneClock.Delta, Space.Self);
             }
 
             if (stationOrbit != null && stationAmount > 0f)
             {
-                stationOrbit.Rotate(Vector3.up, StationDegreesPerSecond * Time.deltaTime, Space.Self);
+                stationOrbit.Rotate(Vector3.up, StationDegreesPerSecond * SceneClock.Delta, Space.Self);
             }
 
             // コロニーは自転させる。重力の代わりを自転で作る、という点がこの形の要だからである。
             if (colonies != null && colonyAmount > 0f)
             {
-                var turn = ColonySpinDegreesPerSecond * Time.deltaTime;
+                var turn = ColonySpinDegreesPerSecond * SceneClock.Delta;
                 for (var i = 0; i < colonies.Length; i++)
                 {
                     if (colonies[i] != null)
@@ -282,6 +347,38 @@ namespace CivilizationToSpace.View
             }
 
             MoveTransfers();
+        }
+
+        /// <summary>
+        /// 見た目の値を、目指す値へ少しずつ寄せる。
+        /// 段階のあいだを地続きにして、時系列として読めるようにするためである。
+        /// </summary>
+        private void BlendAmounts()
+        {
+            var step = SceneClock.Delta / BlendSeconds;
+            var changed = false;
+
+            Approach(ref transferAmount, targetTransfer, step, ref changed);
+            Approach(ref facilityAmount, targetFacility, step, ref changed);
+            Approach(ref lightAmount, targetLight, step, ref changed);
+            Approach(ref stationAmount, targetStation, step, ref changed);
+            Approach(ref colonyAmount, targetColony, step, ref changed);
+
+            if (changed)
+            {
+                ApplyAmounts();
+            }
+        }
+
+        private static void Approach(ref float value, float target, float step, ref bool changed)
+        {
+            if (Mathf.Approximately(value, target))
+            {
+                return;
+            }
+
+            value = Mathf.MoveTowards(value, target, step);
+            changed = true;
         }
 
         /// <summary>
@@ -334,7 +431,7 @@ namespace CivilizationToSpace.View
                     continue;
                 }
 
-                transferOffsets[i] += Time.deltaTime * speed;
+                transferOffsets[i] += SceneClock.Delta * speed;
                 var cycle = Mathf.Repeat(transferOffsets[i], 2f);
 
                 // 0〜1で地球から月へ、1〜2で月から地球へ。
@@ -491,6 +588,7 @@ namespace CivilizationToSpace.View
         {
             transfers = new GameObject[TransferPoolSize];
             transferOffsets = new float[TransferPoolSize];
+            transferScales = new Vector3[TransferPoolSize];
 
             var material = StandardMaterials.CreateOpaque(true);
             material.hideFlags = flags;
@@ -507,12 +605,14 @@ namespace CivilizationToSpace.View
 
                 transfers[i] = item;
                 transferOffsets[i] = i * (2f / TransferPoolSize);
+                transferScales[i] = item.transform.localScale;
             }
         }
 
         private void BuildFacilities(HideFlags flags)
         {
             facilities = new GameObject[FacilityPoolSize];
+            facilityScales = new Vector3[FacilityPoolSize];
 
             facilityMaterial = StandardMaterials.CreateOpaque(true);
             facilityMaterial.hideFlags = flags;
@@ -544,6 +644,7 @@ namespace CivilizationToSpace.View
                 item.SetActive(false);
 
                 facilities[i] = item;
+                facilityScales[i] = item.transform.localScale;
             }
         }
 

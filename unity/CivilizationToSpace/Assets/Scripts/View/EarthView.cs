@@ -38,8 +38,12 @@ namespace CivilizationToSpace.View
         /// <summary>衛星の周回の速さ（度／秒）。</summary>
         private const float OrbitDegreesPerSecond = 14f;
 
-        /// <summary>時代を切り替えたときの移り変わりの長さ（秒）。</summary>
-        private const float TransitionSeconds = 1.2f;
+        /// <summary>
+        /// 時代を切り替えたときの移り変わりの長さ（秒）。
+        /// 1段階ぶんの時間（1倍速で4秒）の半分ほどにして、
+        /// 次へ進む前には落ち着き、かつ切り替わりが唐突にならないようにする。
+        /// </summary>
+        private const float TransitionSeconds = 2.2f;
 
         /// <summary>衛星の表示上限。データ側の値に上限は無いため、描画側で持ち数を決める。</summary>
         private const int SatellitePoolSize = 8;
@@ -207,17 +211,17 @@ namespace CivilizationToSpace.View
             {
                 if (spin != null)
                 {
-                    spin.Rotate(Vector3.up, SpinDegreesPerSecond * Time.deltaTime, Space.Self);
+                    spin.Rotate(Vector3.up, SpinDegreesPerSecond * SceneClock.Delta, Space.Self);
                 }
 
                 if (cloudSpin != null)
                 {
-                    cloudSpin.Rotate(Vector3.up, CloudDegreesPerSecond * Time.deltaTime, Space.Self);
+                    cloudSpin.Rotate(Vector3.up, CloudDegreesPerSecond * SceneClock.Delta, Space.Self);
                 }
 
                 if (satelliteRing != null)
                 {
-                    satelliteRing.Rotate(Vector3.up, OrbitDegreesPerSecond * Time.deltaTime, Space.Self);
+                    satelliteRing.Rotate(Vector3.up, OrbitDegreesPerSecond * SceneClock.Delta, Space.Self);
                 }
             }
 
@@ -235,7 +239,7 @@ namespace CivilizationToSpace.View
                 return;
             }
 
-            transition = Mathf.Min(1f, transition + Time.deltaTime / TransitionSeconds);
+            transition = Mathf.Min(1f, transition + SceneClock.Delta / TransitionSeconds);
             SetSurfaceAlpha(incomingMaterial, transition);
             planet.SetTransition(transition);
 
