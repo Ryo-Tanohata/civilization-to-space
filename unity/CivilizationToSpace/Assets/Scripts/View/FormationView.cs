@@ -33,6 +33,21 @@ namespace CivilizationToSpace.View
         /// </summary>
         private const float SwarmTurns = 2.25f;
 
+        /// <summary>集積の段階で、2個から全部まで増えきるまでの時間（秒）。</summary>
+        private const float AccretionSeconds = 3.4f;
+
+        /// <summary>集積の始まりに置く数。向かい合う2個から始める。</summary>
+        private const int AccretionSeedCount = 2;
+
+        /// <summary>ぶつかって飛び出す大きな塊の半径。地球の半径を1としたときの倍率。</summary>
+        private const float FragmentScale = 0.30f;
+
+        /// <summary>大きな塊が飛びのく距離。地球の半径を1としたときの倍率。</summary>
+        private const float FragmentTravel = 2.3f;
+
+        /// <summary>飛びのく勢いが収まるまでの時間（秒）。</summary>
+        private const float FragmentEaseSeconds = 0.65f;
+
         /// <summary>破片の輪の半径。</summary>
         private const float DebrisRadius = 2.0f;
 
@@ -107,6 +122,9 @@ namespace CivilizationToSpace.View
 
         private FormationStage stage;
         private float elapsed;
+
+        /// <summary>いま集積の段階かどうか。数と大きさの増やし方を変える。</summary>
+        private bool accreting;
         private float scaleFrom = 1f;
         private float scaleTo = 1f;
 
@@ -121,6 +139,13 @@ namespace CivilizationToSpace.View
 
         /// <summary>ぶつかる前の衝突天体の大きさ。沈み込みで縮めるときの基準。</summary>
         private Vector3 impactorScale;
+
+        /// <summary>ぶつかって飛び出す大きな塊。のちの月にあたる。</summary>
+        private GameObject fragment;
+
+        /// <summary>塊が飛び出した場所と向き。</summary>
+        private Vector3 fragmentOrigin;
+        private Vector3 fragmentDirection;
 
         /// <summary>地球と衝突天体が画面へ入るために必要な半径。</summary>
         public float FramedRadius
@@ -150,15 +175,28 @@ namespace CivilizationToSpace.View
             BuildSwarm(flags);
             BuildDebris(flags);
             BuildImpactor(flags);
+            BuildFragment(flags);
             BuildFlashes(flags);
 
-            Apply(null);
+            Apply(null, false);
         }
 
         /// <summary>段階を写す。null を渡すと何も無い状態になる。</summary>
-        public void Apply(FormationStage next)
+        /// <param name="next">写す段階。</param>
+        /// <param name="first">
+        /// いちばん最初の段階かどうか。ここだけ、何も無いところから始めて
+        /// 数と大きさを増やしていく。並び順で決めるので、識別子の綴りに依存しない。
+        /// </param>
+        public void Apply(FormationStage next, bool first)
         {
-            scaleFrom = stage != null ? (float)stage.BodyScale : (next != null ? (float)next.BodyScale : 1f);
+            accreting = next != null && first;
+
+            // 集積の段階だけ、何も無いところから始める。
+            // 以前は最初から0.45の大きさの地球が置いてあり、
+            // 「集まってできた」のではなく「初めからあった」ように見えていた。
+            scaleFrom = accreting
+                ? 0f
+                : (stage != null ? (float)stage.BodyScale : (next != null ? (float)next.BodyScale : 1f));
             scaleTo = next != null ? (float)next.BodyScale : 1f;
 
             stage = next;
@@ -174,12 +212,7 @@ namespace CivilizationToSpace.View
 
             impactor.transform.localScale = impactorScale;
 
-            var swarmAmount = next != null ? (float)next.Swarm : 0f;
-            var visibleSwarm = Mathf.RoundToInt(swarmAmount * SwarmPoolSize);
-            for (var i = 0; i < swarm.Length; i++)
-            {
-                swarm[i].SetActive(i < visibleSwarm);
-            }
+            ApplySwarmCount();
 
             // 破片は、ぶつかる前は出さない。ぶつかってから広がる。
             var debrisAmount = next != null ? (float)next.Debris : 0f;
@@ -188,6 +221,12 @@ namespace CivilizationToSpace.View
             for (var i = 0; i < debris.Length; i++)
             {
                 debris[i].SetActive(i < visibleDebris && !burstStage);
+            }
+
+            // 大きな塊は、ぶつかる段階でだけ出す。次の段階では月として別に現れる。
+            if (fragment != null)
+            {
+                fragment.SetActive(false);
             }
 
             impactor.SetActive(burstStage);
@@ -228,7 +267,17 @@ namespace CivilizationToSpace.View
 
             elapsed += Time.deltaTime;
 
-            ApplyScale(Mathf.Clamp01(elapsed / GrowSeconds));
+            if (accreting)
+            {
+                // 集積の段階は、数と大きさを同じ時計で増やす。
+                // 微惑星が増えるにつれて塊が育つ、という関係を目で追えるようにする。
+                ApplySwarmCount();
+                ApplyScale(Mathf.Clamp01(elapsed / AccretionSeconds));
+            }
+            else
+            {
+                ApplyScale(Mathf.Clamp01(elapsed / GrowSeconds));
+            }
 
             if (debrisRoot != null)
             {
@@ -248,6 +297,7 @@ namespace CivilizationToSpace.View
 
             SinkImpactor();
             ShakeEarth();
+            MoveFragment();
             MoveDebris();
             UpdateFlashes();
         }
@@ -299,6 +349,36 @@ namespace CivilizationToSpace.View
         }
 
         /// <summary>
+        /// いま出しておく微惑星の数を決める。
+        ///
+        /// 集積の段階では、向かい合う2個から始めて、時間とともに増やしていく。
+        /// 最初から全部出すと「もともと大勢いた」ように見えてしまい、
+        /// 少しずつ集まって育っていく過程が読み取れない。
+        /// ほかの段階では、その段階の値のまま一定にする。
+        /// </summary>
+        private void ApplySwarmCount()
+        {
+            var amount = stage != null ? (float)stage.Swarm : 0f;
+            var full = Mathf.RoundToInt(amount * SwarmPoolSize);
+
+            int visible;
+            if (accreting)
+            {
+                var t = Mathf.Clamp01(elapsed / AccretionSeconds);
+                visible = Mathf.RoundToInt(Mathf.Lerp(AccretionSeedCount, full, t));
+            }
+            else
+            {
+                visible = full;
+            }
+
+            for (var i = 0; i < swarm.Length; i++)
+            {
+                swarm[i].SetActive(i < visible);
+            }
+        }
+
+        /// <summary>
         /// 微惑星ひとつの位置を、楕円軌道の上で求める。
         ///
         /// **この形にしている根拠。**
@@ -339,9 +419,25 @@ namespace CivilizationToSpace.View
             return (swarmAxisU[index] * Mathf.Cos(angle) + swarmAxisV[index] * Mathf.Sin(angle)) * radius;
         }
 
-        /// <summary>微惑星に新しい軌道面と形を割り当てる。</summary>
+        /// <summary>
+        /// 微惑星に軌道面と形を割り当てる。
+        ///
+        /// 最初の2個だけは決め打ちにする。同じ面の上で向かい合わせに置き、
+        /// 互いに引かれて楕円を描きながら近づく様子を、はっきり見せるためである。
+        /// 3個目からは向きを散らし、あちこちから集まってくるようにする。
+        /// </summary>
         private void ResetSwarmOrbit(int index)
         {
+            if (index < AccretionSeedCount)
+            {
+                // 画面の手前側に寝かせた面。横から見て楕円と分かる向きにする。
+                swarmAxisU[index] = new Vector3(1f, 0f, 0f);
+                swarmAxisV[index] = new Vector3(0f, 0.32f, 0.95f).normalized;
+                swarmEccentricity[index] = 0.5f;
+                swarmPhase[index] = index * Mathf.PI;
+                return;
+            }
+
             var normal = Random.onUnitSphere;
             var u = Vector3.Cross(normal, Vector3.up);
             if (u.sqrMagnitude < 0.001f)
@@ -393,6 +489,7 @@ namespace CivilizationToSpace.View
             SpawnFlash(surfacePoint, earthRadius * 0.55f, ImpactFlashSeconds);
             SpawnImpactRing(surfacePoint);
             BurstDebris(surfacePoint);
+            LaunchFragment(surfacePoint);
         }
 
         /// <summary>
@@ -444,6 +541,57 @@ namespace CivilizationToSpace.View
             var wave = Mathf.Sin(sinceImpact * ShakeFrequency * Mathf.PI * 2f);
             var push = -impactPoint.normalized;
             earth.localPosition = push * (wave * damping * damping * earthRadius * ShakeAmplitude);
+        }
+
+        /// <summary>
+        /// ぶつかった衝撃で、大きな塊をひとつ弾き出す。
+        ///
+        /// これまでは細かい破片しか出しておらず、「砕けて散った」までは見えても、
+        /// 「大きく二つに分かれた」ことが読み取れなかった。
+        /// ジャイアントインパクト説では、飛び出した物質が集まって月になったとされる。
+        /// その「もう一方の塊」を、はっきり見える大きさでひとつだけ出す。
+        ///
+        /// **これは仮説の象徴表現である。** 質量比・飛び出す速さ・角度・
+        /// 集まるまでの時間を一切表さない。大きさも飛ぶ距離も見やすさで決めている。
+        /// この塊が月そのものになる過程は描かず、次の段階で月として現れる。
+        /// </summary>
+        private void LaunchFragment(Vector3 surfacePoint)
+        {
+            if (fragment == null)
+            {
+                return;
+            }
+
+            fragmentOrigin = surfacePoint;
+
+            // ぶつかった向きの横へ逃がす。まっすぐ跳ね返すと、当たって弾んだだけに見える。
+            var outward = surfacePoint.normalized;
+            var side = Vector3.Cross(outward, Vector3.up);
+            if (side.sqrMagnitude < 0.001f)
+            {
+                side = Vector3.Cross(outward, Vector3.forward);
+            }
+
+            fragmentDirection = (outward * 0.55f + side.normalized * 0.8f + Vector3.up * 0.25f).normalized;
+
+            fragment.SetActive(true);
+            fragment.transform.localPosition = surfacePoint;
+            fragment.transform.localScale = Vector3.one * (earthRadius * FragmentScale);
+        }
+
+        /// <summary>弾き出した塊を、勢いを落としながら遠ざける。</summary>
+        private void MoveFragment()
+        {
+            if (fragment == null || !impactHappened || !fragment.activeSelf)
+            {
+                return;
+            }
+
+            // 最初が速く、だんだん収まる。放り出されて離れていく感じにする。
+            var eased = 1f - Mathf.Exp(-sinceImpact / FragmentEaseSeconds);
+            fragment.transform.localPosition =
+                fragmentOrigin + fragmentDirection * (earthRadius * FragmentTravel * eased);
+            fragment.transform.Rotate(Vector3.one, 55f * Time.deltaTime, Space.Self);
         }
 
         /// <summary>ぶつかった場所のまわりに、光をいくつか散らす。</summary>
@@ -620,13 +768,20 @@ namespace CivilizationToSpace.View
             {
                 var item = PrimitiveMeshes.Create(PrimitiveType.Cube, "Planetesimal" + (i + 1), flags);
                 item.transform.SetParent(swarmRoot, false);
-                item.transform.localScale = Vector3.one * (earthRadius * (0.05f + (i % 4) * 0.018f));
+
+                // 最初の2個は、これから塊の芯になるので大きめにする。
+                var size = i < AccretionSeedCount
+                    ? earthRadius * 0.13f
+                    : earthRadius * (0.05f + (i % 4) * 0.018f);
+                item.transform.localScale = Vector3.one * size;
                 item.transform.localRotation = Random.rotation;
                 item.GetComponent<Renderer>().sharedMaterial = material;
                 item.SetActive(false);
 
                 swarm[i] = item;
-                swarmProgress[i] = i / (float)SwarmPoolSize;
+
+                // 最初の2個は同じところから始め、同時に近づいて出会うようにする。
+                swarmProgress[i] = i < AccretionSeedCount ? 0f : i / (float)SwarmPoolSize;
                 ResetSwarmOrbit(i);
             }
         }
@@ -676,6 +831,17 @@ namespace CivilizationToSpace.View
             impactor.transform.localPosition = impactorStart;
             impactor.GetComponent<Renderer>().sharedMaterial = material;
             impactor.SetActive(false);
+        }
+
+        /// <summary>弾き出す大きな塊を組む。ぶつかる天体と同じ岩の見た目にする。</summary>
+        private void BuildFragment(HideFlags flags)
+        {
+            fragment = PrimitiveMeshes.Create(PrimitiveType.Sphere, "ImpactFragment", flags);
+            fragment.transform.SetParent(impactorRoot, false);
+            fragment.transform.localScale = Vector3.one * (earthRadius * FragmentScale);
+            fragment.GetComponent<Renderer>().sharedMaterial =
+                CreateRockMaterial(HotRockColor, 0.35f, flags);
+            fragment.SetActive(false);
         }
 
         private void BuildFlashes(HideFlags flags)

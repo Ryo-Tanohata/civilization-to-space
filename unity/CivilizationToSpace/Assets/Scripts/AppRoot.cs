@@ -429,7 +429,8 @@ namespace CivilizationToSpace
             var stage = head >= 0 && head < stages.Count ? stages[head] : null;
 
             // 塊の大きさは FormationView が時間をかけて動かす。ここでは指示だけ出す。
-            formation.Apply(stage);
+            // 先頭の段階だけは、何も無いところから集まってくる様子を見せる。
+            formation.Apply(stage, head == 0);
         }
 
         /// <summary>
