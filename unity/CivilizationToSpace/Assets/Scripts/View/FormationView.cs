@@ -194,6 +194,29 @@ namespace CivilizationToSpace.View
         /// </summary>
         private const float MoonGatherStagger = 0.55f;
 
+        /// <summary>
+        /// 月になる前に、破片がいったんまとまる塊の数。
+        ///
+        /// 破片が一つずつ月へ吸い込まれるだけでは、
+        /// 「引力で結合しながら育った」のではなく「月が吸い取った」ように見える。
+        /// 円盤の中では、まず破片どうしがくっついて大きな塊になり、
+        /// その塊どうしがさらに合わさって月になった、とされる。
+        /// </summary>
+        private const int MoonClumpCount = 3;
+
+        /// <summary>
+        /// 集積のうち、破片どうしが塊になるまでに使う割合。
+        /// 残りで、その塊どうしが一つに合わさる。
+        /// </summary>
+        private const float MoonClumpPhase = 0.58f;
+
+        /// <summary>
+        /// 塊ができているあいだに見せる、月の芯の大きさ。
+        /// 0にすると月が何も無いところから現れることになり、
+        /// 塊が合わさって月になった、という順が見えない。
+        /// </summary>
+        private const float MoonSeedScale = 0.22f;
+
         /// <summary>塊が次の大きさになるまでの時間（秒）。</summary>
         private const float GrowSeconds = 1.4f;
 
@@ -345,6 +368,19 @@ namespace CivilizationToSpace.View
         private bool[] shardEscapes;
 
         /// <summary>
+        /// 破片が寄り集まってできる塊。これが合わさって月になる。
+        ///
+        /// 破片と同じ立方体にしてある。角ばった形のほうが、
+        /// この画面の他の破片と揃い、崩した絵として読みやすいためである。
+        /// 「まだ丸くなっていないもの」と「丸くなった月」の違いは、
+        /// 最後に月が球として現れるところで出る。
+        /// </summary>
+        private GameObject[] moonClumps;
+
+        /// <summary>塊の元の大きさ。育ち具合を掛けるときの基準。</summary>
+        private Vector3 moonClumpScale;
+
+        /// <summary>
         /// ぶつかってきた天体が砕けたかけら。地球の塊とは別に持つ。
         /// 見た目も出どころも違い、こちらは月の材料になる側である。
         /// </summary>
@@ -413,6 +449,7 @@ namespace CivilizationToSpace.View
 
             BuildSwarm(flags);
             BuildDebris(flags);
+            BuildMoonClumps(flags);
             BuildImpactor(flags);
             BuildImpactorShards(flags);
             BuildFragment(flags);
@@ -490,7 +527,7 @@ namespace CivilizationToSpace.View
                 fragment.SetActive(false);
             }
 
-            // 砕けたかけらも持ち越さない。動きを減らしているときは
+            // 砕けたかけらも塊も持ち越さない。動きを減らしているときは
             // Update が早く返るため、ここで消しておかないと出たままになる。
             if (impactorShards != null)
             {
@@ -499,6 +536,8 @@ namespace CivilizationToSpace.View
                     impactorShards[i].SetActive(false);
                 }
             }
+
+            HideMoonClumps();
 
             impactor.SetActive(burstStage);
             if (burstStage)
@@ -662,11 +701,10 @@ namespace CivilizationToSpace.View
             if (moonAccreting)
             {
                 // 破片が寄り集まって球になるまで。段階のあいだをかけて育てる。
-                // 大きさは質量の3乗根で効くので、集まりはじめの見かけの育ちが速い。
                 //
                 // すでに見えているぶんより小さくはしない。前の段階から戻ってきて
                 // 月が残っているときに、いったん縮んでから育て直すと画が飛ぶ。
-                moonShown = Mathf.Max(moonShown, Mathf.Pow(MoonGathering(), 0.72f));
+                moonShown = Mathf.Max(moonShown, MoonGathering());
             }
             else
             {
@@ -1257,7 +1295,16 @@ namespace CivilizationToSpace.View
         private float MoonGathering()
         {
             var t = Mathf.Clamp01(elapsed / MoonAccretionSeconds);
-            return Mathf.SmoothStep(0f, 1f, t);
+
+            // 前半は、破片どうしが寄り集まっていくつかの塊になる時間。
+            // 月そのものはまだ芯の大きさにとどめ、育つのは後半にする。
+            var seed = Mathf.SmoothStep(0f, MoonSeedScale, Mathf.InverseLerp(0f, MoonClumpPhase, t));
+
+            // 後半は、その塊どうしが一つに合わさって月の大きさへ育つ。
+            // 少し重ねて始めるので、芯から育ちへの移りに切れ目が出ない。
+            var merged = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(MoonClumpPhase * 0.85f, 1f, t));
+
+            return Mathf.Max(seed, merged);
         }
 
         /// <summary>
@@ -1280,13 +1327,18 @@ namespace CivilizationToSpace.View
                 return;
             }
 
-            var gathered = MoonGathering();
             var t = Mathf.Clamp01(elapsed / MoonAccretionSeconds);
             var moon = debrisRoot.InverseTransformPoint(transform.TransformPoint(MoonAnchor));
 
             var stay = Mathf.RoundToInt(debrisTarget * DebrisPoolSize);
             var from = Mathf.Max(stay, Mathf.RoundToInt(debrisEntry * DebrisPoolSize));
             var feeding = Mathf.Max(1, from - stay);
+            var perClump = Mathf.Max(1, Mathf.CeilToInt(feeding / (float)MoonClumpCount));
+
+            // 前半は破片どうしが塊になる時間、後半はその塊どうしが合わさる時間。
+            var joining = Mathf.Clamp01(t / MoonClumpPhase);
+            var merging = Mathf.SmoothStep(
+                0f, 1f, Mathf.InverseLerp(MoonClumpPhase * 0.85f, 1f, t));
 
             for (var i = 0; i < debris.Length; i++)
             {
@@ -1308,27 +1360,94 @@ namespace CivilizationToSpace.View
                     continue;
                 }
 
-                // 月へ渡る破片。順に出発させ、一度に消えないようにする。
-                var order = (float)(i - stay) / feeding;
-                var own = Mathf.InverseLerp(order * MoonGatherStagger, 1f, t);
-                var pull = Mathf.SmoothStep(0f, 1f, own);
+                // 月へ渡る破片。いくつかの組に分け、組ごとに一つの塊へまとまる。
+                // 塊の居場所は、その組の先頭の破片が輪で占めていた位置にする。
+                var order = i - stay;
+                var seat = debrisTargets[stay + (order / perClump) * perClump];
+
+                // 塊へ寄っていく破片。順に出発させ、一度に消えないようにする。
+                var within = (float)(order % perClump) / perClump;
+                var pull = Mathf.SmoothStep(
+                    0f, 1f, Mathf.InverseLerp(within * MoonGatherStagger, 1f, joining));
 
                 // まっすぐ向かわせず、いったん外へ膨らませてから寄せる。
                 // 直線で結ぶと、引かれたのではなく並べ替えたように見える。
-                var straight = Vector3.Lerp(debrisTargets[i], moon, pull);
-                var bulge = Vector3.Cross(moon - debrisTargets[i], Vector3.up).normalized;
-                var arc = bulge * (earthRadius * 0.35f * Mathf.Sin(pull * Mathf.PI));
-                debris[i].transform.localPosition = straight + arc;
+                var toCore = seat - debrisTargets[i];
+                var bulge = Vector3.Cross(toCore, Vector3.up);
+                if (bulge.sqrMagnitude < 0.0001f)
+                {
+                    bulge = Vector3.Cross(toCore, Vector3.forward);
+                }
 
-                // 着くにつれて小さくなる。月へ取り込まれたことを表す。
+                var arc = bulge.normalized * (earthRadius * 0.22f * Mathf.Sin(pull * Mathf.PI));
+                debris[i].transform.localPosition = Vector3.Lerp(debrisTargets[i], seat, pull) + arc;
+
+                // 着くにつれて小さくなる。塊に取り込まれたことを表す。
                 debris[i].transform.localScale = debrisSizes[i] * (1f - pull);
             }
 
+            MoveMoonClumps(moon, stay, perClump, joining, merging);
+
             // 集まりきったら、ふつうの寄せ方へ戻す。
-            if (gathered >= 0.999f)
+            if (t >= 0.999f)
             {
                 moonAccreting = false;
                 debrisShown = debrisTarget;
+                HideMoonClumps();
+            }
+        }
+
+        /// <summary>塊を引っ込める。集まり終わったあとと、段階を移ったときに呼ぶ。</summary>
+        private void HideMoonClumps()
+        {
+            if (moonClumps == null)
+            {
+                return;
+            }
+
+            for (var i = 0; i < moonClumps.Length; i++)
+            {
+                moonClumps[i].SetActive(false);
+            }
+        }
+
+        /// <summary>
+        /// 破片が寄り集まってできる塊を動かす。
+        ///
+        /// 前半は輪の上に居座り、破片を取り込みながら育つ。
+        /// 後半は月のできる位置へ寄り、そこで小さくなって消える。
+        /// 消えるぶんだけ月が育つので、塊が合わさって月になったように見える。
+        ///
+        /// **引力を解いているわけではない。** どれがどの塊になるかも、
+        /// 合わさる順も、見て分かるようにこちらで決めた組み分けである。
+        /// </summary>
+        private void MoveMoonClumps(
+            Vector3 moon, int stay, int perClump, float joining, float merging)
+        {
+            if (moonClumps == null)
+            {
+                return;
+            }
+
+            // 取り込んだぶんだけ育つ。丸い天体は体積で増えるので、
+            // 見かけの半径は取り込んだ量の3乗根で伸びる。
+            var grown = Mathf.Pow(Mathf.SmoothStep(0f, 1f, joining), 1f / 3f);
+
+            for (var i = 0; i < moonClumps.Length; i++)
+            {
+                var index = stay + i * perClump;
+                if (index >= debrisTargets.Length)
+                {
+                    moonClumps[i].SetActive(false);
+                    continue;
+                }
+
+                moonClumps[i].SetActive(true);
+                moonClumps[i].transform.localPosition =
+                    Vector3.Lerp(debrisTargets[index], moon, merging);
+                moonClumps[i].transform.localScale =
+                    moonClumpScale * (grown * (1f - merging));
+                moonClumps[i].transform.Rotate(Vector3.one, 35f * SceneClock.Delta, Space.Self);
             }
         }
 
@@ -1552,6 +1671,36 @@ namespace CivilizationToSpace.View
             impactor.transform.localPosition = impactorStart;
             impactor.GetComponent<Renderer>().sharedMaterial = material;
             impactor.SetActive(false);
+        }
+
+        /// <summary>
+        /// 破片が寄り集まってできる塊を組む。輪の破片と同じ岩の見た目にする。
+        ///
+        /// 大きさは、この塊が <see cref="MoonClumpCount"/> 個ぶん合わさると
+        /// ちょうど月になる量にしている。体積を等分するので、
+        /// 一辺は月の直径を個数の3乗根で割ったものになる。
+        /// 目分量で決めると、合わさった結果が月より大きかったり小さかったりする。
+        /// </summary>
+        private void BuildMoonClumps(HideFlags flags)
+        {
+            moonClumps = new GameObject[MoonClumpCount];
+            var material = CreateRockMaterial(HotRockColor, 0.28f, flags);
+
+            // 立方体なので、月の球と同じ体積にすると見た目が勝ちすぎる。
+            // 月の直径を差し渡しの目安にし、そこから個数の3乗根で割る。
+            var side = MoonView.BodyRadius * 2f / Mathf.Pow(MoonClumpCount, 1f / 3f);
+            moonClumpScale = Vector3.one * side;
+
+            for (var i = 0; i < MoonClumpCount; i++)
+            {
+                var item = PrimitiveMeshes.Create(PrimitiveType.Cube, "MoonClump" + (i + 1), flags);
+                item.transform.SetParent(debrisRoot, false);
+                item.transform.localRotation = Random.rotation;
+                item.transform.localScale = moonClumpScale;
+                item.GetComponent<Renderer>().sharedMaterial = material;
+                item.SetActive(false);
+                moonClumps[i] = item;
+            }
         }
 
         /// <summary>

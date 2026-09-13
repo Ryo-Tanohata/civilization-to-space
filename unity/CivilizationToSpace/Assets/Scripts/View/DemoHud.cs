@@ -265,6 +265,24 @@ namespace CivilizationToSpace.View
 
         private void Show(EraData era)
         {
+            // 停止して絵を止めているときに別の段階を選んだら、絵を動かし直す。
+            // 段階を移った直後は前の段階の姿から始まるので、止めたままだと
+            // 選んだ段階ではなく、その手前の姿で固まって見える。
+            // 自動で次へ進めるのは止めたままで、動かすのは絵だけである。
+            //
+            // **段階が実際に変わったときだけにすること。**
+            // Show は <see cref="Refresh"/> からも呼ばれる。呼ばれたこと自体は
+            // 「利用者が段階を選んだ」ことを表さない。ここで無条件に動かし直すと、
+            // 停止を押した直後の描き直しが、止めたばかりの絵を動かし戻してしまう。
+            //
+            // コマ送りで止めているときは触らない。1コマずつ見ている最中だからである。
+            var moved = timeline.Index != shownIndex;
+            shownIndex = timeline.Index;
+            if (moved && SceneClock.Paused && !stepping)
+            {
+                SceneClock.Resume();
+            }
+
             indexText.text = Pad2(timeline.Index + 1) + " / " + Pad2(timeline.Count);
 
             var head = timeline.HeadIndex;
@@ -723,6 +741,12 @@ namespace CivilizationToSpace.View
         /// <summary>コマ送りのために時間を止めているかどうか。</summary>
         private bool stepping;
 
+        /// <summary>
+        /// 最後に写した段階の位置。段階が本当に変わったかを見分けるために持つ。
+        /// 画面の描き直しでも <see cref="Show"/> は呼ばれるためである。
+        /// </summary>
+        private int shownIndex = -1;
+
         private Button stepButton;
 
         /// <summary>
@@ -751,8 +775,13 @@ namespace CivilizationToSpace.View
         }
 
         /// <summary>
-        /// 再生を押したときは、コマ送りで止めていた場面を先に動かし直す。
-        /// 戻さないと、再生にしたつもりで画面が止まったままになる。
+        /// 再生と停止を切り替える。場面の時間もいっしょに動かす。
+        ///
+        /// 以前は段階を進めるのを止めるだけだったので、停止を押しても
+        /// 地球は回り続け、破片も動き続けていた。止めたのに絵が動いていると、
+        /// ボタンが効いていないように見える。押した状態と画面を揃える。
+        ///
+        /// コマ送りで止めていた場合も、ここでいったん通常へ戻してから切り替える。
         /// </summary>
         private void ResumeAndToggle()
         {
@@ -760,6 +789,15 @@ namespace CivilizationToSpace.View
             if (playback != null)
             {
                 playback.Toggle();
+
+                if (playback.IsPlaying)
+                {
+                    SceneClock.Resume();
+                }
+                else
+                {
+                    SceneClock.Pause();
+                }
             }
 
             Refresh();
@@ -777,10 +815,15 @@ namespace CivilizationToSpace.View
             SceneClock.Resume();
         }
 
-        /// <summary>画面から離れるときは必ず戻す。止めたまま残さない。</summary>
+        /// <summary>
+        /// 画面から離れるときは必ず戻す。止めたまま残さない。
+        /// <see cref="SceneClock"/> は場面をまたいで残るので、
+        /// 止めたまま抜けると次に開いた画面が動かなくなる。
+        /// </summary>
         private void OnDisable()
         {
-            ResumeTime();
+            stepping = false;
+            SceneClock.Resume();
         }
 
         /// <summary>操作ボタンを絵で作り、長押しで名前が出るようにする。</summary>

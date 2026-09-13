@@ -59,6 +59,19 @@ namespace CivilizationToSpace.View
             }
         }
 
+        /// <summary>
+        /// 場面の時間を止める。コマ送りは頼まない。
+        ///
+        /// 停止を押したときに使う。段階を進めるのを止めるだけだと、
+        /// 地球の自転も月の周回も動き続けるため、止めたようには見えない。
+        /// </summary>
+        public static void Pause()
+        {
+            paused = true;
+            stepQueued = false;
+            stepTaken = false;
+        }
+
         /// <summary>コマ送りを1回ぶん頼む。止めていなければ、まず止める。</summary>
         public static void RequestStep()
         {

@@ -152,6 +152,16 @@ namespace CivilizationToSpace.View
         }
 
         /// <summary>
+        /// 月そのものの半径。
+        /// <see cref="FormationView"/> が、集まってくる塊の大きさを決めるのに読む。
+        /// ここを直に書き写すと、月の大きさを変えたときに塊だけが取り残される。
+        /// </summary>
+        public static float BodyRadius
+        {
+            get { return MoonRadius; }
+        }
+
+        /// <summary>
         /// 月そのものを出すかどうか。形成過程で月が現れる前は出さない。
         /// 現れたあとは消さない。時代のあいだは画面の外にある。
         /// </summary>

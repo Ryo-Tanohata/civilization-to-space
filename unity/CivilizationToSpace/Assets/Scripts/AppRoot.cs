@@ -410,17 +410,25 @@ namespace CivilizationToSpace
             // 月が破片から集まってくる様子を、大きさの変化で表す。
             // 破片の寄せ先も渡す。形成の側は月がどこにできるかを知らないので、
             // ここで結び付けないと、破片が集まる先と月の位置が食い違う。
+            //
+            // **段階の位置で値を切り替えないこと。**
+            // 以前は「形成過程を指していれば FormationView の値、そうでなければ既定値」
+            // としていた。形成過程から時代へ移った瞬間に、溶けた赤みが1フレームで0へ落ち、
+            // 月も一息に本来の大きさへ飛んでいた。画面では、そこだけ急に明るさが変わる。
+            //
+            // FormationView は段階が null になっても目標値へ寄せ続けており、
+            // 溶け具合は2.4秒、月の大きさは1.3秒かけて戻る。そのまま渡せばよい。
             if (moon != null && formation != null)
             {
                 formation.MoonAnchor = moon.MoonCenter - EarthPosition;
-                moon.SetBodyScale(timeline.HeadIndex >= 0 ? formation.MoonEmergence : 1f);
+                moon.SetBodyScale(formation.MoonEmergence);
             }
 
             // できたばかりの地球と月は溶けていた。段階が進むと冷えて通常の色へ戻る。
             // 地球と月で同じ値を使い、片方だけ冷えて見えないようにする。
             if (formation != null)
             {
-                var molten = timeline.HeadIndex >= 0 ? formation.MoltenAmount : 0f;
+                var molten = formation.MoltenAmount;
                 if (earth != null)
                 {
                     earth.SetMolten(molten);
@@ -431,11 +439,10 @@ namespace CivilizationToSpace
                     moon.SetMolten(molten);
                 }
 
-                // ぶつかって抉れた部分を地球へ伝える。形成過程でなければ抉らない。
+                // ぶつかって抉れた部分を地球へ伝える。抉っていないときは半径が0になる。
                 if (earth != null)
                 {
-                    var cut = timeline.HeadIndex >= 0 ? formation.CutRadius : 0f;
-                    earth.SetCut(EarthPosition + formation.CutCenter, cut);
+                    earth.SetCut(EarthPosition + formation.CutCenter, formation.CutRadius);
                 }
             }
 

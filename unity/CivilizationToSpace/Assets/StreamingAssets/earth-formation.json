@@ -65,7 +65,7 @@
         "bodyScale": 0.95,
         "swarm": 0.15,
         "impactor": 1,
-        "debris": 0.55,
+        "debris": 0.68,
         "moon": 0
       },
       "presentation": {
@@ -87,7 +87,7 @@
         "bodyScale": 1,
         "swarm": 0.05,
         "impactor": 0,
-        "debris": 0.35,
+        "debris": 0.28,
         "moon": 1
       },
       "presentation": {
