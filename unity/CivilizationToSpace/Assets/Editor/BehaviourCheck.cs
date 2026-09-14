@@ -189,8 +189,9 @@ namespace CivilizationToSpace.EditorTools
                     sunBefore = sunLight != null ? sunLight.transform.rotation : Quaternion.identity;
 
                     // **決まった秒数だけ待ってはいけない。**
-                    // 自転は1周1秒なので、1秒近く待つとちょうど一周して差が0へ戻り、
-                    // 動いていても失敗と出る。角度が付くまで待ち、
+                    // 自転の1周ぶんだけ待つと、ちょうど元へ戻って差が0になり、
+                    // 動いていても失敗と出る。自転の速さを変えるたびに待ち時間を
+                    // 見直さずに済むよう、角度が付くまで待ち、
                     // 待てなかったときだけ失敗とする。
                     WaitFor(
                         () => spin != null && Quaternion.Angle(spinBefore, spin.localRotation) > 5f,
