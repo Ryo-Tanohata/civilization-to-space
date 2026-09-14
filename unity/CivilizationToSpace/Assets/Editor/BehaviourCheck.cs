@@ -320,6 +320,20 @@ namespace CivilizationToSpace.EditorTools
                         (camera.transform.position - cameraBefore).magnitude < 0.0001f,
                         "移動量 " + (camera.transform.position - cameraBefore).magnitude.ToString("F5"));
 
+                    // 地表と宇宙の切り替え。宇宙の見せ物が残っていると、
+                    // 地表の風景の中に地球が浮かぶことになる。
+                    app.ToggleSurface();
+                    Record("U-43 地表へ切り替えると地球が消える",
+                        app.SurfaceMode && earth != null && !earth.gameObject.activeSelf,
+                        "地表=" + app.SurfaceMode +
+                        " 地球=" + (earth != null ? earth.gameObject.activeSelf.ToString() : "なし"));
+
+                    app.ToggleSurface();
+                    Record("U-44 宇宙へもどすと地球が出る",
+                        !app.SurfaceMode && earth != null && earth.gameObject.activeSelf,
+                        "地表=" + app.SurfaceMode +
+                        " 地球=" + (earth != null ? earth.gameObject.activeSelf.ToString() : "なし"));
+
                     Finish();
                     break;
             }

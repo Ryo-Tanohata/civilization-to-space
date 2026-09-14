@@ -57,6 +57,7 @@ namespace CivilizationToSpace.View
         private Button speedButton;
         private Button motionButton;
         private Button resetViewButton;
+        private Button surfaceButton;
         private Slider eraSlider;
         private Text statusText;
         private bool suppressSliderCallback;
@@ -112,6 +113,15 @@ namespace CivilizationToSpace.View
         }
 
         /// <summary>データが読めたときに呼ぶ。操作を有効にし、最初の時代を表示する。</summary>
+        /// <summary>
+        /// いま地表を見ているか。<see cref="AppRoot"/> が入れる。
+        /// ボタンの文字と色をこれで決める。
+        /// </summary>
+        public bool SurfaceMode { get; set; }
+
+        /// <summary>地表と宇宙を切り替えてほしいとき呼ぶ。<see cref="AppRoot"/> が受ける。</summary>
+        public System.Action SurfaceToggleRequested;
+
         public void Bind(
             EraTimeline eraTimeline,
             TimelinePlayback timelinePlayback,
@@ -186,6 +196,7 @@ namespace CivilizationToSpace.View
             motionButton.onClick.AddListener(motion.Toggle);
             resetViewButton.onClick.AddListener(framing.ResetView);
             descriptionButton.onClick.AddListener(ToggleDescription);
+            surfaceButton.onClick.AddListener(RequestSurfaceToggle);
 
             timeline.Changed += Show;
             playback.Changed += Refresh;
@@ -328,6 +339,12 @@ namespace CivilizationToSpace.View
                 motion.Reduced ? "動きを減らす：オン" : "動きを減らす：オフ",
                 ControlIcons.Motion(motion.Reduced));
             SetNormalColor(motionButton, motion.Reduced ? ButtonSelectedColor : ButtonColor);
+
+            SetButtonFace(
+                surfaceButton,
+                SurfaceMode ? (compact ? "宇宙" : "宇宙へもどる") : (compact ? "地表" : "地表を見る"),
+                null);
+            SetNormalColor(surfaceButton, SurfaceMode ? ButtonSelectedColor : ButtonColor);
 
             // コマ送り中は時間を止めている。止めていることが分からないと、
             // 画面が固まったのか操作待ちなのかが判断できない。
@@ -574,6 +591,11 @@ namespace CivilizationToSpace.View
                 speedButton = UiFactory.CreateButton(playbackRoot, "Speed", 14, ButtonColor, TextColor);
                 UiFactory.SetWidth(speedButton.gameObject, ControlIconSize, 0f);
                 AttachControlInfo(speedButton, "再生の速さ");
+
+                // 絵にしにくいので、狭い画面でも文字で出す。
+                surfaceButton = UiFactory.CreateButton(playbackRoot, "Surface", 13, ButtonColor, TextColor);
+                UiFactory.SetWidth(surfaceButton.gameObject, ControlIconSize + 12f, 0f);
+                AttachControlInfo(surfaceButton, "地表と宇宙を切り替える");
             }
             else
             {
@@ -586,6 +608,9 @@ namespace CivilizationToSpace.View
 
                 speedButton = UiFactory.CreateButton(playbackRoot, "Speed", 15, ButtonColor, TextColor);
                 UiFactory.SetWidth(speedButton.gameObject, 96f, 0f);
+
+                surfaceButton = UiFactory.CreateButton(playbackRoot, "Surface", 15, ButtonColor, TextColor);
+                UiFactory.SetWidth(surfaceButton.gameObject, 118f, 0f);
             }
 
             var sliderHost = UiFactory.CreateRect(playbackRoot, "EraSliderHost");
@@ -991,6 +1016,15 @@ namespace CivilizationToSpace.View
             errorText = UiFactory.CreateText(content, "Message", 15, TextColor, TextAnchor.UpperLeft, FontStyle.Normal);
 
             errorRoot.gameObject.SetActive(false);
+        }
+
+        private void RequestSurfaceToggle()
+        {
+            var handler = SurfaceToggleRequested;
+            if (handler != null)
+            {
+                handler();
+            }
         }
 
         private static void SetNormalColor(Button button, Color color)

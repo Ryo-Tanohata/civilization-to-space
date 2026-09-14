@@ -189,6 +189,15 @@ namespace CivilizationToSpace
         /// <summary>年の進み具合。0で年の初め、1で一周ぶん。</summary>
         private float yearPhase;
 
+        /// <summary>地表から見た風景。宇宙から見ているあいだは消してある。</summary>
+        private SurfaceView surface;
+
+        /// <summary>いま地表を見ているか。</summary>
+        private bool surfaceMode;
+
+        /// <summary>1日の進み具合。0で真夜中、0.5で正午。</summary>
+        private float dayPhase = 0.35f;
+
         /// <summary>検証済みカタログ。読込に失敗した場合は null。</summary>
         public EraCatalog Catalog
         {
@@ -484,7 +493,13 @@ namespace CivilizationToSpace
                 moon.Build(EarthPosition, HideFlags.None);
             }
 
+            var surfaceObject = new GameObject("Surface");
+            surfaceObject.transform.SetParent(transform, false);
+            surface = surfaceObject.AddComponent<SurfaceView>();
+            surfaceObject.SetActive(false);
+
             hud.Build(camera, catalog.Title, catalog.Disclaimer, catalog.ParameterNote);
+            hud.SurfaceToggleRequested = ToggleSurface;
 
             timeline.Changed += OnEraChanged;
             hud.Bind(
@@ -547,6 +562,113 @@ namespace CivilizationToSpace
         }
 
         /// <summary>
+        /// 地表と宇宙を切り替える。
+        ///
+        /// 宇宙の側の見せ物（地球・月・形成過程）は消し、カメラの置き方も変える。
+        /// 残したままだと、地表の風景の中に地球が浮かぶことになる。
+        ///
+        /// カメラの枠決め（<see cref="EarthFraming"/>）と視点操作も止める。
+        /// 止めないと、次の描画で地球を画面へ収める位置へ引き戻される。
+        /// </summary>
+        public void ToggleSurface()
+        {
+            SetSurfaceMode(!surfaceMode);
+        }
+
+        /// <summary>いま地表を見ているか。点検ツールが読む。</summary>
+        public bool SurfaceMode
+        {
+            get { return surfaceMode; }
+        }
+
+        private void SetSurfaceMode(bool enabled)
+        {
+            surfaceMode = enabled;
+
+            if (hud != null)
+            {
+                hud.SurfaceMode = enabled;
+            }
+
+            if (earth != null)
+            {
+                earth.gameObject.SetActive(!enabled);
+            }
+
+            if (moon != null)
+            {
+                moon.gameObject.SetActive(!enabled);
+            }
+
+            if (formation != null)
+            {
+                formation.gameObject.SetActive(!enabled);
+            }
+
+            var camera = Camera.main;
+            if (framing != null)
+            {
+                framing.enabled = !enabled;
+            }
+
+            if (camera != null)
+            {
+                var control = camera.GetComponent<EarthCameraControl>();
+                if (control != null)
+                {
+                    control.enabled = !enabled;
+                }
+            }
+
+            if (surface != null)
+            {
+                surface.gameObject.SetActive(enabled);
+            }
+
+            if (enabled)
+            {
+                BuildSurface();
+            }
+            else
+            {
+                // 宇宙へ戻すときは、光と回り込む明るさを宇宙のものへ入れ直す。
+                ApplySunLight(sun, yearPhase);
+                if (framing != null)
+                {
+                    framing.Apply();
+                }
+            }
+        }
+
+        /// <summary>いまの時代の風景を組み、カメラを置き直す。</summary>
+        private void BuildSurface()
+        {
+            if (surface == null || timeline == null)
+            {
+                return;
+            }
+
+            var era = timeline.CurrentEraIndex;
+            surface.Build(SurfaceCatalog.ForEra(era), HideFlags.None);
+            surface.SetTimeOfDay(dayPhase, sun);
+
+            var camera = Camera.main;
+            if (camera == null)
+            {
+                return;
+            }
+
+            Vector3 eye;
+            float pitch;
+            SurfaceCatalog.EyeForEra(era, out eye, out pitch);
+            camera.transform.position = eye;
+            camera.transform.rotation = Quaternion.Euler(pitch, 0f, 0f);
+
+            // 空の板は置く範囲よりさらに遠い。切り取られないよう遠くまで映す。
+            camera.farClipPlane = Mathf.Max(camera.farClipPlane, SurfaceCatalog.ForEra(era).FarZ * 3f);
+        }
+
+        /// <summary>
         /// 動きを減らす設定を外から切り替える。点検ツールが使う。
         /// 画面のトグルと同じ経路を通す。
         /// </summary>
@@ -598,9 +720,16 @@ namespace CivilizationToSpace
                 return;
             }
 
-            // 読込に失敗していても太陽は動かす。止めると、失敗の画面だけ
-            // 光の当たり方が違うことになり、切り分けの妨げになる。
-            AdvanceYear();
+            if (surfaceMode)
+            {
+                AdvanceDay();
+            }
+            else
+            {
+                // 読込に失敗していても太陽は動かす。止めると、失敗の画面だけ
+                // 光の当たり方が違うことになり、切り分けの妨げになる。
+                AdvanceYear();
+            }
 
             if (playback == null)
             {
@@ -658,6 +787,28 @@ namespace CivilizationToSpace
             }
         }
 
+        /// <summary>
+        /// 地表の1日を進める。
+        ///
+        /// 動きを減らしているあいだは止める。止めた画面で空だけが明るくなると、
+        /// 止めたようには見えない。
+        /// </summary>
+        private void AdvanceDay()
+        {
+            if (surface == null)
+            {
+                return;
+            }
+
+            if (motion == null || !motion.Reduced)
+            {
+                dayPhase += View.SceneClock.Delta / SurfaceView.DaySeconds;
+                dayPhase -= Mathf.Floor(dayPhase);
+            }
+
+            surface.SetTimeOfDay(dayPhase, sun);
+        }
+
         private void OnEraChanged(EraData era)
         {
             // 手前・先の段階にいるあいだ、地球は端の時代の姿のまま保つ。
@@ -665,6 +816,12 @@ namespace CivilizationToSpace
             ApplyFormationStage();
             ApplyMoonPhase();
             ApplyFraming();
+
+            // 地表を見ているあいだに時代が変われば、風景も組み直す。
+            if (surfaceMode)
+            {
+                BuildSurface();
+            }
         }
 
         /// <summary>
