@@ -50,9 +50,15 @@ namespace CivilizationToSpace.EditorTools
         {
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
-            Capture(directory, "1-creatures", Creatures(), new Vector3(0f, 5.5f, -30f), -2.5f);
-            Capture(directory, "2-hamlet", Hamlet(), new Vector3(0f, 8f, -20f), 2f);
-            Capture(directory, "3-city", City(), new Vector3(0f, 58f, -200f), 4f);
+            // 1日のうち4つの時刻で撮る。昼夜が巡ることを1枚ずつで確かめる。
+            var creatureEye = new Vector3(0f, 5.5f, -30f);
+            Capture(directory, "1-noon", Creatures(), creatureEye, -2.5f, 0.50f);
+            Capture(directory, "2-sunset", Creatures(), creatureEye, -2.5f, 0.75f);
+            Capture(directory, "3-night", Creatures(), creatureEye, -2.5f, 0.00f);
+            Capture(directory, "4-dawn", Creatures(), creatureEye, -2.5f, 0.28f);
+
+            Capture(directory, "5-hamlet-night", Hamlet(), new Vector3(0f, 8f, -20f), 2f, 0.02f);
+            Capture(directory, "6-city-night", City(), new Vector3(0f, 58f, -200f), 4f, 0.04f);
         }
 
         /// <summary>
@@ -159,23 +165,18 @@ namespace CivilizationToSpace.EditorTools
         }
 
         private static void Capture(string directory, string name, SurfaceView.Landscape land,
-            Vector3 eye, float pitch)
+            Vector3 eye, float pitch, float timeOfDay)
         {
-            // 太陽は斜め後ろから当てる。真正面からだと影が出ず、形が平らに見える。
             var lightObject = new GameObject("Sun");
             var light = lightObject.AddComponent<Light>();
             light.type = LightType.Directional;
-            light.intensity = 1.25f;
-            light.color = Color.white;
-            light.transform.rotation = Quaternion.Euler(42f, -35f, 0f);
-
-            // 空からの回り込みぶん。真っ黒にすると日陰が潰れる。
-            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-            RenderSettings.ambientLight = land.SkyLow * 0.5f;
 
             var host = new GameObject("Surface");
             var view = host.AddComponent<SurfaceView>();
             view.Build(land, HideFlags.DontSave);
+
+            // 空の色・星の明るさ・光の向きと強さは、時刻からまとめて決まる。
+            view.SetTimeOfDay(timeOfDay, light);
 
             var cameraObject = new GameObject("Camera");
             var camera = cameraObject.AddComponent<Camera>();
@@ -183,7 +184,7 @@ namespace CivilizationToSpace.EditorTools
             camera.transform.rotation = Quaternion.Euler(pitch, 0f, 0f);
             camera.fieldOfView = 52f;
             camera.clearFlags = CameraClearFlags.SolidColor;
-            camera.backgroundColor = land.SkyHigh;
+            camera.backgroundColor = Color.black;
             camera.nearClipPlane = 0.5f;
             camera.farClipPlane = land.FarZ * 3f;
 

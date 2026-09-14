@@ -84,10 +84,31 @@ namespace CivilizationToSpace.View
         /// <summary>遠くのものを空の色へどれだけ寄せるか。1で完全に溶ける。</summary>
         private const float HazeStrength = 0.34f;
 
+        /// <summary>
+        /// 1日の長さ（秒）。宇宙から見た地球の自転（1周10秒）と同じにしてある。
+        ///
+        /// 同じ地球を、離れて見るか地面から見るかの違いでしかない。
+        /// 別々の長さにすると、画面を切り替えたときに時間の進み方が食い違う。
+        /// **実際の1日を表す秒数ではない。**
+        /// </summary>
+        public const float DaySeconds = 10f;
+
+        /// <summary>夜の空の色。上と地平線側。</summary>
+        private static readonly Color NightHigh = new Color(0.018f, 0.030f, 0.070f, 1f);
+        private static readonly Color NightLow = new Color(0.055f, 0.085f, 0.150f, 1f);
+
+        /// <summary>朝夕の地平線の色。太陽が低いときだけ混ぜる。</summary>
+        private static readonly Color DuskLow = new Color(0.93f, 0.55f, 0.28f, 1f);
+
+        /// <summary>月あかりの色。夜に地面と木を照らす。</summary>
+        private static readonly Color MoonLight = new Color(0.62f, 0.72f, 1f, 1f);
+
         private HideFlags createdFlags;
         private readonly Dictionary<string, Material> materials = new Dictionary<string, Material>();
         private Material skyMaterial;
         private Texture2D skyTexture;
+        private Material starMaterial;
+        private Texture2D starTexture;
         private Landscape current;
         private System.Random random;
 
@@ -144,8 +165,12 @@ namespace CivilizationToSpace.View
             materials.Clear();
             DestroyImmediate(skyMaterial);
             DestroyImmediate(skyTexture);
+            DestroyImmediate(starMaterial);
+            DestroyImmediate(starTexture);
             skyMaterial = null;
             skyTexture = null;
+            starMaterial = null;
+            starTexture = null;
         }
 
         /// <summary>
@@ -181,6 +206,175 @@ namespace CivilizationToSpace.View
             sky.transform.localPosition = new Vector3(0f, distance * 0.36f, distance);
             sky.transform.localScale = new Vector3(distance * 4f, distance * 1.9f, 1f);
             sky.GetComponent<Renderer>().sharedMaterial = skyMaterial;
+
+            BuildStars(distance);
+        }
+
+        /// <summary>
+        /// 星。空の板のすぐ手前へ、加算で重ねる。
+        ///
+        /// **加算にするのは、昼に自然と消えるためである。**
+        /// 加算は足し算なので、明るさを0にすれば何も足されない。
+        /// 昼夜で星を出し入れする処理が要らず、夜の深さをそのまま明るさにできる。
+        ///
+        /// 位置も明るさも計算で散らしている。実際の星座を表していない。
+        /// 帯を1本入れてあるのは天の川に当たるが、形も向きも実際のものではない。
+        /// </summary>
+        private void BuildStars(float distance)
+        {
+            const int size = 512;
+            starTexture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            starTexture.hideFlags = createdFlags;
+            starTexture.wrapMode = TextureWrapMode.Clamp;
+
+            var pixels = new Color32[size * size];
+            for (var i = 0; i < pixels.Length; i++)
+            {
+                pixels[i] = new Color32(0, 0, 0, 255);
+            }
+
+            var starRandom = new System.Random(20260915);
+
+            // 天の川にあたる帯。細かい星を濃く撒く。
+            for (var i = 0; i < 4200; i++)
+            {
+                var u = (float)starRandom.NextDouble();
+                var spread = (float)(starRandom.NextDouble() + starRandom.NextDouble() - 1.0) * 0.055f;
+                var vBand = 0.62f + Mathf.Sin(u * 3.1f) * 0.10f + spread;
+                if (vBand < 0f || vBand >= 1f)
+                {
+                    continue;
+                }
+
+                var level = (byte)(28 + starRandom.Next(46));
+                Put(pixels, size, (int)(u * size), (int)(vBand * size), level, level, (byte)(level + 8));
+            }
+
+            // 全天に散る星。少数だけ大きく明るくする。
+            for (var i = 0; i < 1500; i++)
+            {
+                var x = starRandom.Next(size);
+                var y = starRandom.Next(size);
+                var bright = (float)starRandom.NextDouble();
+                var level = (byte)Mathf.Clamp(40f + bright * bright * bright * 215f, 0f, 255f);
+
+                // 色を少しだけ振る。青白い星と橙の星が混ざると空が単調でなくなる。
+                var warm = starRandom.Next(4) == 0;
+                Put(pixels, size, x, y,
+                    warm ? level : (byte)(level * 0.86f),
+                    (byte)(level * 0.92f),
+                    warm ? (byte)(level * 0.78f) : level);
+
+                if (level > 210)
+                {
+                    // 明るい星だけ十字ににじませる。粒だけだと点にしか見えない。
+                    Put(pixels, size, x + 1, y, (byte)(level / 3), (byte)(level / 3), (byte)(level / 3));
+                    Put(pixels, size, x - 1, y, (byte)(level / 3), (byte)(level / 3), (byte)(level / 3));
+                    Put(pixels, size, x, y + 1, (byte)(level / 3), (byte)(level / 3), (byte)(level / 3));
+                    Put(pixels, size, x, y - 1, (byte)(level / 3), (byte)(level / 3), (byte)(level / 3));
+                }
+            }
+
+            starTexture.SetPixels32(pixels);
+            starTexture.Apply();
+
+            starMaterial = StandardMaterials.CreateGlow();
+            starMaterial.hideFlags = createdFlags;
+            starMaterial.color = Color.white;
+            starMaterial.SetTexture("_EmissionMap", starTexture);
+            starMaterial.SetColor("_EmissionColor", Color.black);
+
+            var stars = PrimitiveMeshes.Create(PrimitiveType.Quad, "Stars", createdFlags);
+            stars.transform.SetParent(transform, false);
+            stars.transform.localPosition = new Vector3(0f, distance * 0.36f, distance * 0.985f);
+            stars.transform.localScale = new Vector3(distance * 4f, distance * 1.9f, 1f);
+            stars.GetComponent<Renderer>().sharedMaterial = starMaterial;
+        }
+
+        private static void Put(Color32[] pixels, int size, int x, int y, byte r, byte g, byte b)
+        {
+            if (x < 0 || y < 0 || x >= size || y >= size)
+            {
+                return;
+            }
+
+            var index = y * size + x;
+            var old = pixels[index];
+            pixels[index] = new Color32(
+                (byte)Mathf.Min(255, old.r + r),
+                (byte)Mathf.Min(255, old.g + g),
+                (byte)Mathf.Min(255, old.b + b),
+                255);
+        }
+
+        /// <summary>
+        /// 時刻を入れる。0で真夜中、0.25で日の出、0.5で正午、0.75で日の入り。
+        ///
+        /// 空の色・星の明るさ・光の向きと強さ・回り込む明るさを、まとめて決める。
+        /// 別々に持つと、夜なのに地面だけ明るいといった食い違いが起きる。
+        /// </summary>
+        public void SetTimeOfDay(float phase, Light sun)
+        {
+            if (skyTexture == null)
+            {
+                return;
+            }
+
+            phase -= Mathf.Floor(phase);
+
+            // 太陽の高さ。-1で真夜中、+1で正午。
+            var elevation = Mathf.Sin((phase - 0.25f) * Mathf.PI * 2f);
+
+            // 昼の度合い。
+            //
+            // **太陽が地平線にある瞬間は、まだ空が明るい。**
+            // 日が沈んだ直後も薄明が残り、暗くなるのはもう少し経ってからである。
+            // 地平線（elevation=0）で0.5ほどになるようにし、
+            // そこから下がるにつれてゆっくり夜へ向かわせる。
+            var daylight = Mathf.Clamp01(elevation * 1.5f + 0.50f);
+
+            // 朝夕の赤み。太陽が地平線の近くにあるときだけ強い。
+            var dusk = Mathf.Clamp01(1f - Mathf.Abs(elevation) * 3.4f);
+
+            var high = Color.Lerp(NightHigh, current.SkyHigh, daylight);
+            var low = Color.Lerp(NightLow, current.SkyLow, daylight);
+            low = Color.Lerp(low, DuskLow, dusk * 0.85f);
+
+            var height = skyTexture.height;
+            for (var y = 0; y < height; y++)
+            {
+                var t = y / (float)(height - 1);
+                skyTexture.SetPixel(0, y, Color.Lerp(low, high, Mathf.Pow(t, 0.6f)));
+            }
+
+            skyTexture.Apply();
+
+            if (starMaterial != null)
+            {
+                // 星は夜の深さでそのまま明るくする。薄明のあいだは弱い。
+                // 星は薄明のあいだに急に消える。少しでも空が明るいと見えない。
+                var night = Mathf.Clamp01(1f - daylight * 2.6f);
+                night *= night;
+                starMaterial.SetColor("_EmissionColor", Color.white * night);
+            }
+
+            if (sun != null)
+            {
+                var day = elevation > 0f;
+
+                // 夜は月あかりに置き換える。真っ暗にすると地形も輪郭も読めない。
+                var pitch = Mathf.Lerp(4f, 62f, Mathf.Abs(elevation));
+                sun.transform.rotation = Quaternion.Euler(pitch, day ? -35f : 145f, 0f);
+                sun.color = day
+                    ? Color.Lerp(new Color(1f, 0.74f, 0.52f), Color.white, Mathf.Clamp01(elevation * 2.4f))
+                    : MoonLight;
+                sun.intensity = day
+                    ? Mathf.Lerp(0.35f, 1.25f, Mathf.Clamp01(elevation * 1.6f))
+                    : 0.16f;
+            }
+
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
+            RenderSettings.ambientLight = Color.Lerp(NightLow * 0.7f, current.SkyLow * 0.5f, daylight);
         }
 
         /// <summary>
