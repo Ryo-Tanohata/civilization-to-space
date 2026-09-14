@@ -13,7 +13,7 @@ namespace CivilizationToSpace.Core
     public static class CatalogNormalizer
     {
         private static readonly string[] SupportedSchemaVersions = { "1.0.0" };
-        private const int RequiredEraCount = 6;
+        private const int RequiredEraCount = 10;
 
         private static readonly string[] RatioKeys =
         {

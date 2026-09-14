@@ -18,6 +18,8 @@
 
 **海と陸がはっきり分かれ、画面が明るくなりました。** 地球を囲む雲と大気の球が地表へ影を落としており、地表は太陽ではなく環境光だけで照らされていました。影を落とさないようにし、陸・浅い海・深い海を明るさで3段に分け、太陽の強さを釣り合う値へ下げています。明るさは2倍になり、昼と夜の差は保たれています。原因の切り分けと実測値は[明るさと海岸線の報告](docs/reports/EARTH_BRIGHTNESS_AND_SHORELINE.md)にあります。
 
+**時代が6つから10つへ増えました。** 巨大生物の時代・衝突と暗い空・氷期のくり返し・人類の広がりを、森林と陸上生態系のあとへ足しています。恐竜そのものは描かず、氷の少なさ・緑の広さ・割れ始めた大陸で表しています。
+
 R1のブラウザモックレビューは[実施済み](docs/reports/R1_P0_HUMAN_REVIEW.md)です。人によるUnityレビューは未実施で、FR-04（Futureの2案切替）はブラウザ・Unityとも未実装です。したがってR1全体のDefinition of Doneは未達です。文書の仕様・優先度はレビュー用の初案のままです。
 
 ## 参照した資料
@@ -38,6 +40,14 @@ R1のブラウザモックレビューは[実施済み](docs/reports/R1_P0_HUMAN
 - [NASA「50 Years Ago: Launch of Salyut, the World's First Space Station」](https://www.nasa.gov/missions/station/50-years-ago-launch-of-salyut-the-worlds-first-space-station/) — 世界初の宇宙ステーション サリュート1号の打ち上げは1971年4月19日
 
 **人工衛星が先、宇宙ステーションが後**です（14年の差）。どちらもロケットで運び上げられています。Unityの画面でも、衛星は時代の側で先に上がり、拠点は月の段階に入ってから上がります。いずれも軌道上へ先に現れることはなく、必ず地表から機体が上がってから置かれます。高度・速度・打ち上げにかかる時間は表していません。
+
+巨大生物の時代から人類までの4時代は、次を参照しています。
+
+- [NASA Science「Deep Impact and the Mass Extinction of Species 65 Million Years Ago」](https://science.nasa.gov/earth/deep-impact-and-the-mass-extinction-of-species-65-million-years-ago/)・[NSF「A moment that changed Earth」](https://www.nsf.gov/science-matters/moment-changed-earth) — 約6600万年前、直径10〜15kmの小天体がユカタン半島へ衝突し、舞い上がった塵が数年から数十年にわたり日光をさえぎった。地表の温度は最大で28度ほど下がり、鳥を除く恐竜を含むおよそ76%の種が絶滅した
+- [NOAA NCEI「Glacial-Interglacial Cycles」](https://www.ncei.noaa.gov/sites/default/files/2021-11/1%20Glacial-Interglacial%20Cycles-Final-OCT%202021.pdf) — 第四紀（約260万年前から現在）を通じて氷期と間氷期がくり返されている
+- [Smithsonian Human Origins「Our species arose at least 300,000 years ago」](https://humanorigins.si.edu/research/whats-hot-human-origins/our-species-arose-least-300000-years-ago)・[「Introduction to Human Evolution」](https://humanorigins.si.edu/education/introduction-human-evolution) — 私たちの種は少なくとも約30万年前に現れ、食べ物を作って周囲を変えはじめたのはここ約1万2000年のこと
+
+**衝突の冬と氷期は別の出来事です。** 衝突の直後に続いた暗い空は数年から数十年、氷期は6400万年あとの第四紀に始まります。画面では隣り合う時代として並びますが、そのあいだの隔たりは表していません。**恐竜そのものは描いていません。** 宇宙から見た地球に生きものは写らないため、氷の少なさ・緑の広さ・割れ始めた大陸で時代を表しています。
 
 映像そのものは引用していません。参考にしたのは順序と、何が何から生じたかという関係だけです。
 

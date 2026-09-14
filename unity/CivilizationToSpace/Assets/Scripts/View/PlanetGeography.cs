@@ -10,7 +10,8 @@ namespace CivilizationToSpace.View
     /// ここで置いているのは、地球の長い変化を読み取りやすくするためにデフォルメした象徴的な配置であり、
     /// 特定の年代の大陸の位置・形・面積を主張するものではない。
     ///
-    /// 並びの意図は次のとおり。小さな陸塊がいくつか → ひとつの大きな陸 → 分かれた複数の大陸。
+    /// 並びの意図は次のとおり。小さな陸塊がいくつか → ひとつの大きな陸 →
+    /// その陸が割れ始める → 分かれた複数の大陸。
     /// 「陸が集まり、また分かれた」という変化が絵として読めることだけを狙っている。
     ///
     /// 塊は緯度・経度・半径（度）・高さで表す。重ね合わせて輪郭を作り、
@@ -57,6 +58,23 @@ namespace CivilizationToSpace.View
             new Landmass(-8f, -18f, 22f, 0.85f)
         };
 
+        /// <summary>
+        /// ひとつに集まった陸が割れ始めた段階。巨大生物の時代に使う。
+        ///
+        /// 宇宙から見た地球に生きものは写らないので、この時代であることは
+        /// 氷の少なさ・緑の広さと、この「割れ始めた大陸」で読ませる。
+        /// 特定の年代の大陸の位置を主張するものではない。
+        /// </summary>
+        private static readonly Landmass[] Rifting =
+        {
+            new Landmass(10f, -12f, 34f, 1.00f),
+            new Landmass(34f, -4f, 26f, 0.95f),
+            new Landmass(-26f, 4f, 26f, 0.95f),
+            new Landmass(4f, 46f, 30f, 0.95f),
+            new Landmass(-32f, 62f, 20f, 0.90f),
+            new Landmass(40f, 78f, 18f, 0.85f)
+        };
+
         /// <summary>陸が分かれた段階。今の地球に近い並びへデフォルメしている。</summary>
         private static readonly Landmass[] Separated =
         {
@@ -88,7 +106,11 @@ namespace CivilizationToSpace.View
                     return Cratons;
                 case 3:
                     return Supercontinent;
+                case 4:
+                    // 巨大生物の時代。ひとつの陸が割れ始めた姿にする。
+                    return Rifting;
                 default:
+                    // 衝突より後は、今の地球に近い分かれた配置で通す。
                     return Separated;
             }
         }

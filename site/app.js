@@ -11,7 +11,7 @@
 (() => {
   const DATA_URL = 'data/earth-eras.json';
   const SUPPORTED_SCHEMA_VERSIONS = ['1.0.0'];
-  const REQUIRED_ERA_COUNT = 6;
+  const REQUIRED_ERA_COUNT = 10;
   const BASE_STEP_MS = 4000; // 1x=4秒 / 0.5x=8秒 / 2x=2秒
   const ALLOWED_SPEEDS = [0.5, 1, 2];
   const DEFAULT_SPEED = 1;
