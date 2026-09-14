@@ -96,6 +96,30 @@ namespace CivilizationToSpace.View
             public Color Rock;
 
             /// <summary>
+            /// 四つ足の生きものの背の高さ（メートル相当）。
+            ///
+            /// **時代ごとに形の比を変える。同じ姿を使い回さない。**
+            /// 首の長い大きな四つ足は白亜紀の終わりに絶滅しており、
+            /// そのあとの時代に立っていてはいけない。
+            /// </summary>
+            public float CreatureHeight;
+
+            /// <summary>胴の長さ（背の高さに対する比）。</summary>
+            public float CreatureBody;
+
+            /// <summary>脚の高さ（背の高さに対する比）。</summary>
+            public float CreatureLegs;
+
+            /// <summary>首の長さ。1で大きく伸び、0に近いほど頭が胴へ寄る。</summary>
+            public float CreatureNeck;
+
+            /// <summary>尾の長さ。1で長く伸び、0に近いほど短い。</summary>
+            public float CreatureTail;
+
+            /// <summary>牙を付けるか。</summary>
+            public bool CreatureTusks;
+
+            /// <summary>
             /// 落ちてくるものの見かけの大きさ（メートル相当）。0なら出さない。
             ///
             /// 巨大衝突では火星ほどの天体、白亜紀の終わりでは直径10〜15kmの小天体。
@@ -235,7 +259,8 @@ namespace CivilizationToSpace.View
             Scatter(land.DeadTrunks, BuildDeadTrunk, land.PlantHeight * 0.8f, false);
             PlaceBuildings(land);
             // 生きものは手前寄りに置く。奥へ撒くと小さすぎて形が読めない。
-            ScatterNear(land.Quadrupeds, BuildQuadruped, land.PlantHeight * 0.85f, 0.34f);
+            ScatterNear(land.Quadrupeds, BuildQuadruped,
+                land.CreatureHeight > 0f ? land.CreatureHeight : land.PlantHeight * 0.85f, 0.34f);
             ScatterNear(land.Bipeds, BuildBiped, land.PlantHeight * 0.40f, 0.26f);
         }
 
@@ -1067,15 +1092,28 @@ namespace CivilizationToSpace.View
         }
 
         /// <summary>
-        /// 四つ足の生きもの。首と尾を長く取る。
-        /// **特定の種ではない。** 長い首と長い尾という形の傾向だけを置いている。
+        /// 四つ足の生きもの。首と尾の長さ、脚の高さ、牙の有無は時代の表から取る。
+        ///
+        /// **特定の種ではない。** 形の傾向だけを置いている。
+        /// ただし**傾向は時代ごとに変える。** 首と尾の長い大きな四つ足は
+        /// 白亜紀の終わり（約6600万年前）に絶滅しており、そのあとの時代に
+        /// 立っていてはいけない。氷期はその6400万年あとである。
         /// </summary>
         private GameObject BuildQuadruped(float height)
         {
             var root = Root("Quadruped");
+
+            // **比は時代ごとに違う。同じ姿を使い回さない。**
+            // 首と尾の長い大きな四つ足は白亜紀の終わりに絶滅しており、
+            // そのあとの時代に立っていてはいけない。
             // 脚を短く、胴を長く取る。脚が長いと竹馬に乗ったように浮いて見える。
-            var body = height * 0.72f;
-            var legs = height * 0.30f;
+            var bodyRatio = current.CreatureBody > 0f ? current.CreatureBody : 0.72f;
+            var legRatio = current.CreatureLegs > 0f ? current.CreatureLegs : 0.30f;
+            var neck = current.CreatureNeck > 0f ? current.CreatureNeck : 1f;
+            var tail = current.CreatureTail > 0f ? current.CreatureTail : 1f;
+
+            var body = height * bodyRatio;
+            var legs = height * legRatio;
 
             Piece(root, PrimitiveType.Sphere, "Creature", new Vector3(0f, legs + body * 0.28f, 0f),
                 new Vector3(body * 0.42f, body * 0.46f, body));
@@ -1084,32 +1122,60 @@ namespace CivilizationToSpace.View
             for (var i = 0; i < 10; i++)
             {
                 var t = i / 9f;
-                var y = legs + body * (0.36f + t * 0.62f);
-                var z = body * (0.42f + t * 0.78f + Mathf.Sin(t * 3.1f) * 0.1f);
-                var r = Mathf.Lerp(body * 0.21f, body * 0.09f, t);
+                // 短くすると頭が胴のすぐ前へ来る。長くすると高く前へ伸びる。
+                var y = legs + body * (0.36f + t * 0.62f * neck);
+                var z = body * (0.42f + (t * 0.78f + Mathf.Sin(t * 3.1f) * 0.1f) * neck);
+                var r = Mathf.Lerp(body * 0.21f, Mathf.Lerp(body * 0.18f, body * 0.09f, neck), t);
                 Piece(root, PrimitiveType.Sphere, "Creature", new Vector3(0f, y, z), new Vector3(r, r, r));
             }
 
+            var headY = legs + body * (0.36f + 0.63f * neck);
+            var headZ = body * (0.42f + 0.86f * neck);
             Piece(root, PrimitiveType.Sphere, "Creature",
-                new Vector3(0f, legs + body * 0.99f, body * 1.28f),
+                new Vector3(0f, headY, headZ),
                 new Vector3(body * 0.12f, body * 0.11f, body * 0.22f));
+
+            // 牙。まっすぐ1本では棒に見えるので、2節つないで前へ反らせる。
+            if (current.CreatureTusks)
+            {
+                for (var i = 0; i < 2; i++)
+                {
+                    var side = i == 0 ? 1f : -1f;
+                    var root0 = new Vector3(
+                        side * body * 0.10f, headY - body * 0.04f, headZ + body * 0.10f);
+
+                    var lower = Piece(root, PrimitiveType.Cylinder, "Creature",
+                        root0 + new Vector3(side * body * 0.02f, -body * 0.07f, body * 0.13f),
+                        new Vector3(body * 0.055f, body * 0.16f, body * 0.055f));
+                    lower.transform.localRotation = Quaternion.Euler(72f, 0f, side * 10f);
+
+                    var upper = Piece(root, PrimitiveType.Cylinder, "Creature",
+                        root0 + new Vector3(side * body * 0.05f, -body * 0.05f, body * 0.34f),
+                        new Vector3(body * 0.045f, body * 0.14f, body * 0.045f));
+                    upper.transform.localRotation = Quaternion.Euler(112f, 0f, side * 10f);
+                }
+            }
 
             for (var i = 0; i < 10; i++)
             {
                 var t = i / 9f;
                 var r = Mathf.Lerp(body * 0.17f, body * 0.03f, t);
                 Piece(root, PrimitiveType.Sphere, "Creature",
-                    new Vector3(0f, legs + body * (0.3f - t * 0.16f), -body * (0.45f + t * 0.72f)),
+                    new Vector3(0f, legs + body * (0.3f - t * 0.16f),
+                        -body * (0.45f + t * 0.72f * tail)),
                     new Vector3(r, r, r));
             }
 
+            // 脚は地面から胴の中ほどまで通す。
+            // 胴の下で止めると、隙間ができて胴が宙に浮いて見える。
+            var hip = legs + body * 0.28f;
             for (var i = 0; i < 4; i++)
             {
                 var front = i < 2;
                 var side = (i % 2 == 0) ? 1f : -1f;
                 Piece(root, PrimitiveType.Cylinder, "Creature",
-                    new Vector3(side * body * 0.22f, legs * 0.5f, front ? body * 0.3f : -body * 0.3f),
-                    new Vector3(body * 0.15f, legs * 0.5f, body * 0.15f));
+                    new Vector3(side * body * 0.20f, hip * 0.5f, front ? body * 0.3f : -body * 0.3f),
+                    new Vector3(body * 0.17f, hip * 0.5f, body * 0.17f));
             }
 
             return root;

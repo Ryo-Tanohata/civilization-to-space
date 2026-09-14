@@ -334,6 +334,18 @@ namespace CivilizationToSpace.EditorTools
                         "地表=" + app.SurfaceMode +
                         " 地球=" + (earth != null ? earth.gameObject.activeSelf.ToString() : "なし"));
 
+                    // **隕石が落ちたあとに首の長い四つ足を立たせない。**
+                    // 形が1つしか無かったころ、恐竜の時代と氷期で同じ姿を使っており、
+                    // 衝突の6400万年あとの氷期に首の長い大きな四つ足が立っていた。
+                    // 出典: NPS「Mass Extinctions Through Geologic Time」
+                    // https://www.nps.gov/subjects/fossils/mass-extinctions-through-geologic-time.htm
+                    var dino = View.SurfaceCatalog.ForEra(4);
+                    var ice = View.SurfaceCatalog.ForEra(6);
+                    Record("U-45 衝突より後の時代に首の長い四つ足がいない",
+                        ice.Quadrupeds == 0 || ice.CreatureNeck < dino.CreatureNeck * 0.5f,
+                        "恐竜の首 " + dino.CreatureNeck.ToString("F2") +
+                        " / 氷期の首 " + ice.CreatureNeck.ToString("F2"));
+
                     Finish();
                     break;
             }

@@ -224,6 +224,14 @@ namespace CivilizationToSpace.View
             land.Bipeds = 4;
             land.DeadTrunks = 0;
             land.Buildings = 0;
+
+            // 首と尾の長い大きな四つ足。全長25mほど、肩の高さ4.5mほど。
+            land.CreatureHeight = 15f;
+            land.CreatureBody = 0.72f;
+            land.CreatureLegs = 0.30f;
+            land.CreatureNeck = 1f;
+            land.CreatureTail = 1f;
+            land.CreatureTusks = false;
             return land;
         }
 
@@ -268,13 +276,33 @@ namespace CivilizationToSpace.View
             land.Foliage = Hex(0x6E7748);
             land.Creature = Hex(0x6B5540);
             land.Rock = Hex(0x7E7868);
-            land.Rocks = 26;
+            land.Rocks = 18;
+
+            // **野の広さは草木の背丈に合わせる。**
+            // 260m先まで並べていたときは、9mの草木がすべて地平線上の粒になり、
+            // 画面が空と地面だけになった。恐竜の時代の比（奥行きは背丈の10倍ほど）に
+            // そろえて、奥行きと幅を詰める。
+            land.NearZ = 5f;
+            land.FarZ = 130f;
+            land.HalfWidth = 52f;
             land.PlantHeight = 9f;
             land.Conifers = 16;
-            land.Ferns = 150;
+            land.Ferns = 90;
             land.Broadleaves = 0;
-            land.Quadrupeds = 3;
+            land.Quadrupeds = 5;
             land.Bipeds = 0;
+
+            // **首の長い四つ足を立たせてはいけない。**
+            // それらは白亜紀の終わり（約6600万年前）に絶滅しており、
+            // 氷期はその6400万年あとである。
+            // ここでは毛のある大型の草食獣にならい、首と尾を短く、
+            // 胴を太く、肩を高く取る。肩の高さ3.2mほど。
+            land.CreatureHeight = 3.6f;
+            land.CreatureBody = 0.95f;
+            land.CreatureLegs = 0.45f;
+            land.CreatureNeck = 0.14f;
+            land.CreatureTail = 0.16f;
+            land.CreatureTusks = true;
             land.DeadTrunks = 0;
             land.Buildings = 0;
             return land;
@@ -355,7 +383,22 @@ namespace CivilizationToSpace.View
 
             if (FramingForEra(eraIndex) == Framing.Creatures)
             {
-                position = new Vector3(0f, 5.5f, -30f);
+                // **主役が草木よりずっと低い時代は、主役に合わせて近づく。**
+                // 氷期の草木は9m、獣は肩の高さ3mほどで、草木に合わせて置くと
+                // 獣が地平線上の粒になる。恐竜（獣15m・草木26m）はここに入らない。
+                if (land.CreatureHeight > 0f && land.CreatureHeight * 2f < land.PlantHeight)
+                {
+                    position = new Vector3(0f, land.CreatureHeight * 0.5f, -land.CreatureHeight * 1.2f);
+                    pitch = -1f;
+                    return;
+                }
+
+                // **寄り方は時代の背丈に合わせる。**
+                // 固定の距離にしていたときは、背の低い時代（氷期の草木は9m）で
+                // すべてが地平線の上の小さな粒になり、画面が空と地面だけになった。
+                // 恐竜の時代（26m）でちょうど良かった比をそのまま使う。
+                var tallest = Mathf.Max(8f, Mathf.Max(land.PlantHeight, land.CreatureHeight * 1.8f));
+                position = new Vector3(0f, tallest * 0.212f, -tallest * 1.154f);
                 pitch = -2.5f;
                 return;
             }
