@@ -14,6 +14,8 @@
 
 **同じ内容をブラウザでも動かせます。** `site/unity/` にWebGLビルドを置いているため、スマートフォンからも開けます。地球の形成4段階・6時代・月への展開5段階を通して見られ、指2本で寄り引きできます。追加した操作と、公開ビルドに残っていた不具合2件の対応は[WebGL版の対応報告](docs/reports/UNITY_WEBGL_FONT_FIX.md)にあります。
 
+**地軸の傾きから季節が現れます。** 地球を23.4度傾け、太陽の向きを一年かけて地軸に対し上下に振ります。時代1つを見ているあいだに季節がひと巡りし、昼夜の境目が斜めに倒れ、極の白夜と極夜が入れ替わります。公転そのものは表していません。一周させると1年に一度カメラから見て真っ暗になり、地表が読めなくなるためです。採否の判断と実測値は[季節の実装報告](docs/reports/EARTH_SEASONS_FROM_TILTED_AXIS.md)にあります。
+
 R1のブラウザモックレビューは[実施済み](docs/reports/R1_P0_HUMAN_REVIEW.md)です。人によるUnityレビューは未実施で、FR-04（Futureの2案切替）はブラウザ・Unityとも未実装です。したがってR1全体のDefinition of Doneは未達です。文書の仕様・優先度はレビュー用の初案のままです。
 
 ## 参照した資料
@@ -85,6 +87,7 @@ docs/
   reports/R2_P0_HUMAN_REVIEW.md
   reports/R1_P0_HUMAN_REVIEW.md
   reports/R1_P1_UNITY_IMPLEMENTATION.md
+  reports/EARTH_SEASONS_FROM_TILTED_AXIS.md
 site/
   index.html                       画面構造（R1・R2の両パネル）
   styles.css                       R1のCSSのみの象徴的地球とレイアウト
@@ -132,3 +135,4 @@ unity/CivilizationToSpace/
 - [R1-P1以降の実装順序](docs/planning/IMPLEMENTATION_ORDER_AFTER_R1_P1.md)
 - [データ交換形式](docs/design/DATA_INTERCHANGE_R1.md)
 - [R1-P1実装報告](docs/reports/R1_P1_UNITY_IMPLEMENTATION.md)
+- [季節の実装報告](docs/reports/EARTH_SEASONS_FROM_TILTED_AXIS.md)

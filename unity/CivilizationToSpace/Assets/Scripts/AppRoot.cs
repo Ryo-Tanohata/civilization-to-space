@@ -27,14 +27,46 @@ namespace CivilizationToSpace
         private static readonly Vector3 EarthPosition = Vector3.zero;
 
         /// <summary>
-        /// 太陽に見立てた光の向き。平行光なので、向きだけで位置が決まる。
+        /// 視線の軸。地球から見て、既定のカメラがいる向き。
         ///
-        /// 地球も月も、飛んでいる機体も、すべてこの一つの光で照らす。
-        /// そのため、どれも同じ側が昼になり、反対側が夜になる。
-        /// 天体ごとに別々の明るさを与えていないので、食い違いようがない。
-        /// **公転面・自転軸の傾き・季節は表していない。** 光の向きは固定である。
+        /// <see cref="View.EarthFraming"/> が既定（向き0・寄り1）で
+        /// <c>Vector3.back</c> を使うので、それに合わせる。
+        /// 太陽の向きはこの軸を基準に決める。理由は <see cref="SunRotation"/> にある。
         /// </summary>
-        public static readonly Vector3 SunAngles = new Vector3(28f, -36f, 0f);
+        private static readonly Vector3 ViewAxis = Vector3.back;
+
+        /// <summary>
+        /// 見えている円板のうち、昼が占める割合。年を通して変えない。
+        ///
+        /// **なぜ一定にするのか。**
+        /// 太陽を本当に一周させると、カメラから見た地球は月と同じように満ち欠けし、
+        /// 1年に一度は完全な夜の側だけが見える。1年が4秒なので、4秒ごとに
+        /// 地球が真っ暗になる。時代ごとの地表を見るための画面としては成り立たない。
+        /// 計算で確かめたところ、明るい割合は0%から100%まで振れていた。
+        ///
+        /// 0.857は、これまでの固定の光と同じ明るさになる値である。
+        /// 以前の Euler(28, -36, 0) を視線の軸へ射影すると 0.714 で、
+        /// 昼の割合に直すと (1 + 0.714) / 2 = 0.857 にあたる。
+        /// 同じ値にしておけば、**季節が付いたこと以外は見え方が変わらない。**
+        /// 前の版で測った昼夜の差（昼129／夜10）もそのまま保てる。
+        ///
+        /// 下げるほど昼夜の境目が円板の内側へ寄り、季節の傾きは読みやすくなるが、
+        /// 地表を見る面積が減る。0.70で試したときは、昼の見える割合が
+        /// 実測で約80%から約53%まで落ちた。
+        /// **この値は見え方で決めた。太陽との距離や位置を表すものではない。**
+        /// </summary>
+        public const float LitFraction = 0.857f;
+
+        /// <summary>
+        /// 1年の長さ（秒）。時代1つぶんと同じにしてある。
+        ///
+        /// 1時代は1倍速で4秒（<see cref="Core.TimelinePlayback.BaseStepSeconds"/>）。
+        /// 一つの時代を見ているあいだに季節がひと巡りする、という見せ方に合わせた。
+        /// **実際の1年を表す秒数ではない。** 再生の速度を変えても年の長さは変えない。
+        /// 速度は段階の進み方を変えるものであり、天体の動きまで速めると、
+        /// 8倍速で自転が1周0.125秒になって地表が読めなくなる。
+        /// </summary>
+        public const float YearSeconds = 4f;
 
         /// <summary>太陽の強さ。</summary>
         public const float SunIntensity = 2.4f;
@@ -50,7 +82,49 @@ namespace CivilizationToSpace
         public static readonly Color SpaceAmbient = new Color(0.040f, 0.048f, 0.066f, 1f);
 
         /// <summary>
-        /// 太陽と環境光を場面へ当てる。
+        /// 年の進み具合から、太陽（平行光）の向きを作る。0で年の初め、1で一周ぶん。
+        ///
+        /// **何を表しているか。**
+        /// 太陽の向きを、次の3つの向きへの成分に分けて組み立てる。
+        ///   ・視線の軸（<see cref="ViewAxis"/>）……昼の割合を決める。年じゅう一定
+        ///   ・地軸（<see cref="View.EarthView.AxisDirection"/>）……季節を決める。年で上下に振れる
+        ///   ・残り（上の2つに直交する向き）……長さを1に保つぶん
+        ///
+        /// 地軸は視線の軸と直交させてあるので、この2つの成分は互いに干渉しない。
+        /// 昼の割合を一定に保ったまま、太陽の正面へ来る緯度だけをちょうど
+        /// ±<see cref="View.EarthView.AxialTiltDegrees"/> 度の範囲で振れる。
+        ///
+        /// **公転を一周させていない。往復である。**
+        /// 一周させると1年に一度カメラから見て完全な夜になり、地表が読めなくなる。
+        /// ここでは季節として現れる成分だけを取り出している。
+        /// 実際の公転・公転面・離心率・歳差のいずれも表していない。
+        /// </summary>
+        public static Quaternion SunRotation(float yearPhase)
+        {
+            var axis = EarthView.AxisDirection;
+
+            // 春分・秋分にあたる向き。視線の軸とも地軸とも直交する。
+            var equinox = Vector3.Cross(ViewAxis, axis).normalized;
+
+            // 視線の軸ぶん。昼の割合はこの成分だけで決まるので、一定にしておく。
+            var towardView = LitFraction * 2f - 1f;
+
+            // 地軸ぶん。太陽の正面へ来る緯度の正弦にあたる。
+            var towardAxis = Mathf.Sin(2f * Mathf.PI * yearPhase) *
+                             Mathf.Sin(EarthView.AxialTiltDegrees * Mathf.Deg2Rad);
+
+            // 残りを春分・秋分の向きへ回し、全体の長さを1に保つ。
+            var towardEquinox = Mathf.Sqrt(
+                Mathf.Max(0f, 1f - towardView * towardView - towardAxis * towardAxis));
+
+            var towardSun = ViewAxis * towardView + axis * towardAxis + equinox * towardEquinox;
+
+            // 平行光は自分の正面へ光を飛ばす。太陽がある向きとは逆を向かせる。
+            return Quaternion.LookRotation(-towardSun, Vector3.up);
+        }
+
+        /// <summary>
+        /// 太陽と環境光を場面へ当てる。年の初めの向きにする。
         ///
         /// 場面の資産にも同じ値が入っているが、実行時にここで入れ直す。
         /// 値の正本をひとつにしておかないと、場面を作り直したときだけ
@@ -58,9 +132,15 @@ namespace CivilizationToSpace
         /// </summary>
         public static void ApplySunLight(Light sun)
         {
+            ApplySunLight(sun, 0f);
+        }
+
+        /// <summary>太陽と環境光を、指定した年の進み具合で場面へ当てる。</summary>
+        public static void ApplySunLight(Light sun, float yearPhase)
+        {
             if (sun != null && sun.type == LightType.Directional)
             {
-                sun.transform.rotation = Quaternion.Euler(SunAngles);
+                sun.transform.rotation = SunRotation(yearPhase);
                 sun.intensity = SunIntensity;
                 sun.color = Color.white;
             }
@@ -83,6 +163,12 @@ namespace CivilizationToSpace
         private EarthFormationLoader.Result formationResult;
         private FormationView formation;
         private EarthFraming framing;
+
+        /// <summary>季節で向きを変える太陽。平行光でなければ持たない。</summary>
+        private Light sun;
+
+        /// <summary>年の進み具合。0で年の初め、1で一周ぶん。</summary>
+        private float yearPhase;
 
         /// <summary>検証済みカタログ。読込に失敗した場合は null。</summary>
         public EraCatalog Catalog
@@ -128,7 +214,14 @@ namespace CivilizationToSpace
             // 次の起動でも止まったまま始まってしまう。必ず通常へ戻す。
             View.SceneClock.Resume();
 
-            ApplySunLight(FindAnyObjectByType<Light>());
+            sun = FindAnyObjectByType<Light>();
+            if (sun != null && sun.type != LightType.Directional)
+            {
+                // 平行光でなければ動かさない。向きだけでは位置が決まらないためである。
+                sun = null;
+            }
+
+            ApplySunLight(sun);
 
             Load();
         }
@@ -420,6 +513,21 @@ namespace CivilizationToSpace
         }
 
         /// <summary>
+        /// 年の進み具合を外から決める。点検・キャプチャの道具が使う。
+        ///
+        /// 季節の端（夏至・冬至）を狙って撮るために要る。止めているあいだは
+        /// 年が進まないので、外から入れないと春分の姿しか撮れない。
+        /// </summary>
+        public void SetYearPhaseForTesting(float phase)
+        {
+            yearPhase = phase - Mathf.Floor(phase);
+            if (sun != null)
+            {
+                sun.transform.rotation = SunRotation(yearPhase);
+            }
+        }
+
+        /// <summary>
         /// 動きを減らす設定を外から切り替える。点検ツールが使う。
         /// 画面のトグルと同じ経路を通す。
         /// </summary>
@@ -441,9 +549,41 @@ namespace CivilizationToSpace
             View.SceneClock.EndFrame();
         }
 
+        /// <summary>
+        /// 太陽を1年ぶん進める。
+        ///
+        /// 動きを減らしているあいだは止める。自転を止めておいて光だけが動くと、
+        /// 地球が止まっているのに昼夜の境目だけが動くことになる。
+        ///
+        /// 場面の時計を見るので、停止・コマ送りにもそのまま従う。
+        /// </summary>
+        private void AdvanceYear()
+        {
+            if (sun == null || (motion != null && motion.Reduced))
+            {
+                return;
+            }
+
+            yearPhase += View.SceneClock.Delta / YearSeconds;
+
+            // 0以上1未満に畳む。長く動かしても値が育たず、精度が落ちない。
+            yearPhase -= Mathf.Floor(yearPhase);
+
+            sun.transform.rotation = SunRotation(yearPhase);
+        }
+
         private void Update()
         {
-            if (!Application.isPlaying || playback == null)
+            if (!Application.isPlaying)
+            {
+                return;
+            }
+
+            // 読込に失敗していても太陽は動かす。止めると、失敗の画面だけ
+            // 光の当たり方が違うことになり、切り分けの妨げになる。
+            AdvanceYear();
+
+            if (playback == null)
             {
                 return;
             }

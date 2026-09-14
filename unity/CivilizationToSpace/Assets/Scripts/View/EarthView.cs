@@ -56,13 +56,66 @@ namespace CivilizationToSpace.View
         private GameObject[] glowShells;
         private Material[] glowMaterials;
 
-        /// <summary>自転の速さ（度／秒）。1周およそ45秒。</summary>
-        private const float SpinDegreesPerSecond = 8f;
+        /// <summary>
+        /// 地軸の傾き（度）。
+        ///
+        /// **傾けないと季節が現れない。**
+        /// 傾いていない球の上で光を動かしても、昼夜の境目は縦線のまま横へ流れるだけで、
+        /// 自転と見分けが付かない。季節が季節に見えるのは、傾いた軸が向きを変えないまま、
+        /// 太陽の向きだけが軸に対して上下するときである。
+        ///
+        /// 23.4度は現在の地球の値にならった。歳差も章動も表しておらず、
+        /// 時代によって傾きを変えることもしていない。
+        /// </summary>
+        public const float AxialTiltDegrees = 23.4f;
 
-        /// <summary>雲を地表より少し速く流す（度／秒）。</summary>
-        private const float CloudDegreesPerSecond = 11f;
+        /// <summary>
+        /// 地軸の傾きを表す回転。世界のY軸から-X側へ倒す。
+        ///
+        /// 倒す向きは視線の軸（<c>Vector3.back</c>）と直交している。
+        /// そのため画面では、地軸は寝ずに立ったまま左へ傾いて見える。
+        /// <see cref="AppRoot"/> の太陽の式も、この直交を前提にしている。
+        /// </summary>
+        public static Quaternion AxialTilt
+        {
+            get { return Quaternion.Euler(0f, 0f, AxialTiltDegrees); }
+        }
 
-        /// <summary>衛星の周回の速さ（度／秒）。</summary>
+        /// <summary>北極の向き。太陽の向きを決めるのに使う。</summary>
+        public static Vector3 AxisDirection
+        {
+            get { return AxialTilt * Vector3.up; }
+        }
+
+        /// <summary>
+        /// 自転の速さ（度／秒）。1周1秒。
+        ///
+        /// **なぜ45秒から1秒へ速めたのか。**
+        /// 1年を時代1つぶん（4秒）にしたためである。以前の1周45秒のままだと、
+        /// 1年のほうが1日より11倍短くなる。1年に365日が入っている地球とは
+        /// 逆さまで、画面でも季節ではなく光の揺れに見えてしまう。
+        /// 1周1秒にすると1年に4回まわり、日が過ぎて季節が移る順に見える。
+        /// </summary>
+        private const float SpinDegreesPerSecond = 360f;
+
+        /// <summary>
+        /// 雲を地表より少し速く流す（度／秒）。
+        ///
+        /// 差の12度／秒だけが目に見える。雲は30秒ほどかけて地表を1周ぶん追い越す。
+        /// 自転に比例して速めていない。比例させると差が135度／秒になり、
+        /// 雲が地表の上を滑るのではなく、別々に回る2枚の球に見える。
+        /// </summary>
+        private const float CloudDegreesPerSecond = 372f;
+
+        /// <summary>
+        /// 衛星の周回の速さ（度／秒）。1周およそ26秒。
+        ///
+        /// **自転を速めたが、ここは変えていない。** 変えると小さな点が輪になって
+        /// 尾を引き、機体の数が読めなくなるためである。そのぶん、自転に対しては
+        /// 遅く回ることになった。1周26秒は1日1秒に対して26日にあたり、
+        /// 実際の低軌道衛星（1日およそ16周）とは桁が違う。
+        /// 高度・速度・周期のいずれも表していない。
+        /// </summary>
         private const float OrbitDegreesPerSecond = 14f;
 
         /// <summary>
@@ -291,6 +344,10 @@ namespace CivilizationToSpace.View
             var spinObject = new GameObject("Spin");
             spinObject.hideFlags = flags;
             spinObject.transform.SetParent(transform, false);
+
+            // 地軸を倒しておく。自転は自分の上向きのまわりで回すので、
+            // 倒した向きはそのまま保たれ、季節が進んでも世界の中で動かない。
+            spinObject.transform.localRotation = AxialTilt;
             spin = spinObject.transform;
 
             planet = new PlanetMesh(BaseRadius);
@@ -306,6 +363,9 @@ namespace CivilizationToSpace.View
             var cloudObject = new GameObject("CloudSpin");
             cloudObject.hideFlags = flags;
             cloudObject.transform.SetParent(transform, false);
+
+            // 雲も同じ軸で回す。地表と違う軸で回すと、極のあたりで筋が交差する。
+            cloudObject.transform.localRotation = AxialTilt;
             cloudSpin = cloudObject.transform;
 
             cloudMaterial = CreateSurfaceMaterial(true, 2, false);

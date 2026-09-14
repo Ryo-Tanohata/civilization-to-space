@@ -35,6 +35,7 @@ namespace CivilizationToSpace.EditorTools
         private static int startIndex;
         private static float startTime;
         private static Quaternion spinBefore;
+        private static Quaternion sunBefore;
         private static Vector3 cameraBefore;
 
         [MenuItem("Tools/Civilization to Space/再生と視点の動作を点検", false, 302)]
@@ -115,6 +116,7 @@ namespace CivilizationToSpace.EditorTools
             var framing = camera != null ? camera.GetComponent<EarthFraming>() : null;
             var earth = UnityEngine.Object.FindAnyObjectByType<EarthView>();
             var spin = earth != null ? earth.transform.Find("Spin") : null;
+            var sunLight = UnityEngine.Object.FindAnyObjectByType<Light>();
 
             switch (step)
             {
@@ -184,17 +186,30 @@ namespace CivilizationToSpace.EditorTools
                         "再生=" + playback.IsPlaying + " 位置=" + timeline.Index);
 
                     spinBefore = spin != null ? spin.localRotation : Quaternion.identity;
-                    startTime = Time.time;
-                    WaitFor(() => Time.time - startTime >= 0.5f, 20f);
+                    sunBefore = sunLight != null ? sunLight.transform.rotation : Quaternion.identity;
+
+                    // **決まった秒数だけ待ってはいけない。**
+                    // 自転は1周1秒なので、1秒近く待つとちょうど一周して差が0へ戻り、
+                    // 動いていても失敗と出る。角度が付くまで待ち、
+                    // 待てなかったときだけ失敗とする。
+                    WaitFor(
+                        () => spin != null && Quaternion.Angle(spinBefore, spin.localRotation) > 5f,
+                        20f);
                     break;
 
                 case 4:
                     Record("U-30 動きを減らす前は自転している",
-                        spin != null && Quaternion.Angle(spinBefore, spin.localRotation) > 0.1f,
-                        "回転差 " + (spin != null ? Quaternion.Angle(spinBefore, spin.localRotation) : -1f).ToString("F2") + "度");
+                        !waitTimedOut && spin != null && Quaternion.Angle(spinBefore, spin.localRotation) > 0.1f,
+                        "回転差 " + (spin != null ? Quaternion.Angle(spinBefore, spin.localRotation) : -1f).ToString("F2") + "度" +
+                        (waitTimedOut ? "（時間切れ）" : string.Empty));
+
+                    Record("U-37 動きを減らす前は太陽が季節で向きを変える",
+                        sunLight != null && Quaternion.Angle(sunBefore, sunLight.transform.rotation) > 0.01f,
+                        "回転差 " + (sunLight != null ? Quaternion.Angle(sunBefore, sunLight.transform.rotation) : -1f).ToString("F3") + "度");
 
                     app.SetReducedMotionForTesting(true);
                     spinBefore = spin != null ? spin.localRotation : Quaternion.identity;
+                    sunBefore = sunLight != null ? sunLight.transform.rotation : Quaternion.identity;
                     startTime = Time.time;
                     WaitFor(() => Time.time - startTime >= 0.5f, 20f);
                     break;
@@ -203,7 +218,46 @@ namespace CivilizationToSpace.EditorTools
                     Record("U-31 動きを減らすと自転が止まる",
                         spin != null && Quaternion.Angle(spinBefore, spin.localRotation) < 0.001f,
                         "回転差 " + (spin != null ? Quaternion.Angle(spinBefore, spin.localRotation) : -1f).ToString("F4") + "度");
+
+                    Record("U-38 動きを減らすと季節も止まる",
+                        sunLight != null && Quaternion.Angle(sunBefore, sunLight.transform.rotation) < 0.001f,
+                        "回転差 " + (sunLight != null ? Quaternion.Angle(sunBefore, sunLight.transform.rotation) : -1f).ToString("F4") + "度");
                     app.SetReducedMotionForTesting(false);
+
+                    // 季節の式そのものを確かめる。
+                    //
+                    // **画面の画素では確かめられない。** 夜側の街の明かり、溶岩、
+                    // 大気のふちが混ざるため、光の当たり方だけを取り出せない。
+                    // 実際、画素で南北の明るさを比べると季節が逆に見える。
+                    // 向きと割合は式から直に測る。
+                    var litLow = 1f;
+                    var litHigh = 0f;
+                    var latLow = 90f;
+                    var latHigh = -90f;
+                    for (var i = 0; i <= 720; i++)
+                    {
+                        var toward = -(AppRoot.SunRotation(i / 720f) * Vector3.forward);
+
+                        var lit = (1f + Vector3.Dot(Vector3.back, toward)) * 0.5f;
+                        litLow = Mathf.Min(litLow, lit);
+                        litHigh = Mathf.Max(litHigh, lit);
+
+                        var lat = Mathf.Asin(Mathf.Clamp(
+                            Vector3.Dot(EarthView.AxisDirection, toward), -1f, 1f)) * Mathf.Rad2Deg;
+                        latLow = Mathf.Min(latLow, lat);
+                        latHigh = Mathf.Max(latHigh, lat);
+                    }
+
+                    Record("U-39 昼の割合は年を通して一定",
+                        litHigh - litLow < 0.001f && Mathf.Abs(litLow - AppRoot.LitFraction) < 0.001f,
+                        "昼 " + (litLow * 100f).ToString("F2") + "% 〜 " + (litHigh * 100f).ToString("F2") +
+                        "%（狙い " + (AppRoot.LitFraction * 100f).ToString("F1") + "%）");
+
+                    Record("U-40 太陽の正面へ来る緯度が地軸の傾きぶん振れる",
+                        Mathf.Abs(latHigh - EarthView.AxialTiltDegrees) < 0.05f &&
+                        Mathf.Abs(latLow + EarthView.AxialTiltDegrees) < 0.05f,
+                        "緯度 " + latLow.ToString("F2") + "度 〜 " + latHigh.ToString("F2") +
+                        "度（狙い ±" + EarthView.AxialTiltDegrees.ToString("F1") + "度）");
 
                     // 視点操作は再生を止めない
                     timeline.Select(0);

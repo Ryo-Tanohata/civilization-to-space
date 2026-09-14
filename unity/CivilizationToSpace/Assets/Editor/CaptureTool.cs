@@ -25,6 +25,17 @@ namespace CivilizationToSpace.EditorTools
         private const string SizeArgument = "-captureSize";
         private const string CatalogArgument = "-catalogPath";
 
+        /// <summary>季節を狙って撮るための引数。0で春分、0.25で夏至、0.75で冬至。</summary>
+        private const string YearPhaseArgument = "-yearPhase";
+
+        private const string YearPhaseKey = "CivilizationToSpace.CaptureTool.YearPhase";
+
+        /// <summary>撮るときの年の進み具合。既定は年の初め。</summary>
+        private static float YearPhase
+        {
+            get { return SessionState.GetFloat(YearPhaseKey, 0f); }
+        }
+
         private const int DefaultWidth = 1280;
         private const int DefaultHeight = 720;
 
@@ -83,6 +94,12 @@ namespace CivilizationToSpace.EditorTools
             SessionState.SetFloat(
                 "CivilizationToSpace.CaptureTool.Settle",
                 !string.IsNullOrEmpty(settle) && float.TryParse(settle, out parsedSettle) ? parsedSettle : 1.8f);
+
+            var phase = ReadArgument(YearPhaseArgument);
+            float parsedPhase;
+            SessionState.SetFloat(
+                YearPhaseKey,
+                !string.IsNullOrEmpty(phase) && float.TryParse(phase, out parsedPhase) ? parsedPhase : 0f);
             Start(directory, true);
         }
 
@@ -218,6 +235,11 @@ namespace CivilizationToSpace.EditorTools
             if (!selected)
             {
                 timeline.Select(nextIndex);
+
+                // 季節を入れ直す。止めているあいだは年が進まないので、
+                // 入れないとどの1枚も年の初めの姿になる。
+                appRoot.SetYearPhaseForTesting(YearPhase);
+
                 Canvas.ForceUpdateCanvases();
                 selected = true;
                 selectedAt = Time.realtimeSinceStartup;
