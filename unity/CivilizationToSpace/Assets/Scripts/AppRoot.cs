@@ -204,6 +204,9 @@ namespace CivilizationToSpace
         /// <summary>地表で見るときのカメラの置き場所。揺らすときの基準にする。</summary>
         private Vector3 surfaceEye;
 
+        /// <summary>地表で見せる打ち上げの進み具合。</summary>
+        private float rocketPhase;
+
         /// <summary>検証済みカタログ。読込に失敗した場合は null。</summary>
         public EraCatalog Catalog
         {
@@ -659,9 +662,11 @@ namespace CivilizationToSpace
             surface.Build(SurfaceCatalog.ForEra(era), HideFlags.None);
             surface.SetTimeOfDay(dayPhase, sun);
 
-            // 時代を移ったら、落ちてくるものは最初から見せる。
+            // 時代を移ったら、落ちてくるものも打ち上げも最初から見せる。
             impactPhase = 0f;
+            rocketPhase = 0f;
             surface.SetImpact(impactPhase);
+            surface.SetRocket(rocketPhase);
 
             var camera = Camera.main;
             if (camera == null)
@@ -817,17 +822,23 @@ namespace CivilizationToSpace
                 dayPhase += View.SceneClock.Delta / SurfaceView.DaySeconds;
                 dayPhase -= Mathf.Floor(dayPhase);
 
-                var seconds = SurfaceCatalog.ForEra(timeline != null ? timeline.CurrentEraIndex : 0)
-                    .ImpactSeconds;
-                if (seconds > 0f)
+                var land = SurfaceCatalog.ForEra(timeline != null ? timeline.CurrentEraIndex : 0);
+                if (land.ImpactSeconds > 0f)
                 {
-                    impactPhase += View.SceneClock.Delta / seconds;
+                    impactPhase += View.SceneClock.Delta / land.ImpactSeconds;
                     impactPhase -= Mathf.Floor(impactPhase);
+                }
+
+                if (land.RocketSeconds > 0f)
+                {
+                    rocketPhase += View.SceneClock.Delta / land.RocketSeconds;
+                    rocketPhase -= Mathf.Floor(rocketPhase);
                 }
             }
 
             surface.SetTimeOfDay(dayPhase, sun);
             surface.SetImpact(impactPhase);
+            surface.SetRocket(rocketPhase);
 
             // **ぶつかった瞬間はカメラを揺らす。**
             // 音も振動も出せないので、揺れだけが「ぶつかった」ことを伝える。

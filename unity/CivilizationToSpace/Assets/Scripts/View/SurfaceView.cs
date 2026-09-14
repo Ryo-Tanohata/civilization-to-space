@@ -111,6 +111,20 @@ namespace CivilizationToSpace.View
             public float ImpactSeconds;
 
             /// <summary>
+            /// 打ち上げから次の打ち上げまでの秒数。0なら出さない。
+            ///
+            /// **地表からも打ち上げが見えるようにする。** 宇宙の側では衛星も拠点も
+            /// 地表から上がる様子を出しているのに、地表へ降りると何も上がらないのでは、
+            /// 同じ出来事を見ている感じにならない。
+            /// **実際の高度も速度も打ち上げにかかる時間も表していない。**
+            /// </summary>
+            public float RocketSeconds;
+
+            /// <summary>機体の色と、噴射の色。</summary>
+            public Color Rocket;
+            public Color Flame;
+
+            /// <summary>
             /// 地面が自ら放つ色。黒なら光らない。マグマの時代で使う。
             /// 溶けた地面は光を受ける面ではなく、光そのものだからである。
             /// </summary>
@@ -151,6 +165,11 @@ namespace CivilizationToSpace.View
         private Texture2D skyTexture;
         private Material starMaterial;
         private Texture2D starTexture;
+        private Transform rocket;
+        private Transform exhaust;
+        private Material rocketMaterial;
+        private Material flameMaterial;
+
         private Transform impactor;
         private Transform trail;
         private Transform flash;
@@ -198,6 +217,7 @@ namespace CivilizationToSpace.View
             BuildSky(land);
             BuildGround(land);
             BuildImpactor(land);
+            BuildRocket(land);
 
             Scatter(land.Conifers, BuildConifer, land.PlantHeight, false);
             Scatter(land.Ferns, BuildFern, land.PlantHeight * 0.30f, false);
@@ -231,6 +251,13 @@ namespace CivilizationToSpace.View
             skyTexture = null;
             starMaterial = null;
             starTexture = null;
+
+            DestroyImmediate(rocketMaterial);
+            DestroyImmediate(flameMaterial);
+            rocketMaterial = null;
+            flameMaterial = null;
+            rocket = null;
+            exhaust = null;
 
             DestroyImmediate(impactorMaterial);
             DestroyImmediate(trailMaterial);
@@ -343,6 +370,115 @@ namespace CivilizationToSpace.View
             dust.transform.SetParent(transform, false);
             dust.GetComponent<Renderer>().sharedMaterial = columnMaterial;
             column = dust.transform;
+        }
+
+        /// <summary>
+        /// 打ち上げる場所。**街より手前に置く。**
+        /// 街の中に混ぜると、建物に隠れて上がる様子が見えない。
+        /// </summary>
+        private static Vector3 LaunchPad(Landscape land)
+        {
+            return new Vector3(-land.HalfWidth * 0.14f, 0f, land.NearZ * 0.38f);
+        }
+
+        /// <summary>機体の背の高さ。近くに置くので、建物より大きく取る。</summary>
+        private static float RocketScale(Landscape land)
+        {
+            return Mathf.Max(14f, land.BuildingHeight * 1.5f);
+        }
+
+        /// <summary>
+        /// 上がっていく機体と、その噴射。
+        ///
+        /// 形は胴と先端と炎だけで、段や翼を作らない。
+        /// **特定のロケットを表していない。** 上がっていく、ということだけを見せる。
+        /// </summary>
+        private void BuildRocket(Landscape land)
+        {
+            if (land.RocketSeconds <= 0f)
+            {
+                return;
+            }
+
+            rocketMaterial = StandardMaterials.CreateOpaque(false);
+            rocketMaterial.hideFlags = createdFlags;
+            rocketMaterial.color = land.Rocket;
+            rocketMaterial.SetFloat("_Glossiness", 0f);
+            rocketMaterial.SetFloat("_Metallic", 0f);
+
+            flameMaterial = StandardMaterials.CreateGlow();
+            flameMaterial.hideFlags = createdFlags;
+            flameMaterial.color = Color.white;
+            flameMaterial.SetColor("_EmissionColor", Color.black);
+
+            var scale = RocketScale(land);
+
+            var root = new GameObject("Rocket");
+            root.hideFlags = createdFlags;
+            root.transform.SetParent(transform, false);
+            rocket = root.transform;
+
+            var body = PrimitiveMeshes.Create(PrimitiveType.Cylinder, "Body", createdFlags);
+            body.transform.SetParent(rocket, false);
+            body.transform.localPosition = new Vector3(0f, scale * 0.5f, 0f);
+            body.transform.localScale = new Vector3(scale * 0.17f, scale * 0.5f, scale * 0.17f);
+            body.GetComponent<Renderer>().sharedMaterial = rocketMaterial;
+
+            var nose = new GameObject("Nose", typeof(MeshFilter), typeof(MeshRenderer));
+            nose.hideFlags = createdFlags;
+            nose.transform.SetParent(rocket, false);
+            nose.transform.localPosition = new Vector3(0f, scale, 0f);
+            nose.transform.localScale = new Vector3(scale * 0.34f, scale * 0.3f, scale * 0.34f);
+            nose.GetComponent<MeshFilter>().sharedMesh = Cone();
+            nose.GetComponent<MeshRenderer>().sharedMaterial = rocketMaterial;
+
+            var fire = PrimitiveMeshes.Create(PrimitiveType.Sphere, "Flame", createdFlags);
+            fire.transform.SetParent(transform, false);
+            fire.GetComponent<Renderer>().sharedMaterial = flameMaterial;
+            exhaust = fire.transform;
+        }
+
+        /// <summary>
+        /// 打ち上げを進める。0で発射の直前、1で次の打ち上げの始め。
+        ///
+        /// 0.00〜0.10 は台の上で待ち、0.10〜0.80 で加速しながら上がり、そこから消える。
+        /// **高度も速度も、実際のものを表していない。**
+        /// </summary>
+        public void SetRocket(float phase)
+        {
+            if (rocket == null || exhaust == null)
+            {
+                return;
+            }
+
+            phase -= Mathf.Floor(phase);
+
+            var land = current;
+            var pad = LaunchPad(land);
+            var flying = phase < 0.80f;
+
+            rocket.gameObject.SetActive(flying);
+            exhaust.gameObject.SetActive(flying);
+            if (!flying)
+            {
+                return;
+            }
+
+            // 待っているあいだは台の上。上がり始めてからは、加速して高くなる。
+            var climb = Mathf.Max(0f, (phase - 0.10f) / 0.70f);
+            var height = land.FarZ * 0.55f * climb * climb;
+
+            rocket.localPosition = pad + new Vector3(0f, height, 0f);
+
+            var scale = RocketScale(land);
+
+            // 噴射は上がり始めてから出す。待っているあいだは出さない。
+            var burning = phase >= 0.10f;
+            var flame = burning ? scale * (0.45f + Mathf.Sin(phase * 120f) * 0.06f) : 0f;
+            exhaust.localScale = new Vector3(flame * 0.7f, flame, flame * 0.7f);
+            exhaust.localPosition = rocket.localPosition + new Vector3(0f, -flame * 0.8f, 0f);
+            flameMaterial.SetColor("_EmissionColor",
+                burning ? land.Flame * (1.35f - climb * 0.7f) : Color.black);
         }
 
         /// <summary>ぶつかる場所。地平線の少し手前へ置く。</summary>

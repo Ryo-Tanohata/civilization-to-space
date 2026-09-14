@@ -74,6 +74,19 @@ namespace CivilizationToSpace.EditorTools
                 Capture(directory, EraNames[era] + "-night", SurfaceCatalog.ForEra(era), eye, pitch, 0.02f);
             }
 
+            // 打ち上げを順を追って撮る（情報の時代）。
+            {
+                Vector3 eye;
+                float pitch;
+                SurfaceCatalog.EyeForEra(8, out eye, out pitch);
+                var phases = new[] { 0.05f, 0.22f, 0.36f, 0.52f, 0.70f };
+                for (var i = 0; i < phases.Length; i++)
+                {
+                    Capture(directory, "09-Information-rocket" + (i + 1),
+                        SurfaceCatalog.ForEra(8), eye, pitch, 0.5f, -1f, phases[i]);
+                }
+            }
+
             // 落ちてくるものを、順を追って撮る。
             foreach (var era in new[] { 0, 5 })
             {
@@ -98,6 +111,12 @@ namespace CivilizationToSpace.EditorTools
         private static void Capture(string directory, string name, SurfaceView.Landscape land,
             Vector3 eye, float pitch, float timeOfDay, float impactPhase)
         {
+            Capture(directory, name, land, eye, pitch, timeOfDay, impactPhase, 0f);
+        }
+
+        private static void Capture(string directory, string name, SurfaceView.Landscape land,
+            Vector3 eye, float pitch, float timeOfDay, float impactPhase, float rocketPhase)
+        {
             var lightObject = new GameObject("Sun");
             var light = lightObject.AddComponent<Light>();
             light.type = LightType.Directional;
@@ -109,6 +128,7 @@ namespace CivilizationToSpace.EditorTools
             // 空の色・星の明るさ・光の向きと強さは、時刻からまとめて決まる。
             view.SetTimeOfDay(timeOfDay, light);
             view.SetImpact(impactPhase < 0f ? 0.99f : impactPhase);
+            view.SetRocket(rocketPhase);
 
             var cameraObject = new GameObject("Camera");
             var camera = cameraObject.AddComponent<Camera>();

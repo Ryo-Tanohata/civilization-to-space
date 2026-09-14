@@ -98,6 +98,8 @@ namespace CivilizationToSpace.View
                 Window = Hex(0x6E8FA8),
                 Rock = Hex(0x6A625A),
                 Impactor = Hex(0xFFB070),
+                Rocket = Hex(0xE8ECF0),
+                Flame = Hex(0xFFB24A),
                 Seed = seed,
             };
         }
@@ -318,6 +320,9 @@ namespace CivilizationToSpace.View
             land.BuildingHeight = 52f;
             land.BuildingSpacing = 2.1f;
             land.Windows = true;
+
+            // 衛星が上がり始めた時代。地表からも打ち上げが見える。
+            land.RocketSeconds = 12f;
             land.Conifers = 16;
             land.Ferns = 0;
             land.Broadleaves = 26;
@@ -337,6 +342,7 @@ namespace CivilizationToSpace.View
             land.Window = Hex(0x74C8B4);
             land.BuildingHeight = 78f;
             land.BuildingSpacing = 2.0f;
+            land.RocketSeconds = 9f;
             land.Buildings = 210;
             land.Broadleaves = 40;
             return land;
