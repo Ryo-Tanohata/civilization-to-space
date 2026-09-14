@@ -46,122 +46,33 @@ namespace CivilizationToSpace.EditorTools
             EditorApplication.Exit(0);
         }
 
+        private static readonly string[] EraNames =
+        {
+            "01-Hadean", "02-EarlyOcean", "03-Snowball", "04-GreenEarth", "05-Dinosaurs",
+            "06-Impact", "07-IceAge", "08-Humans", "09-Information", "10-Future",
+        };
+
         private static void CaptureAll(string directory)
         {
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
-            // 1日のうち4つの時刻で撮る。昼夜が巡ることを1枚ずつで確かめる。
-            var creatureEye = new Vector3(0f, 5.5f, -30f);
-            Capture(directory, "1-noon", Creatures(), creatureEye, -2.5f, 0.50f);
-            Capture(directory, "2-sunset", Creatures(), creatureEye, -2.5f, 0.75f);
-            Capture(directory, "3-night", Creatures(), creatureEye, -2.5f, 0.00f);
-            Capture(directory, "4-dawn", Creatures(), creatureEye, -2.5f, 0.28f);
-
-            Capture(directory, "5-hamlet-night", Hamlet(), new Vector3(0f, 8f, -20f), 2f, 0.02f);
-            Capture(directory, "6-city-night", City(), new Vector3(0f, 58f, -200f), 4f, 0.04f);
-        }
-
-        /// <summary>
-        /// 巨大生物の時代。**特定の種を表していない。**
-        /// 首の長い四つ足と小さな二本足を、背の高い針葉樹の中に置いているだけである。
-        /// 色は読みやすさのための決めで、復元色ではない。
-        /// </summary>
-        private static SurfaceView.Landscape Creatures()
-        {
-            return new SurfaceView.Landscape
+            for (var era = 0; era < EraNames.Length; era++)
             {
-                SkyHigh = Hex(0x5C8FC8),
-                SkyLow = Hex(0xCBDCE6),
-                Ground = Hex(0x6E5C3E),
-                Trunk = Hex(0x5B4632),
-                Foliage = Hex(0x4C7A3A),
-                Creature = Hex(0x8A7A55),
-                Building = Hex(0xB9BCC0),
-                Window = Hex(0x6E8FA8),
-                NearZ = 7f,
-                FarZ = 260f,
-                HalfWidth = 95f,
-                PlantHeight = 26f,
-                BuildingHeight = 0f,
-                BuildingSpacing = 1.05f,
-                Windows = false,
-                Conifers = 34,
-                Ferns = 46,
-                Broadleaves = 22,
-                Quadrupeds = 3,
-                Bipeds = 4,
-                Buildings = 0,
-                Seed = 5,
-            };
-        }
+                Vector3 eye;
+                float pitch;
+                SurfaceCatalog.EyeForEra(era, out eye, out pitch);
 
-        /// <summary>人類の広がり。低い建物が少しだけ集まっている段階。</summary>
-        private static SurfaceView.Landscape Hamlet()
-        {
-            return new SurfaceView.Landscape
+                Capture(directory, EraNames[era] + "-day", SurfaceCatalog.ForEra(era), eye, pitch, 0.5f);
+            }
+
+            // 夜も何枚か撮る。星と灯りが出ることを確かめる。
+            foreach (var era in new[] { 4, 7, 8 })
             {
-                SkyHigh = Hex(0x6796C6),
-                SkyLow = Hex(0xD8E4EA),
-                Ground = Hex(0x6A6B3C),
-                Trunk = Hex(0x54432F),
-                Foliage = Hex(0x4E7A3E),
-                Creature = Hex(0x7A6A55),
-                Building = Hex(0xC2A882),
-                Window = Hex(0x6E8FA8),
-                NearZ = 12f,
-                FarZ = 110f,
-                HalfWidth = 46f,
-                PlantHeight = 9f,
-                BuildingHeight = 5f,
-                BuildingSpacing = 1.05f,
-                Windows = false,
-                Conifers = 18,
-                Ferns = 26,
-                Broadleaves = 20,
-                Quadrupeds = 0,
-                Bipeds = 0,
-                Buildings = 46,
-                Seed = 8,
-            };
-        }
-
-        /// <summary>情報・地球規模接続。建物が高くなり、数が増えた段階。</summary>
-        private static SurfaceView.Landscape City()
-        {
-            return new SurfaceView.Landscape
-            {
-                SkyHigh = Hex(0x6F9AC8),
-                SkyLow = Hex(0xDDE7EC),
-                Ground = Hex(0x515C46),
-                Trunk = Hex(0x4E4034),
-                Foliage = Hex(0x46683C),
-                Creature = Hex(0x7A6A55),
-                Building = Hex(0xB6BABF),
-                Window = Hex(0x5F87A6),
-                NearZ = 110f,
-                FarZ = 900f,
-                HalfWidth = 330f,
-                PlantHeight = 16f,
-                BuildingHeight = 52f,
-                BuildingSpacing = 2.1f,
-                Windows = true,
-                Conifers = 16,
-                Ferns = 0,
-                Broadleaves = 26,
-                Quadrupeds = 0,
-                Bipeds = 0,
-                Buildings = 150,
-                Seed = 9,
-            };
-        }
-
-        private static Color Hex(uint value)
-        {
-            return new Color32(
-                (byte)((value >> 16) & 0xFF),
-                (byte)((value >> 8) & 0xFF),
-                (byte)(value & 0xFF),
-                0xFF);
+                Vector3 eye;
+                float pitch;
+                SurfaceCatalog.EyeForEra(era, out eye, out pitch);
+                Capture(directory, EraNames[era] + "-night", SurfaceCatalog.ForEra(era), eye, pitch, 0.02f);
+            }
         }
 
         private static void Capture(string directory, string name, SurfaceView.Landscape land,

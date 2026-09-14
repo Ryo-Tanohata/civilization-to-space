@@ -74,6 +74,33 @@ namespace CivilizationToSpace.View
             public int Bipeds;
             public int Buildings;
 
+            /// <summary>
+            /// 枯れた幹の数。衝突のあとの時代で使う。
+            ///
+            /// 形の語彙を増やすのは避けたいが、葉のある木の数を0にしても
+            /// 「葉が落ちた幹だけが立っている」姿にはならない。ここは足すほかない。
+            /// </summary>
+            public int DeadTrunks;
+
+            /// <summary>
+            /// 岩の数。
+            ///
+            /// **形の語彙を1つ増やすだけの価値がある。**
+            /// 溶けた地球・最初の海・全球凍結には植物も生きものも置かない。
+            /// 岩が無いと、空と地面の色の帯だけになって何も読み取れない。
+            /// 氷期でもまばらに置く。ひとつの形が4つの場面を助ける。
+            /// </summary>
+            public int Rocks;
+
+            /// <summary>岩の色。</summary>
+            public Color Rock;
+
+            /// <summary>
+            /// 地面が自ら放つ色。黒なら光らない。マグマの時代で使う。
+            /// 溶けた地面は光を受ける面ではなく、光そのものだからである。
+            /// </summary>
+            public Color GroundGlow;
+
             /// <summary>置き方を決める種。同じ種なら同じ並びになる。</summary>
             public int Seed;
         }
@@ -144,6 +171,8 @@ namespace CivilizationToSpace.View
             Scatter(land.Conifers, BuildConifer, land.PlantHeight, false);
             Scatter(land.Ferns, BuildFern, land.PlantHeight * 0.30f, false);
             Scatter(land.Broadleaves, BuildBroadleaf, land.PlantHeight * 0.75f, false);
+            Scatter(land.Rocks, BuildRock, Mathf.Max(1.2f, land.PlantHeight * 0.22f), false);
+            Scatter(land.DeadTrunks, BuildDeadTrunk, land.PlantHeight * 0.8f, false);
             PlaceBuildings(land);
             // 生きものは手前寄りに置く。奥へ撒くと小さすぎて形が読めない。
             ScatterNear(land.Quadrupeds, BuildQuadruped, land.PlantHeight * 0.85f, 0.34f);
@@ -395,7 +424,15 @@ namespace CivilizationToSpace.View
                 band.transform.SetParent(transform, false);
                 band.transform.localPosition = new Vector3(0f, -1f, (from + to) * 0.5f);
                 band.transform.localScale = new Vector3(land.HalfWidth * 9f, 2f, to - from);
-                band.GetComponent<Renderer>().sharedMaterial = Tinted("Ground", land.Ground, i);
+                var material = Tinted("Ground", land.Ground, i);
+                if (land.GroundGlow.maxColorComponent > 0.001f)
+                {
+                    // 溶けた地面は自ら光る。遠いぶんは弱める。
+                    var fade = 1f - i / (float)(bands - 1) * 0.6f;
+                    material.SetColor("_EmissionColor", land.GroundGlow * fade);
+                }
+
+                band.GetComponent<Renderer>().sharedMaterial = material;
             }
         }
 
@@ -415,7 +452,7 @@ namespace CivilizationToSpace.View
             }
 
             var t = DepthSteps > 1 ? index / (float)(DepthSteps - 1) : 0f;
-            material = StandardMaterials.CreateOpaque(false);
+            material = StandardMaterials.CreateOpaque(true);
             material.hideFlags = createdFlags;
             material.color = Color.Lerp(baseColor, current.SkyLow, t * HazeStrength);
             material.SetFloat("_Glossiness", 0f);
@@ -448,6 +485,7 @@ namespace CivilizationToSpace.View
                 case "Trunk": return current.Trunk;
                 case "Foliage": return current.Foliage;
                 case "Creature": return current.Creature;
+                case "Rock": return current.Rock;
                 case "Building": return current.Building;
                 case "Window": return current.Window;
                 default: return current.Ground;
@@ -570,6 +608,61 @@ namespace CivilizationToSpace.View
         {
             var root = new GameObject(name);
             root.hideFlags = createdFlags;
+            return root;
+        }
+
+        /// <summary>
+        /// 岩。大きさの違う塊を寄せて、角のある形にする。
+        /// 球ひとつだと石ころにしか見えない。
+        /// </summary>
+        private GameObject BuildRock(float height)
+        {
+            var root = Root("Rock");
+            var lumps = 3 + random.Next(3);
+
+            for (var i = 0; i < lumps; i++)
+                {
+                var r = height * (0.45f + (float)random.NextDouble() * 0.7f);
+                var lump = Piece(root, PrimitiveType.Cube, "Rock", new Vector3(
+                        (float)(random.NextDouble() * 2.0 - 1.0) * height * 0.5f,
+                        height * (0.18f + (float)random.NextDouble() * 0.5f),
+                        (float)(random.NextDouble() * 2.0 - 1.0) * height * 0.5f),
+                    new Vector3(r, r * (0.5f + (float)random.NextDouble() * 0.6f), r * 0.9f));
+                lump.transform.localRotation = Quaternion.Euler(
+                    (float)random.NextDouble() * 40f - 20f,
+                    (float)random.NextDouble() * 360f,
+                    (float)random.NextDouble() * 40f - 20f);
+            }
+
+            return root;
+        }
+
+        /// <summary>
+        /// 枯れた幹。葉を持たず、少し傾いて立つ。
+        /// まっすぐ立てると柱にしか見えない。傾きと太さの違いで枯れ木に見せる。
+        /// </summary>
+        private GameObject BuildDeadTrunk(float height)
+        {
+            var root = Root("DeadTrunk");
+            var lean = (float)(random.NextDouble() * 2.0 - 1.0) * 14f;
+
+            var trunk = Piece(root, PrimitiveType.Cylinder, "Trunk",
+                new Vector3(0f, height * 0.5f, 0f),
+                new Vector3(height * 0.045f, height * 0.5f, height * 0.045f));
+            trunk.transform.localRotation = Quaternion.Euler(lean, 0f, lean * 0.6f);
+
+            // 折れた枝を2本だけ。多いと生きている木に見えてしまう。
+            for (var i = 0; i < 2; i++)
+            {
+                var branch = Piece(root, PrimitiveType.Cylinder, "Trunk",
+                    new Vector3(0f, height * (0.6f + i * 0.18f), 0f),
+                    new Vector3(height * 0.022f, height * 0.16f, height * 0.022f));
+                branch.transform.localRotation = Quaternion.Euler(
+                    46f, (float)random.NextDouble() * 360f, 0f);
+                branch.transform.localPosition += branch.transform.localRotation
+                    * new Vector3(0f, height * 0.15f, 0f);
+            }
+
             return root;
         }
 
