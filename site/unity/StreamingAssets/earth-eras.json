@@ -3,7 +3,18 @@
   "catalogTitle": "Earth Through Time",
   "disclaimer": "これは科学的な将来予測でも精密な地球科学モデルでもなく、地球の長い変化を象徴的に体験するための初期プロトタイプです。年代・分布・順序の厳密さを保証しません。",
   "parameterNote": "visualの数値は0〜1に正規化した象徴表現の演出強度であり、気温・海水量・森林面積・人口などの観測値や予測値ではありません。satelliteCountは表示する衛星の個数を示す象徴的な整数です。",
-  "eraOrder": ["Hadean", "EarlyOcean", "Snowball", "GreenEarth", "Information", "Future"],
+  "eraOrder": [
+    "Hadean",
+    "EarlyOcean",
+    "Snowball",
+    "GreenEarth",
+    "Dinosaurs",
+    "Impact",
+    "IceAge",
+    "Humans",
+    "Information",
+    "Future"
+  ],
   "eras": [
     {
       "id": "Hadean",
@@ -25,9 +36,16 @@
       "presentation": {
         "caption": "暗い赤の地表に橙の亀裂と淡い発光が広がる、象徴的な地球",
         "storyboardCut": "カット1 マグマ",
-        "tags": ["熱の輝き：強", "海：なし", "氷：なし", "植生：なし"]
+        "tags": [
+          "熱の輝き：強",
+          "海：なし",
+          "氷：なし",
+          "植生：なし"
+        ]
       },
-      "events": ["冷却を示す光の変化が現れる"],
+      "events": [
+        "冷却を示す光の変化が現れる"
+      ],
       "status": "象徴表現案・出典未検証"
     },
     {
@@ -50,9 +68,16 @@
       "presentation": {
         "caption": "青い海面と薄い雲の層に、暗い陸の輪郭が見える象徴的な地球",
         "storyboardCut": "カット2 海",
-        "tags": ["海の強調：高", "熱の輝き：弱", "雲：中", "植生：なし"]
+        "tags": [
+          "海の強調：高",
+          "熱の輝き：弱",
+          "雲：中",
+          "植生：なし"
+        ]
       },
-      "events": ["水の層が現れ、地表の見え方が変わる"],
+      "events": [
+        "水の層が現れ、地表の見え方が変わる"
+      ],
       "status": "象徴表現案・出典未検証"
     },
     {
@@ -75,9 +100,16 @@
       "presentation": {
         "caption": "白と淡い青の氷におおわれた、象徴的な地球",
         "storyboardCut": "カット3 氷河",
-        "tags": ["氷の強調：高", "雲：弱", "輝き：弱", "海：中"]
+        "tags": [
+          "氷の強調：高",
+          "雲：弱",
+          "輝き：弱",
+          "海：中"
+        ]
       },
-      "events": ["氷が視覚的に地球全体へ広がる"],
+      "events": [
+        "氷が視覚的に地球全体へ広がる"
+      ],
       "status": "象徴表現案・出典未検証"
     },
     {
@@ -100,16 +132,153 @@
       "presentation": {
         "caption": "青い海に緑の陸が広がり、薄い雲がかかる象徴的な地球",
         "storyboardCut": "カット4 緑",
-        "tags": ["植生の強調：高", "海：高", "氷：弱", "雲：中"]
+        "tags": [
+          "植生の強調：高",
+          "海：高",
+          "氷：弱",
+          "雲：中"
+        ]
       },
-      "events": ["陸の緑が現れ、生態系の広がりを示す"],
+      "events": [
+        "陸の緑が現れ、生態系の広がりを示す"
+      ],
       "status": "象徴表現案・出典未検証"
+    },
+    {
+      "id": "Dinosaurs",
+      "displayName": "巨大生物の時代",
+      "rangeLabel": "中生代の陸と海（象徴）",
+      "sortOrder": 5,
+      "summary": "恐竜をはじめとする大型の生きものが栄えた時代を象徴的に表しています。極に大きな氷が無く、緑がもっとも広がった状態としています。**宇宙から見た地球に、生きもの自体は写りません。** 氷の少なさ・緑の広さ・ひとつの大きな陸が割れていく配置で表しています。年代・分布・種類は表していません。",
+      "visual": {
+        "earthColor": "#17485c",
+        "emissionColor": "#46a06a",
+        "oceanLevel": 0.87,
+        "cloudDensity": 0.42,
+        "iceCoverage": 0.0,
+        "vegetation": 0.95,
+        "volcanicActivity": 0.12,
+        "cityLights": 0,
+        "satelliteCount": 0
+      },
+      "presentation": {
+        "caption": "極に氷が無く、緑がもっとも広がった地球。生きものは宇宙からは見えません",
+        "storyboardCut": "カット5 巨大生物",
+        "tags": [
+          "氷：なし",
+          "植生：最大",
+          "大陸：割れ始め",
+          "生きもの：画面には出ない"
+        ]
+      },
+      "events": [
+        "大型の生きものが陸と海に広がる"
+      ],
+      "status": "象徴表現案・出典未検証"
+    },
+    {
+      "id": "Impact",
+      "displayName": "衝突と暗い空",
+      "rangeLabel": "巨大衝突の直後（象徴）",
+      "sortOrder": 6,
+      "summary": "約6600万年前、直径10〜15kmの小天体がユカタン半島に衝突し、舞い上がった塵が数年から数十年にわたり日光をさえぎったとされます。地表の温度は最大で28度ほど下がり、鳥を除く恐竜を含むおよそ76%の種が絶滅しました。ここでは塵に覆われた暗い空と、失われた緑として表しています。**衝突の規模・角度・継続期間の数値は表していません。**",
+      "visual": {
+        "earthColor": "#3a3026",
+        "emissionColor": "#8a4a2a",
+        "oceanLevel": 0.87,
+        "cloudDensity": 0.95,
+        "iceCoverage": 0.05,
+        "vegetation": 0.15,
+        "volcanicActivity": 0.3,
+        "cityLights": 0,
+        "satelliteCount": 0
+      },
+      "presentation": {
+        "caption": "塵が日光をさえぎり、緑が失われた地球",
+        "storyboardCut": "カット6 衝突",
+        "tags": [
+          "雲と塵：最大",
+          "植生：激減",
+          "空：暗い",
+          "続いた長さ：数年〜数十年"
+        ]
+      },
+      "events": [
+        "小天体の衝突と、日光をさえぎる塵",
+        "鳥を除く恐竜を含む多くの種の絶滅"
+      ],
+      "status": "象徴表現案・年代は出典あり"
+    },
+    {
+      "id": "IceAge",
+      "displayName": "氷期のくり返し",
+      "rangeLabel": "第四紀の氷期（象徴）",
+      "sortOrder": 7,
+      "summary": "約260万年前から現在まで続く第四紀では、氷期と間氷期がくり返されています。**衝突からおよそ6400万年あとの、別の出来事です。** さらに前の全球凍結（Snowball）とも別の時代です。ここでは氷が中緯度まで広がり、海面が下がった状態として表しています。氷の範囲・海面の高さ・くり返しの周期は表していません。",
+      "visual": {
+        "earthColor": "#1a3a52",
+        "emissionColor": "#6f9fc0",
+        "oceanLevel": 0.82,
+        "cloudDensity": 0.3,
+        "iceCoverage": 0.6,
+        "vegetation": 0.35,
+        "volcanicActivity": 0.04,
+        "cityLights": 0,
+        "satelliteCount": 0
+      },
+      "presentation": {
+        "caption": "氷が中緯度まで広がり、海面が下がった地球",
+        "storyboardCut": "カット7 氷期",
+        "tags": [
+          "氷：広い",
+          "海面：低い",
+          "植生：減る",
+          "衝突とは別の出来事"
+        ]
+      },
+      "events": [
+        "氷期と間氷期のくり返しが始まる"
+      ],
+      "status": "象徴表現案・年代は出典あり"
+    },
+    {
+      "id": "Humans",
+      "displayName": "人類の広がり",
+      "rangeLabel": "人類と農耕のはじまり（象徴）",
+      "sortOrder": 8,
+      "summary": "私たちの種は少なくとも約30万年前に現れ、食べ物を作って周囲を変えはじめたのはここ約1万2000年のことだとされます。ここでは氷が退き、緑が戻り、ごく小さな灯りが現れた状態として表しています。人口・分布・移動は表していません。",
+      "visual": {
+        "earthColor": "#1c4360",
+        "emissionColor": "#4e9a86",
+        "oceanLevel": 0.9,
+        "cloudDensity": 0.38,
+        "iceCoverage": 0.12,
+        "vegetation": 0.7,
+        "volcanicActivity": 0.04,
+        "cityLights": 0.15,
+        "satelliteCount": 0
+      },
+      "presentation": {
+        "caption": "氷が退き、ごく小さな灯りが現れた地球",
+        "storyboardCut": "カット8 人類",
+        "tags": [
+          "氷：退く",
+          "灯り：ごく少ない",
+          "植生：戻る",
+          "衛星：なし"
+        ]
+      },
+      "events": [
+        "私たちの種が現れる",
+        "農耕がはじまり、定住が広がる"
+      ],
+      "status": "象徴表現案・年代は出典あり"
     },
     {
       "id": "Information",
       "displayName": "情報・地球規模接続",
       "rangeLabel": "人類の活動から情報化へ（象徴）",
-      "sortOrder": 5,
+      "sortOrder": 9,
       "summary": "人類の活動と文明の登場を入口に、地球規模の接続へ視点を移します。光点と線は通信網の実データではなく、つながりの象徴表現です。",
       "visual": {
         "earthColor": "#173d5c",
@@ -125,7 +294,12 @@
       "presentation": {
         "caption": "青緑の地球に光点と接続線が並び、周回する衛星が見える象徴的な地球",
         "storyboardCut": "カット5・6 人類と情報化",
-        "tags": ["接続表現：高", "都市光：高", "植生：中", "熱の輝き：なし"]
+        "tags": [
+          "接続表現：高",
+          "都市光：高",
+          "植生：中",
+          "熱の輝き：なし"
+        ]
       },
       "events": [
         "人類の活動と文明が地球の見え方を変える",
@@ -137,7 +311,7 @@
       "id": "Future",
       "displayName": "未来の分岐",
       "rangeLabel": "未確定の未来（仮想）",
-      "sortOrder": 6,
+      "sortOrder": 10,
       "summary": "未来は一つに決まった結末ではありません。ここでは条件の異なる複数の姿を比べるための入口として、同じ地球を仮想的に表しています。",
       "visual": {
         "earthColor": "#14415a",
@@ -153,7 +327,11 @@
       "presentation": {
         "caption": "同じ地球に、案ごとに異なる緑と光を重ねた仮想的な地球",
         "storyboardCut": "カット7 未来分岐",
-        "tags": ["仮想シナリオ", "案別の植生・接続・光", "確率・実現年を示さない"],
+        "tags": [
+          "仮想シナリオ",
+          "案別の植生・接続・光",
+          "確率・実現年を示さない"
+        ],
         "futureNote": "Futureは固定された予測ではなく、条件の異なる複数の未来を比較するための入口です。次の候補はR1 P0では読み取り専用の表示であり、選択・分岐のロジックは実装していません。優劣・発生確率・実現年は示しません。",
         "scenarioCandidates": [
           {
@@ -168,7 +346,9 @@
           }
         ]
       },
-      "events": ["異なる仮定どうしを見比べる入口となる"],
+      "events": [
+        "異なる仮定どうしを見比べる入口となる"
+      ],
       "status": "仮想シナリオ案"
     }
   ]
