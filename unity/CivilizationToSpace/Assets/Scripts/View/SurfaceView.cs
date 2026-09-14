@@ -49,6 +49,24 @@ namespace CivilizationToSpace.View
             /// <summary>建物の高さの目安。</summary>
             public float BuildingHeight;
 
+            /// <summary>
+            /// 建物どうしの間隔。建物の幅に対する倍率。
+            ///
+            /// 1.05なら背中合わせに詰まり、2.5なら道を挟んで並ぶ。
+            /// 新石器時代の集落（チャタルホユック）は道が無く、家が隙間なく
+            /// 詰まっていたことが分かっている。散らして置くと別のものになる。
+            /// </summary>
+            public float BuildingSpacing;
+
+            /// <summary>
+            /// 建物に窓の帯を入れるか。
+            ///
+            /// **新石器時代の集落には入れない。** チャタルホユックの家は
+            /// 屋根から梯子で出入りしており、壁に並ぶ窓という作りではない。
+            /// 高さだけで決めると、少し高い家に窓の帯が出てしまう。
+            /// </summary>
+            public bool Windows;
+
             public int Conifers;
             public int Ferns;
             public int Broadleaves;
@@ -105,7 +123,7 @@ namespace CivilizationToSpace.View
             Scatter(land.Conifers, BuildConifer, land.PlantHeight, false);
             Scatter(land.Ferns, BuildFern, land.PlantHeight * 0.30f, false);
             Scatter(land.Broadleaves, BuildBroadleaf, land.PlantHeight * 0.75f, false);
-            Scatter(land.Buildings, BuildStructure, land.BuildingHeight, true);
+            PlaceBuildings(land);
             // 生きものは手前寄りに置く。奥へ撒くと小さすぎて形が読めない。
             ScatterNear(land.Quadrupeds, BuildQuadruped, land.PlantHeight * 0.85f, 0.34f);
             ScatterNear(land.Bipeds, BuildBiped, land.PlantHeight * 0.40f, 0.26f);
@@ -267,6 +285,51 @@ namespace CivilizationToSpace.View
                 item.transform.localRotation = Quaternion.Euler(0f, turn, 0f);
 
                 ApplyDepth(item, z);
+            }
+        }
+
+        /// <summary>
+        /// 建物を並べる。散らさず、升目の上へ置いてから少しずらす。
+        ///
+        /// **人の建てたものは散らばらない。** 寄り集まって建つ。
+        /// 新石器時代のチャタルホユックは家が背中合わせに詰まり、道が無かった
+        /// （出典は docs/reports にある地表の報告）。ばらばらに撒くと、
+        /// 集落にも都市にも見えない。
+        /// </summary>
+        private void PlaceBuildings(Landscape land)
+        {
+            if (land.Buildings <= 0)
+            {
+                return;
+            }
+
+            var pitch = Mathf.Max(1f, land.BuildingHeight * Mathf.Max(0.4f, land.BuildingSpacing));
+            var columns = Mathf.Max(1, Mathf.CeilToInt(Mathf.Sqrt(land.Buildings * 1.6f)));
+            var rows = Mathf.Max(1, Mathf.CeilToInt(land.Buildings / (float)columns));
+            var originX = -(columns - 1) * pitch * 0.5f;
+            var originZ = Mathf.Lerp(land.NearZ, land.FarZ, 0.34f);
+
+            var placed = 0;
+            for (var row = 0; row < rows && placed < land.Buildings; row++)
+            {
+                for (var column = 0; column < columns && placed < land.Buildings; column++)
+                {
+                    placed++;
+
+                    var jitter = pitch * 0.16f;
+                    var x = originX + column * pitch
+                        + (float)(random.NextDouble() * 2.0 - 1.0) * jitter;
+                    var z = originZ + row * pitch
+                        + (float)(random.NextDouble() * 2.0 - 1.0) * jitter;
+
+                    var height = land.BuildingHeight * (0.7f + (float)random.NextDouble() * 0.8f);
+                    var item = BuildStructure(height);
+                    item.transform.SetParent(transform, false);
+                    item.transform.localPosition = new Vector3(x, 0f, z);
+                    item.transform.localRotation = Quaternion.Euler(0f,
+                        (float)(random.NextDouble() * 2.0 - 1.0) * 8f, 0f);
+                    ApplyDepth(item, z);
+                }
             }
         }
 
@@ -469,11 +532,14 @@ namespace CivilizationToSpace.View
             Piece(root, PrimitiveType.Cube, "Building", new Vector3(0f, height * 0.5f, 0f),
                 new Vector3(width, height, depth));
 
-            // 低いものには屋根を載せる。箱だけだと倉庫にしか見えない。
-            if (height < current.BuildingHeight * 0.8f)
+            // **屋根は平らにする。三角屋根にしない。**
+            // 新石器時代のチャタルホユックは平らな屋根で、屋根から梯子で出入りし、
+            // 家のあいだに道が無かった。三角屋根を載せると別の時代の姿になる。
+            if (!current.Windows || height < current.BuildingHeight * 0.85f)
             {
-                ConePiece(root, "Building", new Vector3(0f, height, 0f),
-                    new Vector3(width * 1.4f, height * 0.5f, depth * 1.4f));
+                Piece(root, PrimitiveType.Cube, "Building",
+                    new Vector3(0f, height * 1.02f, 0f),
+                    new Vector3(width * 1.06f, height * 0.05f, depth * 1.06f));
                 return root;
             }
 

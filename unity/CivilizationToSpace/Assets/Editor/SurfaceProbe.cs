@@ -50,8 +50,8 @@ namespace CivilizationToSpace.EditorTools
         {
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
-            Capture(directory, "1-creatures", Creatures(), new Vector3(0f, 5.5f, -34f), -2.5f);
-            Capture(directory, "2-hamlet", Hamlet(), new Vector3(0f, 20f, -90f), 3f);
+            Capture(directory, "1-creatures", Creatures(), new Vector3(0f, 5.5f, -30f), -2.5f);
+            Capture(directory, "2-hamlet", Hamlet(), new Vector3(0f, 8f, -20f), 2f);
             Capture(directory, "3-city", City(), new Vector3(0f, 58f, -200f), 4f);
         }
 
@@ -66,17 +66,19 @@ namespace CivilizationToSpace.EditorTools
             {
                 SkyHigh = Hex(0x5C8FC8),
                 SkyLow = Hex(0xCBDCE6),
-                Ground = Hex(0x4C6030),
+                Ground = Hex(0x6E5C3E),
                 Trunk = Hex(0x5B4632),
                 Foliage = Hex(0x4C7A3A),
                 Creature = Hex(0x8A7A55),
                 Building = Hex(0xB9BCC0),
                 Window = Hex(0x6E8FA8),
-                NearZ = 13f,
+                NearZ = 7f,
                 FarZ = 260f,
                 HalfWidth = 95f,
-                PlantHeight = 24f,
+                PlantHeight = 26f,
                 BuildingHeight = 0f,
+                BuildingSpacing = 1.05f,
+                Windows = false,
                 Conifers = 34,
                 Ferns = 46,
                 Broadleaves = 22,
@@ -94,23 +96,25 @@ namespace CivilizationToSpace.EditorTools
             {
                 SkyHigh = Hex(0x6796C6),
                 SkyLow = Hex(0xD8E4EA),
-                Ground = Hex(0x5C6A36),
+                Ground = Hex(0x6A6B3C),
                 Trunk = Hex(0x54432F),
                 Foliage = Hex(0x4E7A3E),
                 Creature = Hex(0x7A6A55),
                 Building = Hex(0xC2A882),
                 Window = Hex(0x6E8FA8),
-                NearZ = 55f,
-                FarZ = 420f,
-                HalfWidth = 150f,
-                PlantHeight = 16f,
-                BuildingHeight = 7f,
+                NearZ = 12f,
+                FarZ = 110f,
+                HalfWidth = 46f,
+                PlantHeight = 9f,
+                BuildingHeight = 5f,
+                BuildingSpacing = 1.05f,
+                Windows = false,
                 Conifers = 18,
                 Ferns = 26,
                 Broadleaves = 20,
                 Quadrupeds = 0,
                 Bipeds = 0,
-                Buildings = 30,
+                Buildings = 46,
                 Seed = 8,
             };
         }
@@ -133,6 +137,8 @@ namespace CivilizationToSpace.EditorTools
                 HalfWidth = 330f,
                 PlantHeight = 16f,
                 BuildingHeight = 52f,
+                BuildingSpacing = 2.1f,
+                Windows = true,
                 Conifers = 16,
                 Ferns = 0,
                 Broadleaves = 26,
