@@ -95,6 +95,7 @@ docs/
   planning/IMPLEMENTATION_ORDER_R1_P1.md
   planning/IMPLEMENTATION_ORDER_AFTER_R1_P1.md
   design/DATA_INTERCHANGE_R1.md
+  design/SURFACE_SCENE_SPEC.md
   reports/P0_BROWSER_MOCK_IMPLEMENTATION.md
   reports/R2_P0_HUMAN_REVIEW.md
   reports/R1_P0_HUMAN_REVIEW.md
@@ -149,4 +150,6 @@ unity/CivilizationToSpace/
 - [データ交換形式](docs/design/DATA_INTERCHANGE_R1.md)
 - [R1-P1実装報告](docs/reports/R1_P1_UNITY_IMPLEMENTATION.md)
 - [季節の実装報告](docs/reports/EARTH_SEASONS_FROM_TILTED_AXIS.md)
+- [地表の描き方（仕様）](docs/design/SURFACE_SCENE_SPEC.md)
+- [地表の調査報告](docs/reports/SURFACE_SCENE_RESEARCH.md)
 - [明るさと海岸線の報告](docs/reports/EARTH_BRIGHTNESS_AND_SHORELINE.md)
