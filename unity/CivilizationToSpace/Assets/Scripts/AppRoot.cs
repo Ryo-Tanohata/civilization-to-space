@@ -198,6 +198,9 @@ namespace CivilizationToSpace
         /// <summary>1日の進み具合。0で真夜中、0.5で正午。</summary>
         private float dayPhase = 0.35f;
 
+        /// <summary>地表で見せる衝突の進み具合。落ちて、光って、また落ちる。</summary>
+        private float impactPhase;
+
         /// <summary>検証済みカタログ。読込に失敗した場合は null。</summary>
         public EraCatalog Catalog
         {
@@ -653,6 +656,10 @@ namespace CivilizationToSpace
             surface.Build(SurfaceCatalog.ForEra(era), HideFlags.None);
             surface.SetTimeOfDay(dayPhase, sun);
 
+            // 時代を移ったら、落ちてくるものは最初から見せる。
+            impactPhase = 0f;
+            surface.SetImpact(impactPhase);
+
             var camera = Camera.main;
             if (camera == null)
             {
@@ -805,9 +812,18 @@ namespace CivilizationToSpace
             {
                 dayPhase += View.SceneClock.Delta / SurfaceView.DaySeconds;
                 dayPhase -= Mathf.Floor(dayPhase);
+
+                var seconds = SurfaceCatalog.ForEra(timeline != null ? timeline.CurrentEraIndex : 0)
+                    .ImpactSeconds;
+                if (seconds > 0f)
+                {
+                    impactPhase += View.SceneClock.Delta / seconds;
+                    impactPhase -= Mathf.Floor(impactPhase);
+                }
             }
 
             surface.SetTimeOfDay(dayPhase, sun);
+            surface.SetImpact(impactPhase);
         }
 
         private void OnEraChanged(EraData era)

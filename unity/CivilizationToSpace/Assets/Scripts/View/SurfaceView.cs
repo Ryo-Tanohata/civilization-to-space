@@ -96,6 +96,21 @@ namespace CivilizationToSpace.View
             public Color Rock;
 
             /// <summary>
+            /// 落ちてくるものの見かけの大きさ（メートル相当）。0なら出さない。
+            ///
+            /// 巨大衝突では火星ほどの天体、白亜紀の終わりでは直径10〜15kmの小天体。
+            /// **どちらも実際の大きさも速さも表していない。** 空を横切り、
+            /// 地平線の向こうで光る、という出来事の順序だけを見せる。
+            /// </summary>
+            public float ImpactorSize;
+
+            /// <summary>落ちてくるものの色。</summary>
+            public Color Impactor;
+
+            /// <summary>落ちてから次に落ちるまでの秒数。0なら出さない。</summary>
+            public float ImpactSeconds;
+
+            /// <summary>
             /// 地面が自ら放つ色。黒なら光らない。マグマの時代で使う。
             /// 溶けた地面は光を受ける面ではなく、光そのものだからである。
             /// </summary>
@@ -136,6 +151,10 @@ namespace CivilizationToSpace.View
         private Texture2D skyTexture;
         private Material starMaterial;
         private Texture2D starTexture;
+        private Transform impactor;
+        private Transform flash;
+        private Material impactorMaterial;
+        private Material flashMaterial;
         private Landscape current;
         private System.Random random;
 
@@ -167,6 +186,7 @@ namespace CivilizationToSpace.View
 
             BuildSky(land);
             BuildGround(land);
+            BuildImpactor(land);
 
             Scatter(land.Conifers, BuildConifer, land.PlantHeight, false);
             Scatter(land.Ferns, BuildFern, land.PlantHeight * 0.30f, false);
@@ -200,6 +220,13 @@ namespace CivilizationToSpace.View
             skyTexture = null;
             starMaterial = null;
             starTexture = null;
+
+            DestroyImmediate(impactorMaterial);
+            DestroyImmediate(flashMaterial);
+            impactorMaterial = null;
+            flashMaterial = null;
+            impactor = null;
+            flash = null;
         }
 
         /// <summary>
@@ -237,6 +264,95 @@ namespace CivilizationToSpace.View
             sky.GetComponent<Renderer>().sharedMaterial = skyMaterial;
 
             BuildStars(distance);
+        }
+
+        /// <summary>
+        /// 落ちてくるものと、地平線の向こうの光。
+        ///
+        /// **地表からも衝突が見えるようにする。** 宇宙から見ているときだけ
+        /// ぶつかる様子が出て、地表へ降りると結果しか無いのでは、
+        /// 同じ出来事を見ている感じにならない。
+        ///
+        /// 加算で光らせる。昼でも夜でも、足した明るさとして出る。
+        /// </summary>
+        private void BuildImpactor(Landscape land)
+        {
+            if (land.ImpactorSize <= 0f || land.ImpactSeconds <= 0f)
+            {
+                return;
+            }
+
+            impactorMaterial = StandardMaterials.CreateGlow();
+            impactorMaterial.hideFlags = createdFlags;
+            impactorMaterial.color = Color.white;
+            impactorMaterial.SetColor("_EmissionColor", land.Impactor);
+
+            var body = PrimitiveMeshes.Create(PrimitiveType.Sphere, "Impactor", createdFlags);
+            body.transform.SetParent(transform, false);
+            body.transform.localScale = Vector3.one * land.ImpactorSize;
+            body.GetComponent<Renderer>().sharedMaterial = impactorMaterial;
+            impactor = body.transform;
+
+            flashMaterial = StandardMaterials.CreateGlow();
+            flashMaterial.hideFlags = createdFlags;
+            flashMaterial.color = Color.white;
+            flashMaterial.SetColor("_EmissionColor", Color.black);
+
+            var burst = PrimitiveMeshes.Create(PrimitiveType.Sphere, "Flash", createdFlags);
+            burst.transform.SetParent(transform, false);
+            burst.transform.localPosition = new Vector3(
+                land.HalfWidth * 0.5f, 0f, land.FarZ * 0.95f);
+            burst.GetComponent<Renderer>().sharedMaterial = flashMaterial;
+            flash = burst.transform;
+        }
+
+        /// <summary>
+        /// 落ちてくるものを進める。0で空の高いところ、1で次の周回の始め。
+        ///
+        /// 0.0〜0.72 で空を横切って地平線へ落ち、0.72〜0.88 で光り、そこから消える。
+        /// **落ちる速さも間隔も、実際の出来事を表していない。**
+        /// </summary>
+        public void SetImpact(float phase)
+        {
+            if (impactor == null || flash == null)
+            {
+                return;
+            }
+
+            phase -= Mathf.Floor(phase);
+
+            var land = current;
+            var falling = phase < 0.72f;
+
+            impactor.gameObject.SetActive(falling);
+            if (falling)
+            {
+                var t = phase / 0.72f;
+
+                // 遠くの高いところから、地平線の落ちる場所へ向かわせる。
+                var from = new Vector3(-land.HalfWidth * 1.6f, land.FarZ * 0.62f, land.FarZ * 0.9f);
+                var to = new Vector3(land.HalfWidth * 0.5f, 0f, land.FarZ * 0.95f);
+                impactor.localPosition = Vector3.Lerp(from, to, t * t);
+
+                // 近づくほど明るくする。遠いうちは点にしか見えない。
+                impactorMaterial.SetColor("_EmissionColor", land.Impactor * (0.35f + t * 0.9f));
+            }
+
+            var burning = phase >= 0.72f && phase < 0.92f;
+            flash.gameObject.SetActive(burning);
+            if (burning)
+            {
+                var t = (phase - 0.72f) / 0.20f;
+
+                // 一気に広がって、ゆっくり消える。
+                // **広がる大きさに上限を置く。**
+                // 大きいものほど大きく光らせると、光の球がカメラを包んでしまう。
+                // 内側から見ると面が裏を向くので、何も映らなくなる。
+                var widest = Mathf.Min(land.ImpactorSize * 26f, land.FarZ * 0.5f);
+                var size = Mathf.Lerp(land.ImpactorSize * 1.5f, widest, Mathf.Sqrt(t));
+                flash.localScale = Vector3.one * size;
+                flashMaterial.SetColor("_EmissionColor", land.Impactor * (1f - t) * 2.2f);
+            }
         }
 
         /// <summary>

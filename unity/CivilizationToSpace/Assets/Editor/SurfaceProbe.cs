@@ -73,10 +73,30 @@ namespace CivilizationToSpace.EditorTools
                 SurfaceCatalog.EyeForEra(era, out eye, out pitch);
                 Capture(directory, EraNames[era] + "-night", SurfaceCatalog.ForEra(era), eye, pitch, 0.02f);
             }
+
+            // 落ちてくるものを、順を追って撮る。
+            foreach (var era in new[] { 0, 5 })
+            {
+                Vector3 eye;
+                float pitch;
+                SurfaceCatalog.EyeForEra(era, out eye, out pitch);
+                var phases = new[] { 0.10f, 0.45f, 0.68f, 0.76f, 0.86f };
+                for (var i = 0; i < phases.Length; i++)
+                {
+                    Capture(directory, EraNames[era] + "-impact" + (i + 1),
+                        SurfaceCatalog.ForEra(era), eye, pitch, 0.5f, phases[i]);
+                }
+            }
         }
 
         private static void Capture(string directory, string name, SurfaceView.Landscape land,
             Vector3 eye, float pitch, float timeOfDay)
+        {
+            Capture(directory, name, land, eye, pitch, timeOfDay, -1f);
+        }
+
+        private static void Capture(string directory, string name, SurfaceView.Landscape land,
+            Vector3 eye, float pitch, float timeOfDay, float impactPhase)
         {
             var lightObject = new GameObject("Sun");
             var light = lightObject.AddComponent<Light>();
@@ -88,6 +108,7 @@ namespace CivilizationToSpace.EditorTools
 
             // 空の色・星の明るさ・光の向きと強さは、時刻からまとめて決まる。
             view.SetTimeOfDay(timeOfDay, light);
+            view.SetImpact(impactPhase < 0f ? 0.99f : impactPhase);
 
             var cameraObject = new GameObject("Camera");
             var camera = cameraObject.AddComponent<Camera>();

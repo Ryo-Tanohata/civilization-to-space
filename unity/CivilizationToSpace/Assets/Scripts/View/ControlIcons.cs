@@ -110,6 +110,32 @@ namespace CivilizationToSpace.View
             return c.ToSprite();
         }
 
+        /// <summary>
+        /// 視点の切り替え。**押したら何が見えるか**を描く。
+        ///
+        /// いま地表にいるなら、押すと宇宙へ出るので丸い地球を描く。
+        /// いま宇宙にいるなら、押すと地表へ降りるので、地平線と丘と木を描く。
+        /// いまいる場所を描くと、押した先が分からない。
+        /// </summary>
+        public static Sprite Surface(bool onSurface)
+        {
+            var c = new Raster();
+
+            if (onSurface)
+            {
+                // 宇宙へ出る。丸い地球と、まわりの軌道。
+                c.Disc(Middle, Middle, 15f, Line, 1f);
+                c.Ring(Middle, Middle, 26f, 23f, Muted, 1f);
+                return c.ToSprite();
+            }
+
+            // 地表へ降りる。地平線と、その上に立つ丘と木。
+            c.Rect(8f, 40f, 56f, 44f, Line, 1f);
+            c.Triangle(14f, 40f, 30f, 40f, 22f, 22f, Line, 1f);
+            c.Triangle(34f, 40f, 52f, 40f, 43f, 16f, Muted, 1f);
+            return c.ToSprite();
+        }
+
         /// <summary>前へ・次へ。向きだけを変えた三角。</summary>
         public static Sprite Step(bool forward)
         {

@@ -97,6 +97,7 @@ namespace CivilizationToSpace.View
                 Building = Hex(0xB9BCC0),
                 Window = Hex(0x6E8FA8),
                 Rock = Hex(0x6A625A),
+                Impactor = Hex(0xFFB070),
                 Seed = seed,
             };
         }
@@ -122,6 +123,11 @@ namespace CivilizationToSpace.View
             land.GroundGlow = Hex(0x8A2A08);
             land.Rock = Hex(0x16100E);
             land.Rocks = 70;
+
+            // 巨大衝突。大きく、ゆっくり落ちる。実際の大きさも速さも表していない。
+            land.ImpactorSize = 46f;
+            land.Impactor = Hex(0xFF9A5A);
+            land.ImpactSeconds = 26f;
             land.PlantHeight = 16f;
             land.Conifers = 0;
             land.Ferns = 0;
@@ -231,6 +237,11 @@ namespace CivilizationToSpace.View
             land.Ground = Hex(0x39322C);
             land.Trunk = Hex(0x2E261F);
             land.PlantHeight = 22f;
+
+            // 白亜紀の終わりの衝突。小さく速い。実際の大きさも速さも表していない。
+            land.ImpactorSize = 7f;
+            land.Impactor = Hex(0xFFD08A);
+            land.ImpactSeconds = 14f;
             land.Conifers = 0;
             land.Ferns = 0;
             land.Broadleaves = 0;

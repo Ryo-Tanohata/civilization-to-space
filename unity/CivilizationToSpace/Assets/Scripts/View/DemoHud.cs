@@ -348,12 +348,21 @@ namespace CivilizationToSpace.View
                 ControlIcons.Motion(motion.Reduced));
             SetNormalColor(motionButton, motion.Reduced ? ButtonSelectedColor : ButtonColor);
 
-            // いま見ている場所ではなく、押したら何が見えるかを書く。
+            // いま見ている場所ではなく、押したら何が見えるかを出す。
             SetButtonFace(
                 surfaceButton,
-                SurfaceMode ? (compact ? "宇宙から" : "宇宙から見る") : (compact ? "地表から" : "地表から見る"),
-                null);
+                SurfaceMode ? "宇宙から見る" : "地表から見る",
+                ControlIcons.Surface(SurfaceMode));
             SetNormalColor(surfaceButton, ViewButtonColor);
+
+            // **AttachControlInfo を呼んではいけない。** 呼ぶたびに
+            // LongPressInfo を足す作りなので、描き直しのたびに積み上がる。
+            // すでに付いている札の文字だけを書き換える。
+            var surfaceInfo = surfaceButton.GetComponent<LongPressInfo>();
+            if (surfaceInfo != null)
+            {
+                surfaceInfo.Title = SurfaceMode ? "宇宙から見る" : "地表から見る";
+            }
 
             // コマ送り中は時間を止めている。止めていることが分からないと、
             // 画面が固まったのか操作待ちなのかが判断できない。
@@ -590,7 +599,7 @@ namespace CivilizationToSpace.View
         {
             var bar = UiFactory.CreatePanel(parent, "PlaybackBar", BarColor);
             playbackRoot = bar.rectTransform;
-            playbackRoot.gameObject.AddComponent<LayoutElement>().preferredHeight = 52f;
+            playbackRoot.gameObject.AddComponent<LayoutElement>().preferredHeight = 68f;
             UiFactory.AddHorizontalLayout(playbackRoot, 8, 8f);
 
             if (compact)
@@ -601,10 +610,9 @@ namespace CivilizationToSpace.View
                 UiFactory.SetWidth(speedButton.gameObject, ControlIconSize, 0f);
                 AttachControlInfo(speedButton, "再生の速さ");
 
-                // 絵にしにくいので、狭い画面でも文字で出す。
-                surfaceButton = UiFactory.CreateButton(playbackRoot, "Surface", 13, ViewButtonColor, TextColor);
-                UiFactory.SetWidth(surfaceButton.gameObject, ControlIconSize + 34f, 0f);
-                AttachControlInfo(surfaceButton, "地表と宇宙を切り替える");
+                surfaceButton = CreateControlIcon(
+                    playbackRoot, "Surface", ControlIcons.Surface(false), "地表から見る");
+                SetNormalColor(surfaceButton, ViewButtonColor);
             }
             else
             {
@@ -757,8 +765,14 @@ namespace CivilizationToSpace.View
             return row;
         }
 
-        /// <summary>段階ボタン1個の大きさ。指で押せる下限（約44）を下回らせない。</summary>
-        private const float StageButtonSize = 52f;
+        /// <summary>
+        /// 段階ボタン1個の大きさ。
+        ///
+        /// 指で押せる下限（約44）は元から満たしていたが、**実機で押しにくい**
+        /// という指摘を受けた。20段階が2行に詰まると隣との間隔が足りない。
+        /// 下限ではなく、余裕をもって押せる大きさにする。
+        /// </summary>
+        private const float StageButtonSize = 68f;
 
         /// <summary>この縦横比より横長なら、段階ボタンを1行に並べる。</summary>
         private const float WideAspect = 1.3f;
@@ -769,8 +783,11 @@ namespace CivilizationToSpace.View
         /// </summary>
         private bool compact;
 
-        /// <summary>絵のボタンの大きさ。指で押せる下限（約44）を下回らせない。</summary>
-        private const float ControlIconSize = 46f;
+        /// <summary>
+        /// 絵のボタンの大きさ。
+        /// 下限（約44）ぎりぎりでは押しにくいという指摘を受けたため、余裕をもたせる。
+        /// </summary>
+        private const float ControlIconSize = 60f;
 
         /// <summary>コマ送りのために時間を止めているかどうか。</summary>
         private bool stepping;
