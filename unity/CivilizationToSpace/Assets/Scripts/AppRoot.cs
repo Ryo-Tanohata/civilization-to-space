@@ -306,6 +306,7 @@ namespace CivilizationToSpace
             earth.Build();
 
             framing = AttachFraming(camera);
+            AttachSun(motion);
 
             if (formationResult != null && formationResult.Ok)
             {
@@ -371,6 +372,47 @@ namespace CivilizationToSpace
             }
 
             return framing;
+        }
+
+        /// <summary>
+        /// シーンの平行光を太陽役として動かせるようにする。
+        ///
+        /// シーンのアセットには手を入れず、カメラと同じく実行時にコンポーネントを付ける。
+        /// 呼ばれるのは BuildView からのみで、BuildView は再生中にしか走らない。
+        /// 編集中に光の向きが書き換わって .unity の差分が増えることはない。
+        /// </summary>
+        private static void AttachSun(MotionSettings motion)
+        {
+            var light = FindDirectionalLight();
+            if (light == null)
+            {
+                return; // 平行光が無いシーンでは何もしない。既存の見え方のまま動かす。
+            }
+
+            var sun = light.GetComponent<SunLight>();
+            if (sun == null)
+            {
+                sun = light.gameObject.AddComponent<SunLight>();
+                sun.hideFlags = HideFlags.DontSave;
+            }
+
+            sun.SetMotionSettings(motion);
+            sun.Apply();
+        }
+
+        /// <summary>シーンの平行光を1つ探す。複数あれば最初に見つかったものを太陽役にする。</summary>
+        private static Light FindDirectionalLight()
+        {
+            var lights = UnityEngine.Object.FindObjectsOfType<Light>();
+            for (var i = 0; i < lights.Length; i++)
+            {
+                if (lights[i].type == LightType.Directional)
+                {
+                    return lights[i];
+                }
+            }
+
+            return null;
         }
 
         /// <summary>

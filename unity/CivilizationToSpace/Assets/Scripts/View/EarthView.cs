@@ -32,6 +32,13 @@ namespace CivilizationToSpace.View
         /// <summary>自転の速さ（度／秒）。1周およそ45秒。</summary>
         private const float SpinDegreesPerSecond = 8f;
 
+        /// <summary>
+        /// 地軸の傾き（度）。世界座標に対して固定する。
+        /// SunLight が光の向きを一周させるため、この傾きが固定されていることで
+        /// どちらの極が照らされるかが季節で入れ替わる。
+        /// </summary>
+        private const float AxialTiltDegrees = 23.4f;
+
         /// <summary>雲を地表より少し速く流す（度／秒）。</summary>
         private const float CloudDegreesPerSecond = 11f;
 
@@ -83,9 +90,16 @@ namespace CivilizationToSpace.View
         {
             createdFlags = flags;
 
+            // 地軸。自転と雲はこの下でまわる。傾きは世界座標に対して動かさない。
+            var axisObject = new GameObject("Axis");
+            axisObject.hideFlags = flags;
+            axisObject.transform.SetParent(transform, false);
+            axisObject.transform.localRotation = Quaternion.Euler(0f, 0f, -AxialTiltDegrees);
+            var axis = axisObject.transform;
+
             var spinObject = new GameObject("Spin");
             spinObject.hideFlags = flags;
-            spinObject.transform.SetParent(transform, false);
+            spinObject.transform.SetParent(axis, false);
             spin = spinObject.transform;
 
             planet = new PlanetMesh(BaseRadius);
@@ -100,7 +114,7 @@ namespace CivilizationToSpace.View
 
             var cloudObject = new GameObject("CloudSpin");
             cloudObject.hideFlags = flags;
-            cloudObject.transform.SetParent(transform, false);
+            cloudObject.transform.SetParent(axis, false);
             cloudSpin = cloudObject.transform;
 
             cloudMaterial = CreateSurfaceMaterial(true, 2, false);
