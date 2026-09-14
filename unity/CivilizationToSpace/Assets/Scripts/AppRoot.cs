@@ -823,15 +823,24 @@ namespace CivilizationToSpace
                 dayPhase -= Mathf.Floor(dayPhase);
 
                 var land = SurfaceCatalog.ForEra(timeline != null ? timeline.CurrentEraIndex : 0);
-                if (land.ImpactSeconds > 0f)
+
+                // **出来事の周期は、1段階を見ている長さに合わせる。**
+                // 固定の秒数にしていたときは、落ちきる前に次の時代へ移ってしまい、
+                // 再生したまま見ていると一度も見られなかった。
+                // 段階の長さに合わせれば、速度を変えても必ず一巡する。
+                var period = Mathf.Max(0.3f, playback != null
+                    ? playback.EraStepSeconds
+                    : Core.TimelinePlayback.BaseStepSeconds);
+
+                if (land.ShowsImpact)
                 {
-                    impactPhase += View.SceneClock.Delta / land.ImpactSeconds;
+                    impactPhase += View.SceneClock.Delta / period;
                     impactPhase -= Mathf.Floor(impactPhase);
                 }
 
-                if (land.RocketSeconds > 0f)
+                if (land.ShowsRocket)
                 {
-                    rocketPhase += View.SceneClock.Delta / land.RocketSeconds;
+                    rocketPhase += View.SceneClock.Delta / period;
                     rocketPhase -= Mathf.Floor(rocketPhase);
                 }
             }

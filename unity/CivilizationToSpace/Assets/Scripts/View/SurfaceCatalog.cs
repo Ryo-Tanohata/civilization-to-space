@@ -129,7 +129,7 @@ namespace CivilizationToSpace.View
             // 巨大衝突。大きく、ゆっくり落ちる。実際の大きさも速さも表していない。
             land.ImpactorSize = 46f;
             land.Impactor = Hex(0xFF9A5A);
-            land.ImpactSeconds = 26f;
+            land.ShowsImpact = true;
             land.PlantHeight = 16f;
             land.Conifers = 0;
             land.Ferns = 0;
@@ -243,7 +243,7 @@ namespace CivilizationToSpace.View
             // 白亜紀の終わりの衝突。小さく速い。実際の大きさも速さも表していない。
             land.ImpactorSize = 7f;
             land.Impactor = Hex(0xFFD08A);
-            land.ImpactSeconds = 14f;
+            land.ShowsImpact = true;
             land.Conifers = 0;
             land.Ferns = 0;
             land.Broadleaves = 0;
@@ -322,7 +322,7 @@ namespace CivilizationToSpace.View
             land.Windows = true;
 
             // 衛星が上がり始めた時代。地表からも打ち上げが見える。
-            land.RocketSeconds = 12f;
+            land.ShowsRocket = true;
             land.Conifers = 16;
             land.Ferns = 0;
             land.Broadleaves = 26;
@@ -342,7 +342,7 @@ namespace CivilizationToSpace.View
             land.Window = Hex(0x74C8B4);
             land.BuildingHeight = 78f;
             land.BuildingSpacing = 2.0f;
-            land.RocketSeconds = 9f;
+            land.ShowsRocket = true;
             land.Buildings = 210;
             land.Broadleaves = 40;
             return land;

@@ -107,18 +107,27 @@ namespace CivilizationToSpace.View
             /// <summary>落ちてくるものの色。</summary>
             public Color Impactor;
 
-            /// <summary>落ちてから次に落ちるまでの秒数。0なら出さない。</summary>
-            public float ImpactSeconds;
+            /// <summary>
+            /// 落ちてくるものを出すか。
+            ///
+            /// **周期は持たない。1段階を見ているあいだにちょうど一巡させる。**
+            /// はじめ14秒や26秒の周期にしていたが、1段階は1倍速で4秒しかない。
+            /// 再生していると、落ちきる前に次の時代へ移ってしまい、
+            /// **一度も見られなかった。** 周期は段階の長さに合わせる。
+            /// </summary>
+            public bool ShowsImpact;
 
             /// <summary>
-            /// 打ち上げから次の打ち上げまでの秒数。0なら出さない。
+            /// 打ち上げを出すか。
             ///
             /// **地表からも打ち上げが見えるようにする。** 宇宙の側では衛星も拠点も
             /// 地表から上がる様子を出しているのに、地表へ降りると何も上がらないのでは、
             /// 同じ出来事を見ている感じにならない。
+            ///
+            /// 落ちてくるものと同じく、周期は段階の長さに合わせる。
             /// **実際の高度も速度も打ち上げにかかる時間も表していない。**
             /// </summary>
-            public float RocketSeconds;
+            public bool ShowsRocket;
 
             /// <summary>機体の色と、噴射の色。</summary>
             public Color Rocket;
@@ -322,7 +331,7 @@ namespace CivilizationToSpace.View
         /// </summary>
         private void BuildImpactor(Landscape land)
         {
-            if (land.ImpactorSize <= 0f || land.ImpactSeconds <= 0f)
+            if (land.ImpactorSize <= 0f || !land.ShowsImpact)
             {
                 return;
             }
@@ -395,7 +404,7 @@ namespace CivilizationToSpace.View
         /// </summary>
         private void BuildRocket(Landscape land)
         {
-            if (land.RocketSeconds <= 0f)
+            if (!land.ShowsRocket)
             {
                 return;
             }
