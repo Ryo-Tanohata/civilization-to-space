@@ -25,11 +25,22 @@ namespace CivilizationToSpace.View
         /// <summary>山や谷を作る細かいノイズ。</summary>
         private const float ReliefFrequency = 9f;
 
-        private static readonly Color32 OceanDeep = new Color32(0x0C, 0x2C, 0x52, 0xFF);
-        private static readonly Color32 OceanShallow = new Color32(0x2E, 0x7A, 0xB4, 0xFF);
-        private static readonly Color32 Vegetation = new Color32(0x3C, 0x78, 0x30, 0xFF);
-        private static readonly Color32 DryLand = new Color32(0x96, 0x7E, 0x5C, 0xFF);
-        private static readonly Color32 HighLand = new Color32(0xB4, 0xA8, 0x96, 0xFF);
+        // **陸・浅い海・深い海を、明るさで3段に分ける。**
+        //
+        // 以前は陸と浅い海の明るさがほぼ同じで（どの時代でも差が1未満）、
+        // 違いは色みだけだった。光が弱まる側では色みが読めなくなり、
+        // 海岸線が消えていた。いまは陸165〜172、浅い海126、深い海78で、
+        // どの境目にもおよそ40〜48の差がある。
+        //
+        // **海を明るくすることが、地球全体を明るくすることでもある。**
+        // 海のある時代は面積の9割が海なので、全体の明るさは海の色でほぼ決まる。
+        // 陸だけを明るくしても画面はほとんど変わらない。
+        // 実際の海はもっと暗いが、ここは象徴表現であり反射率を表していない。
+        private static readonly Color32 OceanDeep = new Color32(0x17, 0x5A, 0x93, 0xFF);
+        private static readonly Color32 OceanShallow = new Color32(0x3E, 0x93, 0xD2, 0xFF);
+        private static readonly Color32 Vegetation = new Color32(0x7D, 0xC4, 0x5C, 0xFF);
+        private static readonly Color32 DryLand = new Color32(0xD6, 0xBE, 0x90, 0xFF);
+        private static readonly Color32 HighLand = new Color32(0xED, 0xE6, 0xD6, 0xFF);
         private static readonly Color32 Ice = new Color32(0xE8, 0xF2, 0xF8, 0xFF);
         private static readonly Color32 Magma = new Color32(0xFF, 0x6A, 0x22, 0xFF);
         private static readonly Color32 CityGlow = new Color32(0xFF, 0xD8, 0x9E, 0xFF);
@@ -159,7 +170,10 @@ namespace CivilizationToSpace.View
                     Color surface;
                     if (isLand)
                     {
-                        var ground = Color.Lerp((Color)DryLand, earthColor, 0.45f);
+                        // 時代の色へ寄せる量を0.45から0.22へ下げる。
+                        // 時代の色はどれも濃紺（#1d4363 など）で、寄せるほど陸も海も
+                        // 同じ色へ沈む。海陸を見分けられる量に留める。
+                        var ground = Color.Lerp((Color)DryLand, earthColor, 0.20f);
 
                         // 高い山だけ岩肌の色にする。低地まで灰色にすると緑が消える。
                         surface = Color.Lerp(ground, (Color)HighLand, Mathf.InverseLerp(0.58f, 1f, height01));
@@ -173,7 +187,7 @@ namespace CivilizationToSpace.View
                     else
                     {
                         surface = Color.Lerp((Color)OceanShallow, (Color)OceanDeep, depth[index]);
-                        surface = Color.Lerp(surface, earthColor, 0.18f);
+                        surface = Color.Lerp(surface, earthColor, 0.10f);
                     }
 
                     // 極から氷で覆う。境目はノイズでぼかす。

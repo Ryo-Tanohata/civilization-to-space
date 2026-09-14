@@ -16,6 +16,8 @@
 
 **地軸の傾きから季節が現れます。** 地球を23.4度傾け、太陽の向きを一年かけて地軸に対し上下に振ります。昼夜の境目が斜めに倒れ、極の白夜と極夜が入れ替わります。1年は40秒で、自転10回ぶんです。形成から月までを通して見ると季節がおよそ2回巡ります。公転そのものは表していません。一周させると1年に一度カメラから見て真っ暗になり、地表が読めなくなるためです。採否の判断と実測値は[季節の実装報告](docs/reports/EARTH_SEASONS_FROM_TILTED_AXIS.md)にあります。
 
+**海と陸がはっきり分かれ、画面が明るくなりました。** 地球を囲む雲と大気の球が地表へ影を落としており、地表は太陽ではなく環境光だけで照らされていました。影を落とさないようにし、陸・浅い海・深い海を明るさで3段に分け、太陽の強さを釣り合う値へ下げています。明るさは2倍になり、昼と夜の差は保たれています。原因の切り分けと実測値は[明るさと海岸線の報告](docs/reports/EARTH_BRIGHTNESS_AND_SHORELINE.md)にあります。
+
 R1のブラウザモックレビューは[実施済み](docs/reports/R1_P0_HUMAN_REVIEW.md)です。人によるUnityレビューは未実施で、FR-04（Futureの2案切替）はブラウザ・Unityとも未実装です。したがってR1全体のDefinition of Doneは未達です。文書の仕様・優先度はレビュー用の初案のままです。
 
 ## 参照した資料
@@ -88,6 +90,7 @@ docs/
   reports/R1_P0_HUMAN_REVIEW.md
   reports/R1_P1_UNITY_IMPLEMENTATION.md
   reports/EARTH_SEASONS_FROM_TILTED_AXIS.md
+  reports/EARTH_BRIGHTNESS_AND_SHORELINE.md
 site/
   index.html                       画面構造（R1・R2の両パネル）
   styles.css                       R1のCSSのみの象徴的地球とレイアウト
@@ -136,3 +139,4 @@ unity/CivilizationToSpace/
 - [データ交換形式](docs/design/DATA_INTERCHANGE_R1.md)
 - [R1-P1実装報告](docs/reports/R1_P1_UNITY_IMPLEMENTATION.md)
 - [季節の実装報告](docs/reports/EARTH_SEASONS_FROM_TILTED_AXIS.md)
+- [明るさと海岸線の報告](docs/reports/EARTH_BRIGHTNESS_AND_SHORELINE.md)

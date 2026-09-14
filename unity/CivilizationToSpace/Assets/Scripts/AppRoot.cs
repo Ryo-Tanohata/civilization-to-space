@@ -75,8 +75,20 @@ namespace CivilizationToSpace
         /// </summary>
         public const float YearSeconds = 40f;
 
-        /// <summary>太陽の強さ。</summary>
-        public const float SunIntensity = 2.4f;
+        /// <summary>
+        /// 太陽の強さ。
+        ///
+        /// **2.4から1.2へ下げた。**
+        /// 2.4は、地球を囲む雲と大気の球が地表へ影を落としていたぶんを
+        /// 補うための値だった（<see cref="View.EarthView"/> の CreateSphere にある）。
+        /// 影を落とさないようにしたところ、そのままでは明るすぎて、
+        /// Hadean と Snowball では円板の4割以上が白へ飽和した。
+        ///
+        /// 1.2にすると、白飛びは最大1.1%まで下がり、明るさは影があったころの
+        /// 約2倍、昼と夜の差は12.8倍になる。前の版が狙っていた差（昼129／夜10、
+        /// およそ12.9倍）とほぼ同じである。
+        /// </summary>
+        public const float SunIntensity = 1.2f;
 
         /// <summary>
         /// 環境光。どこからともなく当たる明るさで、夜側の暗さを決める。

@@ -221,7 +221,13 @@ namespace CivilizationToSpace.View
                 shell.transform.SetParent(spin, false);
                 shell.transform.localScale = Vector3.one * GlowScales[i];
                 shell.GetComponent<MeshFilter>().sharedMesh = planet.Mesh;
-                shell.GetComponent<MeshRenderer>().sharedMaterial = material;
+
+                var shellRenderer = shell.GetComponent<MeshRenderer>();
+                shellRenderer.sharedMaterial = material;
+
+                // 溶岩のにじみも地球を囲む球である。影を落とさせない。
+                shellRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+
                 shell.SetActive(false);
 
                 glowShells[i] = shell;
@@ -782,7 +788,19 @@ namespace CivilizationToSpace.View
             var sphere = PrimitiveMeshes.Create(PrimitiveType.Sphere, name, createdFlags);
             sphere.transform.SetParent(parent != null ? parent : transform, false);
             sphere.transform.localScale = Vector3.one * (BaseRadius * 2f * radiusScale);
-            sphere.GetComponent<Renderer>().sharedMaterial = material;
+
+            var renderer = sphere.GetComponent<Renderer>();
+            renderer.sharedMaterial = material;
+
+            // **影を落とさせない。**
+            // ここで作る球は雲（1.05倍）と大気（1.075倍）で、どちらも地球を丸ごと囲む。
+            // 半透明のシェーダーだが FallBack "Diffuse" が影を落とすパスを持つため、
+            // 既定のままだと地球の地表が自分を囲む球の影に入り、
+            // 太陽ではなく環境光だけで照らされる。実測で、焼いた地表の輝度が
+            // 平均132あるのに描画結果は36まで落ちていた。月に殻が無く明るいのは
+            // この影響を受けていないためである。
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+
             return sphere;
         }
 
