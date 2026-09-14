@@ -289,6 +289,24 @@ namespace CivilizationToSpace.EditorTools
                         Mathf.Approximately(framing.Zoom, EarthFraming.MaximumZoom),
                         "仰角=" + framing.Pitch + " 寄り=" + framing.Zoom);
 
+                    // 指の動きと視点の向きの関係を確かめる。
+                    // 画面の画素では確かめにくいので、割り当てを直に呼ぶ。
+                    // Unityの画面座標は上へ行くほど y が大きいので、
+                    // 指を下へ動かすと delta.y は負になる。
+                    framing.ResetView();
+                    var pitchBefore = framing.Pitch;
+                    EarthCameraControl.ApplyDrag(framing, new Vector2(0f, -120f), 800);
+                    Record("U-41 指を下へ動かすと北極を見下ろす向きになる",
+                        framing.Pitch > pitchBefore + 1f,
+                        "仰角 " + pitchBefore.ToString("F1") + "度 → " + framing.Pitch.ToString("F1") + "度");
+
+                    framing.ResetView();
+                    var yawBefore = framing.Yaw;
+                    EarthCameraControl.ApplyDrag(framing, new Vector2(120f, 0f), 800);
+                    Record("U-42 指を右へ動かすと地表が右へ流れる向きになる",
+                        framing.Yaw > yawBefore + 1f,
+                        "方位 " + yawBefore.ToString("F1") + "度 → " + framing.Yaw.ToString("F1") + "度");
+
                     framing.ResetView();
                     Record("U-35 視点をもどすと既定へ戻る",
                         Mathf.Approximately(framing.Yaw, 0f) && Mathf.Approximately(framing.Pitch, 0f) &&

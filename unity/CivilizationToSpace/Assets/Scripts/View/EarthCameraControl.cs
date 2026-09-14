@@ -141,11 +141,36 @@ namespace CivilizationToSpace.View
                 return;
             }
 
-            var height = Mathf.Max(1, Screen.height);
-            var scale = DegreesPerScreenHeight / height;
+            ApplyDrag(framing, delta, Screen.height);
+        }
 
-            framing.Yaw -= delta.x * scale;
-            framing.Pitch += delta.y * scale;
+        /// <summary>
+        /// 指の動きぶんだけ視点を回す。
+        ///
+        /// **指に地球がついてくる向きにする。**
+        /// 以前は逆だった。指を下へすべらせるとカメラが下がり、地球は上を向いた。
+        /// 指を右へすべらせると地表は左へ流れた。つかんで回している感じにならない。
+        ///
+        /// カメラは地球のまわりを回るので、地表を指と同じ向きへ動かすには、
+        /// カメラを指と反対へ回す。指を下へ動かせばカメラは上がり、北極を見下ろす。
+        /// 指を右へ動かせばカメラは左へ回り、地表は右へ流れる。
+        ///
+        /// <paramref name="delta"/> は画面座標での動き。Unityの画面座標は
+        /// 上へ行くほどyが大きいので、指を下へ動かすと y は負になる。
+        ///
+        /// 入力の取り出しと分けてあるのは、点検ツールから向きを確かめられるようにするため。
+        /// </summary>
+        public static void ApplyDrag(EarthFraming framing, Vector2 delta, int screenHeight)
+        {
+            if (framing == null)
+            {
+                return;
+            }
+
+            var scale = DegreesPerScreenHeight / Mathf.Max(1, screenHeight);
+
+            framing.Yaw += delta.x * scale;
+            framing.Pitch -= delta.y * scale;
             framing.Apply();
         }
 
