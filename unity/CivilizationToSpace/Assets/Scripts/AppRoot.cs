@@ -514,6 +514,7 @@ namespace CivilizationToSpace
             ApplyFormationStage();
             ApplyMoonPhase();
             ApplyFraming();
+            ApplyDefaultView();
         }
 
         /// <summary>
@@ -817,7 +818,36 @@ namespace CivilizationToSpace
             ApplyMoonPhase();
             ApplyFraming();
 
-            // 地表を見ているあいだに時代が変われば、風景も組み直す。
+            ApplyDefaultView();
+        }
+
+        /// <summary>
+        /// その段階の既定の視点にする。
+        ///
+        /// **時代を移るたびに既定へ戻す。** 手で切り替えたぶんは、その時代を
+        /// 見ているあいだだけ保たれる。持ち越すと、地表が見どころの時代へ来ても
+        /// 宇宙のままになり、何も起きていないように見える。
+        ///
+        /// 形成過程と月への展開は必ず宇宙から見せる。地球ができることも
+        /// 月へ出ていくことも、地球全体が見えていないと分からない。
+        /// </summary>
+        private void ApplyDefaultView()
+        {
+            if (timeline == null || surface == null)
+            {
+                return;
+            }
+
+            var wantSurface = timeline.InEra
+                             && SurfaceCatalog.DefaultsToSurface(timeline.CurrentEraIndex);
+
+            if (wantSurface != surfaceMode)
+            {
+                SetSurfaceMode(wantSurface);
+                return;
+            }
+
+            // 視点が変わらないときも、地表なら風景だけは組み直す。
             if (surfaceMode)
             {
                 BuildSurface();

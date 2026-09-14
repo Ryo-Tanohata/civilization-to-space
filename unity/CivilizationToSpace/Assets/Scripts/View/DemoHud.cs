@@ -28,6 +28,14 @@ namespace CivilizationToSpace.View
 
         /// <summary>月への展開のボタン。時代と同じものに見せないため色を分ける。</summary>
         private static readonly Color MoonButtonColor = new Color(0.20f, 0.17f, 0.26f, 1f);
+        /// <summary>
+        /// 視点を切り替えるボタンの色。ほかの操作と違う色にする。
+        ///
+        /// 再生や速度と同じ見た目だと、押せることに気づかれない。
+        /// 実際、見つけられないという指摘を受けた。
+        /// </summary>
+        private static readonly Color ViewButtonColor = new Color(0.16f, 0.40f, 0.42f, 1f);
+
         private static readonly Color MoonButtonSelectedColor = new Color(0.38f, 0.32f, 0.50f, 1f);
 
         /// <summary>形成過程のボタン。時代とも月とも分けて見せる。</summary>
@@ -340,11 +348,12 @@ namespace CivilizationToSpace.View
                 ControlIcons.Motion(motion.Reduced));
             SetNormalColor(motionButton, motion.Reduced ? ButtonSelectedColor : ButtonColor);
 
+            // いま見ている場所ではなく、押したら何が見えるかを書く。
             SetButtonFace(
                 surfaceButton,
-                SurfaceMode ? (compact ? "宇宙" : "宇宙へもどる") : (compact ? "地表" : "地表を見る"),
+                SurfaceMode ? (compact ? "宇宙から" : "宇宙から見る") : (compact ? "地表から" : "地表から見る"),
                 null);
-            SetNormalColor(surfaceButton, SurfaceMode ? ButtonSelectedColor : ButtonColor);
+            SetNormalColor(surfaceButton, ViewButtonColor);
 
             // コマ送り中は時間を止めている。止めていることが分からないと、
             // 画面が固まったのか操作待ちなのかが判断できない。
@@ -593,8 +602,8 @@ namespace CivilizationToSpace.View
                 AttachControlInfo(speedButton, "再生の速さ");
 
                 // 絵にしにくいので、狭い画面でも文字で出す。
-                surfaceButton = UiFactory.CreateButton(playbackRoot, "Surface", 13, ButtonColor, TextColor);
-                UiFactory.SetWidth(surfaceButton.gameObject, ControlIconSize + 12f, 0f);
+                surfaceButton = UiFactory.CreateButton(playbackRoot, "Surface", 13, ViewButtonColor, TextColor);
+                UiFactory.SetWidth(surfaceButton.gameObject, ControlIconSize + 34f, 0f);
                 AttachControlInfo(surfaceButton, "地表と宇宙を切り替える");
             }
             else
@@ -609,8 +618,8 @@ namespace CivilizationToSpace.View
                 speedButton = UiFactory.CreateButton(playbackRoot, "Speed", 15, ButtonColor, TextColor);
                 UiFactory.SetWidth(speedButton.gameObject, 96f, 0f);
 
-                surfaceButton = UiFactory.CreateButton(playbackRoot, "Surface", 15, ButtonColor, TextColor);
-                UiFactory.SetWidth(surfaceButton.gameObject, 118f, 0f);
+                surfaceButton = UiFactory.CreateButton(playbackRoot, "Surface", 15, ViewButtonColor, TextColor);
+                UiFactory.SetWidth(surfaceButton.gameObject, 150f, 0f);
             }
 
             var sliderHost = UiFactory.CreateRect(playbackRoot, "EraSliderHost");

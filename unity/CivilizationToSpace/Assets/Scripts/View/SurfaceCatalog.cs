@@ -45,6 +45,35 @@ namespace CivilizationToSpace.View
             }
         }
 
+        /// <summary>
+        /// その時代を、はじめから地表で見せるか。
+        ///
+        /// **時代によって、見るべき場所が違う。**
+        /// 森ができたこと、巨大な生きものがいたこと、空が塵で暗くなったこと、
+        /// 大きな木が無い氷期の原、家が寄り集まった集落。これらは地表に降りないと
+        /// 何も分からない。宇宙から見ても緑や白の色が変わるだけである。
+        ///
+        /// 逆に、地球ができること、海が地球を覆うこと、全球が凍ること、
+        /// 衛星が上がって地球規模につながること、月へ出ていくことは、
+        /// 地球全体が見えていないと分からない。
+        ///
+        /// どちらの時代でも、ボタンでもう一方へ移れる。ここで決めるのは最初の一枚である。
+        /// </summary>
+        public static bool DefaultsToSurface(int eraIndex)
+        {
+            switch (Mathf.Clamp(eraIndex, 0, 9))
+            {
+                case 3:  // 森林と陸上生態系
+                case 4:  // 巨大生物の時代
+                case 5:  // 衝突と暗い空
+                case 6:  // 氷期のくり返し
+                case 7:  // 人類の広がり
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
         /// <summary>その時代をどちらの寄りで見るか。</summary>
         public static Framing FramingForEra(int eraIndex)
         {
