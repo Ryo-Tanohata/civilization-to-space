@@ -201,6 +201,9 @@ namespace CivilizationToSpace
         /// <summary>地表で見せる衝突の進み具合。落ちて、光って、また落ちる。</summary>
         private float impactPhase;
 
+        /// <summary>地表で見るときのカメラの置き場所。揺らすときの基準にする。</summary>
+        private Vector3 surfaceEye;
+
         /// <summary>検証済みカタログ。読込に失敗した場合は null。</summary>
         public EraCatalog Catalog
         {
@@ -669,6 +672,7 @@ namespace CivilizationToSpace
             Vector3 eye;
             float pitch;
             SurfaceCatalog.EyeForEra(era, out eye, out pitch);
+            surfaceEye = eye;
             camera.transform.position = eye;
             camera.transform.rotation = Quaternion.Euler(pitch, 0f, 0f);
 
@@ -824,6 +828,27 @@ namespace CivilizationToSpace
 
             surface.SetTimeOfDay(dayPhase, sun);
             surface.SetImpact(impactPhase);
+
+            // **ぶつかった瞬間はカメラを揺らす。**
+            // 音も振動も出せないので、揺れだけが「ぶつかった」ことを伝える。
+            var camera = Camera.main;
+            if (camera != null)
+            {
+                var shake = surface.Shake;
+                if (shake > 0f)
+                {
+                    var t = Time.time * 47f;
+                    var amount = shake * shake * 1.6f;
+                    camera.transform.position = surfaceEye + new Vector3(
+                        Mathf.Sin(t) * amount,
+                        Mathf.Sin(t * 1.7f + 1.1f) * amount,
+                        0f);
+                }
+                else
+                {
+                    camera.transform.position = surfaceEye;
+                }
+            }
         }
 
         private void OnEraChanged(EraData era)

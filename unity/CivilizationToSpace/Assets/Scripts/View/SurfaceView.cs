@@ -152,9 +152,20 @@ namespace CivilizationToSpace.View
         private Material starMaterial;
         private Texture2D starTexture;
         private Transform impactor;
+        private Transform trail;
         private Transform flash;
+        private Transform column;
         private Material impactorMaterial;
+        private Material trailMaterial;
         private Material flashMaterial;
+        private Material columnMaterial;
+
+        /// <summary>
+        /// ぶつかった瞬間の揺れ。0で揺れない。
+        /// カメラを持っている側（<see cref="AppRoot"/>）が受け取って動かす。
+        /// 音も振動も出せないので、**揺れだけが「ぶつかった」ことを伝える手段**である。
+        /// </summary>
+        public float Shake { get; private set; }
         private Landscape current;
         private System.Random random;
 
@@ -222,11 +233,18 @@ namespace CivilizationToSpace.View
             starTexture = null;
 
             DestroyImmediate(impactorMaterial);
+            DestroyImmediate(trailMaterial);
             DestroyImmediate(flashMaterial);
+            DestroyImmediate(columnMaterial);
             impactorMaterial = null;
+            trailMaterial = null;
             flashMaterial = null;
+            columnMaterial = null;
             impactor = null;
+            trail = null;
             flash = null;
+            column = null;
+            Shake = 0f;
         }
 
         /// <summary>
@@ -293,6 +311,17 @@ namespace CivilizationToSpace.View
             body.GetComponent<Renderer>().sharedMaterial = impactorMaterial;
             impactor = body.transform;
 
+            // 尾。落ちてくるものの後ろへ伸ばす。点だけだと星と見分けが付かない。
+            trailMaterial = StandardMaterials.CreateGlow();
+            trailMaterial.hideFlags = createdFlags;
+            trailMaterial.color = Color.white;
+            trailMaterial.SetColor("_EmissionColor", Color.black);
+
+            var tail = PrimitiveMeshes.Create(PrimitiveType.Cylinder, "Trail", createdFlags);
+            tail.transform.SetParent(transform, false);
+            tail.GetComponent<Renderer>().sharedMaterial = trailMaterial;
+            trail = tail.transform;
+
             flashMaterial = StandardMaterials.CreateGlow();
             flashMaterial.hideFlags = createdFlags;
             flashMaterial.color = Color.white;
@@ -300,10 +329,26 @@ namespace CivilizationToSpace.View
 
             var burst = PrimitiveMeshes.Create(PrimitiveType.Sphere, "Flash", createdFlags);
             burst.transform.SetParent(transform, false);
-            burst.transform.localPosition = new Vector3(
-                land.HalfWidth * 0.5f, 0f, land.FarZ * 0.95f);
+            burst.transform.localPosition = ImpactPoint(land);
             burst.GetComponent<Renderer>().sharedMaterial = flashMaterial;
             flash = burst.transform;
+
+            // 立ちのぼる粉塵。光ったあとに残る。光だけだと日の出に見える。
+            columnMaterial = StandardMaterials.CreateGlow();
+            columnMaterial.hideFlags = createdFlags;
+            columnMaterial.color = Color.white;
+            columnMaterial.SetColor("_EmissionColor", Color.black);
+
+            var dust = PrimitiveMeshes.Create(PrimitiveType.Cylinder, "Column", createdFlags);
+            dust.transform.SetParent(transform, false);
+            dust.GetComponent<Renderer>().sharedMaterial = columnMaterial;
+            column = dust.transform;
+        }
+
+        /// <summary>ぶつかる場所。地平線の少し手前へ置く。</summary>
+        private static Vector3 ImpactPoint(Landscape land)
+        {
+            return new Vector3(land.HalfWidth * 0.5f, 0f, land.FarZ * 0.9f);
         }
 
         /// <summary>
@@ -322,37 +367,75 @@ namespace CivilizationToSpace.View
             phase -= Mathf.Floor(phase);
 
             var land = current;
+            var hit = ImpactPoint(land);
             var falling = phase < 0.72f;
 
             impactor.gameObject.SetActive(falling);
+            trail.gameObject.SetActive(falling);
             if (falling)
             {
                 var t = phase / 0.72f;
 
-                // 遠くの高いところから、地平線の落ちる場所へ向かわせる。
-                var from = new Vector3(-land.HalfWidth * 1.6f, land.FarZ * 0.62f, land.FarZ * 0.9f);
-                var to = new Vector3(land.HalfWidth * 0.5f, 0f, land.FarZ * 0.95f);
-                impactor.localPosition = Vector3.Lerp(from, to, t * t);
+                // 遠くの高いところから、落ちる場所へ向かわせる。
+                var from = new Vector3(-land.HalfWidth * 1.7f, land.FarZ * 0.75f, land.FarZ * 0.9f);
+                var place = Vector3.Lerp(from, hit, t * t);
+                impactor.localPosition = place;
 
-                // 近づくほど明るくする。遠いうちは点にしか見えない。
-                impactorMaterial.SetColor("_EmissionColor", land.Impactor * (0.35f + t * 0.9f));
+                // 近づくほど大きく明るくする。遠いうちは点にしか見えない。
+                var grow = 1f + t * t * 2.4f;
+                impactor.localScale = Vector3.one * (land.ImpactorSize * grow);
+                impactorMaterial.SetColor("_EmissionColor", land.Impactor * (0.8f + t * 2.2f));
+
+                // **尾を引かせる。** 点が動くだけでは星と見分けが付かない。
+                // 通ってきた向きへ伸ばし、近づくほど長くする。
+                var back = (from - hit).normalized;
+                var length = land.ImpactorSize * (3f + t * 9f);
+                trail.localPosition = place + back * length;
+                trail.localRotation = Quaternion.FromToRotation(Vector3.up, back);
+                trail.localScale = new Vector3(
+                    land.ImpactorSize * 0.5f * grow, length, land.ImpactorSize * 0.5f * grow);
+                trailMaterial.SetColor("_EmissionColor", land.Impactor * (0.25f + t * 0.8f));
             }
 
-            var burning = phase >= 0.72f && phase < 0.92f;
+            // 光は短く強く。長く光らせると日の出に見える。
+            var burning = phase >= 0.72f && phase < 0.80f;
             flash.gameObject.SetActive(burning);
             if (burning)
             {
-                var t = (phase - 0.72f) / 0.20f;
+                var t = (phase - 0.72f) / 0.08f;
 
-                // 一気に広がって、ゆっくり消える。
                 // **広がる大きさに上限を置く。**
                 // 大きいものほど大きく光らせると、光の球がカメラを包んでしまう。
                 // 内側から見ると面が裏を向くので、何も映らなくなる。
-                var widest = Mathf.Min(land.ImpactorSize * 26f, land.FarZ * 0.5f);
-                var size = Mathf.Lerp(land.ImpactorSize * 1.5f, widest, Mathf.Sqrt(t));
+                var widest = Mathf.Min(land.ImpactorSize * 22f, land.FarZ * 0.45f);
+                var size = Mathf.Lerp(land.ImpactorSize * 2f, widest, Mathf.Sqrt(t));
+                flash.localPosition = hit;
                 flash.localScale = Vector3.one * size;
-                flashMaterial.SetColor("_EmissionColor", land.Impactor * (1f - t) * 2.2f);
+                flashMaterial.SetColor("_EmissionColor", Color.white * (1f - t) * 3.4f);
             }
+
+            // 光ったあと、粉塵が立ちのぼって薄れる。
+            var rising = phase >= 0.74f && phase < 1f;
+            column.gameObject.SetActive(rising);
+            if (rising)
+            {
+                var t = (phase - 0.74f) / 0.26f;
+                // 太さと高さに上限を置く。大きいものほど太くすると板に見える。
+                var height = Mathf.Min(land.FarZ * 0.55f, land.ImpactorSize * 14f)
+                             * Mathf.Lerp(0.12f, 1f, Mathf.Sqrt(t));
+                var width = Mathf.Min(land.FarZ * 0.075f, land.ImpactorSize * 9f)
+                            * Mathf.Lerp(0.5f, 1f, t);
+
+                column.localPosition = hit + new Vector3(0f, height * 0.5f, 0f);
+                column.localScale = new Vector3(width, height * 0.5f, width);
+                columnMaterial.SetColor("_EmissionColor",
+                    Color.Lerp(land.Impactor, current.SkyLow, 0.5f) * (1f - t) * 0.8f);
+            }
+
+            // 揺れ。ぶつかった直後だけ強く、すぐ収まる。
+            Shake = phase >= 0.72f && phase < 0.86f
+                ? (1f - (phase - 0.72f) / 0.14f)
+                : 0f;
         }
 
         /// <summary>

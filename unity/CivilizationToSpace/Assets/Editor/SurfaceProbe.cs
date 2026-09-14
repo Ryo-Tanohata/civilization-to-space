@@ -80,7 +80,7 @@ namespace CivilizationToSpace.EditorTools
                 Vector3 eye;
                 float pitch;
                 SurfaceCatalog.EyeForEra(era, out eye, out pitch);
-                var phases = new[] { 0.10f, 0.45f, 0.68f, 0.76f, 0.86f };
+                var phases = new[] { 0.30f, 0.60f, 0.71f, 0.745f, 0.80f, 0.90f };
                 for (var i = 0; i < phases.Length; i++)
                 {
                     Capture(directory, EraNames[era] + "-impact" + (i + 1),
