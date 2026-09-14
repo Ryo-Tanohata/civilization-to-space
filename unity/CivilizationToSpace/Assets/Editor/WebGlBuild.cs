@@ -60,6 +60,22 @@ namespace CivilizationToSpace.EditorTools
                 PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Gzip;
                 PlayerSettings.WebGL.decompressionFallback = true;
                 PlayerSettings.WebGL.dataCaching = true;
+
+                // **ビルドの成果物を内容のハッシュで名付ける。**
+                //
+                // 名前を固定にしていると、公開するたびに中身だけが変わる。
+                // データは IndexedDB へ保存され（dataCaching）、鍵になる
+                // productVersion は "1.0" のまま変わらない。コードは HTTP の
+                // キャッシュに残る。どちらが古いまま残ってもおかしくない。
+                //
+                // 古い .data と新しい .wasm が組み合わさると、コードが期待する
+                // 場所に無いものを読むことになり、起動の途中で
+                // 「memory access out of bounds」で落ちる。実際にスマートフォンで
+                // その症状が出た。
+                //
+                // ハッシュで名付ければ、中身が変われば URL も変わる。
+                // 古いものと新しいものが混ざりようがない。
+                PlayerSettings.WebGL.nameFilesAsHashes = true;
                 PlayerSettings.stripEngineCode = true;
                 PlayerSettings.SplashScreen.show = false;
 
