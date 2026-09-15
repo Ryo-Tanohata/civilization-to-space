@@ -1922,6 +1922,22 @@ namespace CivilizationToSpace.View
             var step = StepFor(z);
             foreach (var renderer in item.GetComponentsInChildren<Renderer>())
             {
+                // **面が複数あるものは、面ごとに塗る。**
+                // 1つ目だけ差し替えると、2つ目の面に素材側の色が残る。
+                var marker = renderer.GetComponent<ModelRoles>();
+                if (marker != null && marker.Roles != null && marker.Roles.Length > 1)
+                {
+                    var slots = new Material[marker.Roles.Length];
+                    for (var i = 0; i < slots.Length; i++)
+                    {
+                        var role = marker.Roles[i];
+                        slots[i] = Tinted(role, ColorFor(role), step);
+                    }
+
+                    renderer.sharedMaterials = slots;
+                    continue;
+                }
+
                 var key = renderer.gameObject.name;
                 renderer.sharedMaterial = Tinted(key, ColorFor(key), step);
             }
@@ -2070,6 +2086,12 @@ namespace CivilizationToSpace.View
         /// </summary>
         private GameObject BuildRock(float height)
         {
+            var model = TryModel("rock_largeA", height);
+            if (model != null)
+            {
+                return model;
+            }
+
             var root = Root("Rock");
             var lumps = 3 + random.Next(3);
 
@@ -2120,8 +2142,96 @@ namespace CivilizationToSpace.View
         }
 
         /// <summary>針葉樹。細い幹と、上へ細くなる円錐を重ねる。</summary>
+        /// <summary>
+        /// **試し用。** 外から持ってきた形があれば、それを使う。
+        /// 無ければこれまでどおり球と円錐で組み立てる。
+        /// </summary>
+        private GameObject TryModel(string name, float height)
+        {
+            var prefab = Resources.Load<GameObject>("Nature/" + name);
+            if (prefab == null)
+            {
+                return null;
+            }
+
+            var item = Instantiate(prefab);
+            item.name = name;
+            item.hideFlags = createdFlags;
+
+            // 素材ごとの大きさはまちまちなので、高さをそろえる。
+            var bounds = new Bounds(Vector3.zero, Vector3.zero);
+            var first = true;
+            foreach (var renderer in item.GetComponentsInChildren<Renderer>())
+            {
+                if (first)
+                {
+                    bounds = renderer.bounds;
+                    first = false;
+                }
+                else
+                {
+                    bounds.Encapsulate(renderer.bounds);
+                }
+
+                // **素材側の色を連れてこさせない。**
+                // そのまま置くと水色の木や桃色の幹が並び、
+                // 時代ごとに決めた色調から外れる。
+                // 面ごとの役を材質名から読み取って覚えておき、
+                // 置いたあとで時代の色へ塗り直す。
+                var sources = renderer.sharedMaterials;
+                var roles = new string[sources.Length];
+                for (var i = 0; i < sources.Length; i++)
+                {
+                    roles[i] = RoleFromMaterial(sources[i] != null ? sources[i].name : string.Empty);
+                }
+
+                var marker = renderer.gameObject.AddComponent<ModelRoles>();
+                marker.Roles = roles;
+                renderer.gameObject.name = roles.Length > 0 ? roles[0] : "Foliage";
+                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            }
+
+            if (!first && bounds.size.y > 0.0001f)
+            {
+                item.transform.localScale = Vector3.one * (height / bounds.size.y);
+            }
+
+            return item;
+        }
+
+        /// <summary>
+        /// 材質名から役を決める。
+        /// Kenney の素材は leafsGreen / woodBark のように名前が中身を表している。
+        /// 分からないものは岩あつかいにする。地面の色に近く、浮いて見えない。
+        /// </summary>
+        private static string RoleFromMaterial(string materialName)
+        {
+            var lower = materialName.ToLowerInvariant();
+
+            if (lower.Contains("leaf") || lower.Contains("green") || lower.Contains("foliage")
+                || lower.Contains("grass"))
+            {
+                return "Foliage";
+            }
+
+            if (lower.Contains("wood") || lower.Contains("bark") || lower.Contains("trunk")
+                || lower.Contains("brown"))
+            {
+                return "Trunk";
+            }
+
+            // 岩と土。地面の色に近い。
+            return "Rock";
+        }
+
         private GameObject BuildConifer(float height)
         {
+            var model = TryModel("tree_cone", height);
+            if (model != null)
+            {
+                return model;
+            }
+
             var root = Root("Conifer");
             Piece(root, PrimitiveType.Cylinder, "Trunk", new Vector3(0f, height * 0.16f, 0f),
                 new Vector3(height * 0.05f, height * 0.16f, height * 0.05f));
@@ -2135,6 +2245,12 @@ namespace CivilizationToSpace.View
         /// <summary>シダ。短い幹と、上へ跳ねる葉の束。低いところを埋める。</summary>
         private GameObject BuildFern(float height)
         {
+            var model = TryModel("grass_large", height);
+            if (model != null)
+            {
+                return model;
+            }
+
             var root = Root("Fern");
             Piece(root, PrimitiveType.Cylinder, "Trunk", new Vector3(0f, height * 0.22f, 0f),
                 new Vector3(height * 0.06f, height * 0.22f, height * 0.06f));
@@ -2158,6 +2274,12 @@ namespace CivilizationToSpace.View
         /// <summary>広葉樹。幹と、いびつな冠。球ひとつにすると円盤に見える。</summary>
         private GameObject BuildBroadleaf(float height)
         {
+            var model = TryModel("tree_oak", height);
+            if (model != null)
+            {
+                return model;
+            }
+
             var root = Root("Broadleaf");
             Piece(root, PrimitiveType.Cylinder, "Trunk", new Vector3(0f, height * 0.32f, 0f),
                 new Vector3(height * 0.06f, height * 0.32f, height * 0.06f));
