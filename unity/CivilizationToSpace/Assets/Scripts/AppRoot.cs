@@ -204,6 +204,9 @@ namespace CivilizationToSpace
         /// <summary>地表で見るときのカメラの置き場所。揺らすときの基準にする。</summary>
         private Vector3 surfaceEye;
 
+        /// <summary>宇宙から見る星空。実在の星と星座を置く。</summary>
+        private NightSkyView nightSky;
+
         /// <summary>地表で見せる打ち上げの進み具合。</summary>
         private float rocketPhase;
 
@@ -529,6 +532,14 @@ namespace CivilizationToSpace
                 moon.Build(EarthPosition, HideFlags.None);
             }
 
+            // **宇宙の側にも星空を置く。**
+            // 単色の背景では、地表に星があるのに宇宙へ出ると何も無い、
+            // という食い違いが出る。星も星座も実在の位置に置く。
+            var skyObject = new GameObject("NightSky");
+            skyObject.transform.SetParent(transform, false);
+            nightSky = skyObject.AddComponent<NightSkyView>();
+            nightSky.Build(HideFlags.None);
+
             var surfaceObject = new GameObject("Surface");
             surfaceObject.transform.SetParent(transform, false);
             surface = surfaceObject.AddComponent<SurfaceView>();
@@ -640,6 +651,12 @@ namespace CivilizationToSpace
             if (formation != null)
             {
                 formation.gameObject.SetActive(!enabled);
+            }
+
+            // 星空は宇宙の側だけ。地表には地表の空がある。
+            if (nightSky != null)
+            {
+                nightSky.gameObject.SetActive(!enabled);
             }
 
             var camera = Camera.main;

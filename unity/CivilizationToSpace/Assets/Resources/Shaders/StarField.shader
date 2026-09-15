@@ -24,6 +24,12 @@
 //
 // **実際の瞬きの仕組み（大気のゆらぎによる屈折）は表していない。**
 // 光の点が不規則に光っている、ということだけを見せる。
+//
+// 位相と色の受け取り方が2通りある。
+// - 地表の夜空は、空いっぱいの1枚の絵。位相は絵のアルファに焼いてある。
+// - 宇宙の星空は、星ごとの小さな板を1つのメッシュにまとめたもの。
+//   1枚の絵を使い回すので、位相と色は**頂点の色**で渡す。
+// _VertexPhase を1にすると後者になる。
 Shader "CivilizationToSpace/StarField"
 {
     Properties
@@ -35,6 +41,8 @@ Shader "CivilizationToSpace/StarField"
         _TwinkleDepth ("光ったときに足す明るさ", Range(0,4)) = 2.0
         _TwinkleSharp ("光のとがり（大きいほど短く強く）", Range(1,8)) = 3.4
         _TwinkleSpeed ("揺れの速さ", Float) = 2.2
+        _VertexPhase ("位相と色を頂点から取る", Float) = 0
+        _Cull ("裏表の切り捨て", Float) = 2
     }
 
     SubShader
@@ -44,7 +52,7 @@ Shader "CivilizationToSpace/StarField"
 
         Blend SrcAlpha One
         ZWrite Off
-        Cull Back
+        Cull [_Cull]
 
         Pass
         {
@@ -61,17 +69,20 @@ Shader "CivilizationToSpace/StarField"
             half _TwinkleDepth;
             half _TwinkleSharp;
             half _TwinkleSpeed;
+            half _VertexPhase;
 
             struct appdata
             {
                 float4 vertex : POSITION;
                 float2 uv : TEXCOORD0;
+                fixed4 color : COLOR;
             };
 
             struct v2f
             {
                 float4 pos : SV_POSITION;
                 float2 uv : TEXCOORD0;
+                fixed4 color : COLOR;
             };
 
             v2f vert(appdata v)
@@ -79,6 +90,7 @@ Shader "CivilizationToSpace/StarField"
                 v2f o;
                 o.pos = UnityObjectToClipPos(v.vertex);
                 o.uv = TRANSFORM_TEX(v.uv, _EmissionMap);
+                o.color = v.color;
                 return o;
             }
 
@@ -86,15 +98,25 @@ Shader "CivilizationToSpace/StarField"
             {
                 fixed4 c = tex2D(_EmissionMap, i.uv);
 
-                // アルファに焼いた位相。0〜1を一周ぶんに広げる。
-                half phase = c.a * 6.2831853;
+                // 頂点から取る場合は、絵は形（丸み）だけに使い、
+                // 色と位相は頂点の色から取る。
+                half alpha = c.a;
+                if (_VertexPhase > 0.5)
+                {
+                    c.rgb *= i.color.rgb;
+                    alpha = i.color.a;
+                }
+
+                // 位相。0〜1を一周ぶんに広げる。
+                half phase = alpha * 6.2831853;
 
                 // 速さも位相でずらす。そろえると全体が脈打って見える。
-                half speed = _TwinkleSpeed * (0.45 + c.a * 1.7);
+                half speed = _TwinkleSpeed * (0.45 + alpha * 1.7);
 
                 // 割り切れない速さの波を2つ。光る間隔が毎回ずれる。
                 half w1 = 0.5 + 0.5 * sin(_Time.y * speed + phase);
                 half w2 = 0.5 + 0.5 * sin(_Time.y * speed * 0.37 + phase * 2.3);
+
 
                 // 掛けてから累乗でとがらせる。ふだんは控えめ、ときどき短く強く。
                 half spark = pow(w1 * w2, _TwinkleSharp);

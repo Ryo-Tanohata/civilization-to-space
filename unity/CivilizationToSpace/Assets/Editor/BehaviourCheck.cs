@@ -392,6 +392,46 @@ namespace CivilizationToSpace.EditorTools
                         " 冷えた空=" + (impact.WinterSkyLow.maxColorComponent > 0.001f) +
                         " 冷えた地面=" + (impact.WinterGround.maxColorComponent > 0.001f));
 
+                    // **星は実在の位置に置く。**
+                    // 適当に撒くと、オリオン座もカシオペヤ座もどこにも無い空になる。
+                    // 公開されている赤経・赤緯と突き合わせる。
+                    var named = new[]
+                    {
+                        new[] { 101.287f, -16.716f },  // シリウス
+                        new[] { 95.988f, -52.696f },   // カノープス
+                        new[] { 78.634f, -8.202f },    // リゲル
+                        new[] { 88.793f, 7.407f },     // ベテルギウス
+                        new[] { 279.234f, 38.784f },   // ベガ
+                        new[] { 37.955f, 89.264f },    // ポラリス
+                    };
+
+                    var worst = 0f;
+                    foreach (var want in named)
+                    {
+                        var target = View.StarCatalog.Direction(want[0], want[1]);
+                        var nearest = 180f;
+                        var table = View.StarCatalog.Stars;
+                        for (var at = 0; at < table.Length; at += View.StarCatalog.StarStride)
+                        {
+                            var have = View.StarCatalog.Direction(table[at], table[at + 1]);
+                            var degrees = Vector3.Angle(target, have);
+                            if (degrees < nearest)
+                            {
+                                nearest = degrees;
+                            }
+                        }
+
+                        if (nearest > worst)
+                        {
+                            worst = nearest;
+                        }
+                    }
+
+                    Record("U-49 宇宙の星空が実在の赤経・赤緯と合う",
+                        View.StarCatalog.Stars.Length > 0 && worst < 0.01f,
+                        "星 " + (View.StarCatalog.Stars.Length / View.StarCatalog.StarStride)
+                        + "個 / 名のある6星のいちばん大きなずれ " + worst.ToString("F4") + "度");
+
                     Finish();
                     break;
             }
