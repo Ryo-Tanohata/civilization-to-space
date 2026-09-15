@@ -106,6 +106,15 @@ namespace CivilizationToSpace.View
                 Impactor = Hex(0xFFB070),
                 Rocket = Hex(0xE8ECF0),
                 Flame = Hex(0xFFB24A),
+
+                // **空を1色の帯で終わらせない。**
+                // 上下のぼかしだけでは、どこまでが空でどこからが遠景か分からず、
+                // 板を1枚立てたように見えていた。
+                // 雲の層・太陽・重なる稜線の3つで奥行きを出す。
+                CloudCover = 0.75f,
+                ShowsSun = true,
+                Ridges = 3,
+                RidgeHeight = 0.30f,
                 Seed = seed,
             };
         }

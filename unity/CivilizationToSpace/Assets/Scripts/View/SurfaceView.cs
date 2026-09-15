@@ -179,6 +179,37 @@ namespace CivilizationToSpace.View
             public Color WinterSkyLow;
             public Color WinterGround;
 
+            /// <summary>
+            /// 雲の濃さ。0で雲を出さない。
+            ///
+            /// **空がひと色の帯だけだと、奥行きも時刻も伝わらない。**
+            /// 上下のぼかしだけでは、どこまでが空でどこからが遠景か分からず、
+            /// 板を1枚立てたように見える。雲の層を重ねると、空に厚みが出る。
+            /// **実際の雲の量も種類も表していない。**
+            /// </summary>
+            public float CloudCover;
+
+            /// <summary>
+            /// 太陽を空に出すか。
+            ///
+            /// 光は当たっているのに光源そのものが画面に無いと、
+            /// どちらが明るいのかが読めない。丸と暈を出す。
+            /// **実際の視直径ではない。** 見て分かる大きさに広げている。
+            /// </summary>
+            public bool ShowsSun;
+
+            /// <summary>
+            /// 遠くの山なみの数。0なら出さない。
+            ///
+            /// **平らな地平線だけでは遠さが出ない。** 重なる稜線があると、
+            /// どこまでも続いているように見える。奥ほど空の色へ溶かす。
+            /// **実在の地形ではない。**
+            /// </summary>
+            public int Ridges;
+
+            /// <summary>いちばん手前の山なみの高さ（奥行きに対する比）。</summary>
+            public float RidgeHeight;
+
             /// <summary>降ってくるものの数。0なら出さない。</summary>
             public int AshFlakes;
 
@@ -303,6 +334,12 @@ namespace CivilizationToSpace.View
         private HideFlags createdFlags;
         private readonly Dictionary<string, Material> materials = new Dictionary<string, Material>();
         private Material skyMaterial;
+        private Material cloudMaterial;
+        private Material sunMaterial;
+        private Texture2D cloudTexture;
+        private Texture2D sunTexture;
+        private Transform sunQuad;
+        private float skyDistance;
         private Texture2D skyTexture;
         private Material starMaterial;
         private Texture2D starTexture;
@@ -591,6 +628,16 @@ namespace CivilizationToSpace.View
             starMaterial = null;
             starTexture = null;
 
+            DestroyImmediate(cloudMaterial);
+            DestroyImmediate(sunMaterial);
+            DestroyImmediate(cloudTexture);
+            DestroyImmediate(sunTexture);
+            cloudMaterial = null;
+            sunMaterial = null;
+            cloudTexture = null;
+            sunTexture = null;
+            sunQuad = null;
+
             DestroyImmediate(rocketMaterial);
             DestroyImmediate(flameMaterial);
             DestroyImmediate(bandMaterial);
@@ -657,14 +704,263 @@ namespace CivilizationToSpace.View
             skyMaterial.SetColor("_EmissionColor", Color.white);
             skyMaterial.SetFloat("_Blend", 0f);
 
-            var distance = land.FarZ * 1.35f;
+            // **空を遠くへ置く。** 山なみを空の手前へ並べる余地がいる。
+            // カメラの遠い側の切り取り面は FarZ の3倍まで広げてある。
+            var distance = land.FarZ * 2.2f;
+            skyDistance = distance;
+
             var sky = PrimitiveMeshes.Create(PrimitiveType.Quad, "Sky", createdFlags);
             sky.transform.SetParent(transform, false);
             sky.transform.localPosition = new Vector3(0f, distance * 0.36f, distance);
             sky.transform.localScale = new Vector3(distance * 4f, distance * 1.9f, 1f);
             sky.GetComponent<Renderer>().sharedMaterial = skyMaterial;
 
-            BuildStars(distance);
+            BuildClouds(land, distance * 0.955f);
+            BuildSun(land, distance * 0.975f);
+            BuildStars(distance * 0.99f);
+            BuildRidges(land);
+        }
+
+        /// <summary>
+        /// 雲。
+        ///
+        /// **絵は1枚作って使い回し、時刻では色だけを変える。**
+        /// 毎こま描き直すと、512x256の点を打ち直すことになり重い。
+        /// 形は変わらなくてよい。変わるのは明るさと色だからである。
+        ///
+        /// 加算で重ねる。日の当たった雲は空より明るいので、足すだけで形が出る。
+        /// 暗い雲は出せないが、そのぶん夜に光ってしまうことも無い。
+        /// **実際の雲の量も種類も動きも表していない。**
+        /// </summary>
+        private void BuildClouds(Landscape land, float distance)
+        {
+            if (land.CloudCover <= 0.001f)
+            {
+                return;
+            }
+
+            const int width = 512;
+            const int height = 256;
+            cloudTexture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            cloudTexture.hideFlags = createdFlags;
+            cloudTexture.wrapMode = TextureWrapMode.Clamp;
+
+            var pixels = new Color32[width * height];
+            var seed = new System.Random(land.Seed * 31 + 7);
+
+            // 粗さの違う波を重ねる。1つだけだと縞にしか見えない。
+            // 横に伸ばす。雲は縦より横に広い。
+            const int layers = 5;
+            var offsets = new float[layers * 2];
+            for (var i = 0; i < offsets.Length; i++)
+            {
+                offsets[i] = (float)seed.NextDouble() * 100f;
+            }
+
+            for (var y = 0; y < height; y++)
+            {
+                var v = y / (float)(height - 1);
+
+                // 地平線の際と天頂は薄く。まんなかの帯をいちばん濃くする。
+                var band = Mathf.Sin(Mathf.Clamp01((v - 0.12f) / 0.88f) * Mathf.PI);
+                band = Mathf.Pow(Mathf.Max(0f, band), 0.7f);
+
+                for (var x = 0; x < width; x++)
+                {
+                    var u = x / (float)(width - 1);
+                    var sum = 0f;
+                    var amplitude = 1f;
+                    var scale = 3f;
+                    for (var i = 0; i < layers; i++)
+                    {
+                        sum += amplitude * Mathf.PerlinNoise(
+                            u * scale * 2.6f + offsets[i * 2],
+                            v * scale * 7f + offsets[i * 2 + 1]);
+                        amplitude *= 0.52f;
+                        scale *= 2.1f;
+                    }
+
+                    sum /= 1.95f;
+
+                    // 下を切り上げてすき間を作る。全面にかけると靄になる。
+                    var cloud = Mathf.Clamp01((sum - 0.46f) / 0.34f) * band;
+                    cloud = cloud * cloud * (3f - 2f * cloud);
+
+                    var level = (byte)Mathf.Clamp(cloud * 255f, 0f, 255f);
+                    pixels[y * width + x] = new Color32(level, level, level, 255);
+                }
+            }
+
+            cloudTexture.SetPixels32(pixels);
+            cloudTexture.Apply();
+
+            cloudMaterial = StandardMaterials.CreateGlow();
+            cloudMaterial.hideFlags = createdFlags;
+            cloudMaterial.color = Color.white;
+            cloudMaterial.SetTexture("_EmissionMap", cloudTexture);
+            cloudMaterial.SetColor("_EmissionColor", Color.black);
+
+            var quad = PrimitiveMeshes.Create(PrimitiveType.Quad, "Clouds", createdFlags);
+            quad.transform.SetParent(transform, false);
+            quad.transform.localPosition = new Vector3(0f, distance * 0.36f, distance);
+            quad.transform.localScale = new Vector3(distance * 4f, distance * 1.9f, 1f);
+            quad.GetComponent<Renderer>().sharedMaterial = cloudMaterial;
+        }
+
+        /// <summary>
+        /// 太陽。丸と、そのまわりの暈。
+        ///
+        /// 光は当たっているのに光源そのものが画面に無いと、
+        /// どちらが明るいのかが読めない。
+        /// **実際の視直径ではない。** 見て分かる大きさに広げている。
+        /// 空のどこに出るかも、光の向きをそのまま写したものではない。
+        /// </summary>
+        private void BuildSun(Landscape land, float distance)
+        {
+            if (!land.ShowsSun)
+            {
+                return;
+            }
+
+            const int size = 128;
+            sunTexture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            sunTexture.hideFlags = createdFlags;
+            sunTexture.wrapMode = TextureWrapMode.Clamp;
+
+            var pixels = new Color32[size * size];
+            var center = (size - 1) * 0.5f;
+            for (var y = 0; y < size; y++)
+            {
+                for (var x = 0; x < size; x++)
+                {
+                    var dx = (x - center) / center;
+                    var dy = (y - center) / center;
+                    var d = Mathf.Sqrt(dx * dx + dy * dy);
+
+                    // 丸そのものは小さく、暈は広く薄く。
+                    // 暈が無いと貼り付けた丸に見える。
+                    var disc = Mathf.Clamp01((0.14f - d) / 0.05f);
+                    var halo = Mathf.Pow(Mathf.Clamp01(1f - d), 3.2f) * 0.55f;
+                    var level = Mathf.Clamp01(disc + halo);
+
+                    var b = (byte)Mathf.Clamp(level * 255f, 0f, 255f);
+                    pixels[y * size + x] = new Color32(b, b, b, 255);
+                }
+            }
+
+            sunTexture.SetPixels32(pixels);
+            sunTexture.Apply();
+
+            sunMaterial = StandardMaterials.CreateGlow();
+            sunMaterial.hideFlags = createdFlags;
+            sunMaterial.color = Color.white;
+            sunMaterial.SetTexture("_EmissionMap", sunTexture);
+            sunMaterial.SetColor("_EmissionColor", Color.black);
+
+            var quad = PrimitiveMeshes.Create(PrimitiveType.Quad, "Sun", createdFlags);
+            quad.transform.SetParent(transform, false);
+            quad.transform.localScale = Vector3.one * (distance * 1.05f);
+            quad.GetComponent<Renderer>().sharedMaterial = sunMaterial;
+            sunQuad = quad.transform;
+            sunQuad.localPosition = new Vector3(-distance * 0.26f, distance * 0.25f, distance);
+        }
+
+        /// <summary>
+        /// 遠くの山なみ。
+        ///
+        /// **平らな地平線だけでは遠さが出ない。** 重なる稜線があると、
+        /// どこまでも続いているように見える。奥ほど空の色へ溶かす。
+        /// これは大気で遠くのものが淡くなることにならった置き換えである。
+        /// **実在の地形ではない。**
+        /// </summary>
+        private void BuildRidges(Landscape land)
+        {
+            if (land.Ridges <= 0)
+            {
+                return;
+            }
+
+            var seed = new System.Random(land.Seed * 17 + 3);
+            for (var layer = 0; layer < land.Ridges; layer++)
+            {
+                var span = land.Ridges > 1 ? layer / (float)(land.Ridges - 1) : 0f;
+                var depth = land.FarZ * Mathf.Lerp(1.35f, 1.95f, span);
+                var height = depth * land.RidgeHeight * Mathf.Lerp(1f, 0.62f, span);
+
+                // 奥ほど空の色へ寄せる。手前の稜線ほど濃く残る。
+                // **寄せすぎない。** 空と同じ色まで薄めると、山ではなく
+                // ただの霞に見えて、稜線の形が読めなくなる。
+                var tint = Color.Lerp(land.Rock, land.SkyLow, 0.34f + 0.44f * span);
+
+                var material = StandardMaterials.CreateOpaque(true);
+                material.hideFlags = createdFlags;
+                material.color = Color.black;
+                material.SetColor("_EmissionColor", tint);
+                material.SetFloat("_Blend", 0f);
+                materials["Ridge/" + layer] = material;
+
+                var mesh = BuildRidgeMesh(depth, height, seed);
+                var host = new GameObject("Ridge" + layer, typeof(MeshFilter), typeof(MeshRenderer));
+                host.hideFlags = createdFlags;
+                host.transform.SetParent(transform, false);
+                host.GetComponent<MeshFilter>().sharedMesh = mesh;
+
+                var renderer = host.GetComponent<MeshRenderer>();
+                renderer.sharedMaterial = material;
+                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                renderer.receiveShadows = false;
+            }
+        }
+
+        /// <summary>稜線をひと続きの帯にする。下は地平線より下まで伸ばす。</summary>
+        private Mesh BuildRidgeMesh(float depth, float height, System.Random seed)
+        {
+            const int steps = 96;
+            var half = depth * 2.2f;
+            var baseY = -depth * 0.2f;
+
+            var vertices = new Vector3[(steps + 1) * 2];
+            var triangles = new int[steps * 6];
+
+            var phase = new float[4];
+            for (var i = 0; i < phase.Length; i++)
+            {
+                phase[i] = (float)seed.NextDouble() * 100f;
+            }
+
+            for (var i = 0; i <= steps; i++)
+            {
+                var t = i / (float)steps;
+                var x = Mathf.Lerp(-half, half, t);
+
+                // 粗い波に細かい波を足す。1つだけだと規則正しい山になる。
+                var h = Mathf.PerlinNoise(t * 2.6f + phase[0], phase[1]) * 0.7f
+                        + Mathf.PerlinNoise(t * 7.4f + phase[2], phase[3]) * 0.3f;
+                h = Mathf.Pow(Mathf.Clamp01(h), 1.6f);
+
+                vertices[i * 2] = new Vector3(x, baseY, depth);
+                vertices[i * 2 + 1] = new Vector3(x, height * h, depth);
+            }
+
+            for (var i = 0; i < steps; i++)
+            {
+                var v = i * 2;
+                var tri = i * 6;
+                triangles[tri + 0] = v;
+                triangles[tri + 1] = v + 1;
+                triangles[tri + 2] = v + 3;
+                triangles[tri + 3] = v;
+                triangles[tri + 4] = v + 3;
+                triangles[tri + 5] = v + 2;
+            }
+
+            var mesh = new Mesh();
+            mesh.hideFlags = createdFlags;
+            mesh.name = "Ridge";
+            mesh.vertices = vertices;
+            mesh.triangles = triangles;
+            mesh.RecalculateNormals();
+            return mesh;
         }
 
         /// <summary>
@@ -942,6 +1238,63 @@ namespace CivilizationToSpace.View
 
             starMaterial.SetFloat("_TwinkleBase", ReducedMotion ? 1f : TwinkleBase);
             starMaterial.SetFloat("_TwinkleDepth", ReducedMotion ? 0f : TwinkleDepth);
+        }
+
+        /// <summary>
+        /// 太陽を空へ置く。
+        ///
+        /// **光の向きをそのまま写してはいない。** 写すと、真昼には画面の外の
+        /// 真上へ行ってしまい、いちばん明るい時刻にいちばん見えなくなる。
+        /// 高さを縮めて、昇って沈むことだけが読めるようにしている。
+        /// 地平線より下へ行ったら引っ込める。
+        /// </summary>
+        private void PlaceSun(float elevation, float daylight, float dusk)
+        {
+            if (sunQuad == null || sunMaterial == null)
+            {
+                return;
+            }
+
+            var up = elevation > -0.06f;
+            sunQuad.gameObject.SetActive(up);
+            if (!up)
+            {
+                return;
+            }
+
+            var distance = skyDistance * 0.975f;
+            var lift = Mathf.Clamp01(elevation);
+            sunQuad.localPosition = new Vector3(
+                -distance * 0.26f,
+                distance * Mathf.Lerp(-0.02f, 0.72f, lift),
+                distance);
+
+            // 地平線の近くは赤く、高いところは白い。
+            // 塵がかかっていれば、どちらでも弱める。
+            var warm = Color.Lerp(new Color(1f, 0.52f, 0.26f), Color.white,
+                Mathf.Clamp01(elevation * 2.2f));
+            var strength = Mathf.Lerp(0.35f, 1.5f, daylight) * (1f - dustCover * 0.75f);
+            sunMaterial.SetColor("_EmissionColor", warm * strength);
+        }
+
+        /// <summary>
+        /// 雲の色を時刻で決める。形は作ったときのまま。
+        /// 朝夕は赤く、昼は白く、夜はほとんど出さない。
+        /// </summary>
+        private void TintClouds(float daylight, float dusk)
+        {
+            if (cloudMaterial == null)
+            {
+                return;
+            }
+
+            var lit = Color.Lerp(new Color(0.20f, 0.24f, 0.33f), Color.white, daylight);
+            lit = Color.Lerp(lit, new Color(1f, 0.64f, 0.40f), dusk * 0.7f);
+
+            // 塵がおおっているあいだは、雲の形も沈める。
+            var strength = current.CloudCover * Mathf.Lerp(0.22f, 1f, daylight)
+                           * (1f - dustCover * 0.8f);
+            cloudMaterial.SetColor("_EmissionColor", lit * strength);
         }
 
         /// <summary>今の空の色と昼の度合いで、空の帯を塗る。</summary>
@@ -1267,6 +1620,8 @@ namespace CivilizationToSpace.View
             lastDaylight = daylight;
             lastDusk = dusk;
             PaintSky();
+            PlaceSun(elevation, daylight, dusk);
+            TintClouds(daylight, dusk);
 
             if (starMaterial != null)
             {
