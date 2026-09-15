@@ -38,13 +38,15 @@ namespace CivilizationToSpace.EditorTools
             var opaque = Shader.Find("CivilizationToSpace/PlanetOpaque");
             var fade = Shader.Find("CivilizationToSpace/PlanetFade");
             var glow = Shader.Find("CivilizationToSpace/AdditiveGlow");
+            var stars = Shader.Find("CivilizationToSpace/StarField");
 
-            if (opaque == null || fade == null || glow == null)
+            if (opaque == null || fade == null || glow == null || stars == null)
             {
                 Debug.LogError("[Template] 自作シェーダーが見つかりません。"
                                + " PlanetOpaque=" + (opaque != null)
                                + " PlanetFade=" + (fade != null)
-                               + " AdditiveGlow=" + (glow != null));
+                               + " AdditiveGlow=" + (glow != null)
+                               + " StarField=" + (stars != null));
                 return;
             }
 
@@ -56,10 +58,11 @@ namespace CivilizationToSpace.EditorTools
             Write(fade, "StandardFadeEmissive", false);
             Write(fade, "StandardFadeSurface", true);
             Write(glow, "AdditiveGlow", false);
+            Write(stars, "StarField", false);
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
-            Debug.Log("[Template] 材質の雛形を7件書き出しました。 " + Folder);
+            Debug.Log("[Template] 材質の雛形を8件書き出しました。 " + Folder);
         }
 
         /// <summary>batchmode 用。</summary>
@@ -80,7 +83,8 @@ namespace CivilizationToSpace.EditorTools
             material.SetColor("_EmissionColor", Color.black);
 
             // 加算の材質には滑らかさも金属らしさも無い。指定しても無視される。
-            if (shader.name != "CivilizationToSpace/AdditiveGlow")
+            if (shader.name != "CivilizationToSpace/AdditiveGlow"
+                && shader.name != "CivilizationToSpace/StarField")
             {
                 material.SetFloat("_Glossiness", 0f);
                 material.SetFloat("_Metallic", 0f);

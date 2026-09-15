@@ -243,6 +243,18 @@ namespace CivilizationToSpace.View
         /// </summary>
         public const float DaySeconds = 10f;
 
+        /// <summary>
+        /// 星の揺れの深さ。0で揺れない、1で消えるまで揺れる。
+        /// 深くしすぎると星が明滅する電飾に見える。
+        /// </summary>
+        private const float TwinkleDepth = 0.6f;
+
+        /// <summary>
+        /// 動きを減らす設定。真のとき星を揺らさない。
+        /// **瞬きは動きである。** 減らすと決めたなら止める。
+        /// </summary>
+        public bool ReducedMotion { get; set; }
+
         /// <summary>夜の空の色。上と地平線側。</summary>
         private static readonly Color NightHigh = new Color(0.018f, 0.030f, 0.070f, 1f);
         private static readonly Color NightLow = new Color(0.055f, 0.085f, 0.150f, 1f);
@@ -1060,7 +1072,7 @@ namespace CivilizationToSpace.View
             var pixels = new Color32[size * size];
             for (var i = 0; i < pixels.Length; i++)
             {
-                pixels[i] = new Color32(0, 0, 0, 255);
+                pixels[i] = new Color32(0, 0, 0, 0);
             }
 
             var starRandom = new System.Random(20260915);
@@ -1077,7 +1089,8 @@ namespace CivilizationToSpace.View
                 }
 
                 var level = (byte)(28 + starRandom.Next(46));
-                Put(pixels, size, (int)(u * size), (int)(vBand * size), level, level, (byte)(level + 8));
+                Put(pixels, size, (int)(u * size), (int)(vBand * size),
+                    level, level, (byte)(level + 8), (byte)starRandom.Next(256));
             }
 
             // 全天に散る星。少数だけ大きく明るくする。
@@ -1090,29 +1103,39 @@ namespace CivilizationToSpace.View
 
                 // 色を少しだけ振る。青白い星と橙の星が混ざると空が単調でなくなる。
                 var warm = starRandom.Next(4) == 0;
+
+                // 揺れの位相。**1粒のあいだは同じ値にする。**
+                var phase = (byte)starRandom.Next(256);
                 Put(pixels, size, x, y,
                     warm ? level : (byte)(level * 0.86f),
                     (byte)(level * 0.92f),
-                    warm ? (byte)(level * 0.78f) : level);
+                    warm ? (byte)(level * 0.78f) : level,
+                    phase);
 
                 if (level > 210)
                 {
                     // 明るい星だけ十字ににじませる。粒だけだと点にしか見えない。
-                    Put(pixels, size, x + 1, y, (byte)(level / 3), (byte)(level / 3), (byte)(level / 3));
-                    Put(pixels, size, x - 1, y, (byte)(level / 3), (byte)(level / 3), (byte)(level / 3));
-                    Put(pixels, size, x, y + 1, (byte)(level / 3), (byte)(level / 3), (byte)(level / 3));
-                    Put(pixels, size, x, y - 1, (byte)(level / 3), (byte)(level / 3), (byte)(level / 3));
+                    var dim = (byte)(level / 3);
+                    Put(pixels, size, x + 1, y, dim, dim, dim, phase);
+                    Put(pixels, size, x - 1, y, dim, dim, dim, phase);
+                    Put(pixels, size, x, y + 1, dim, dim, dim, phase);
+                    Put(pixels, size, x, y - 1, dim, dim, dim, phase);
                 }
             }
 
             starTexture.SetPixels32(pixels);
             starTexture.Apply();
 
-            starMaterial = StandardMaterials.CreateGlow();
+            // **星は加算の層ではなく専用の材質で描く。**
+            // 加算の層は材質ごとに1つの明るさしか持てないので、
+            // それで描くと空ぜんたいが同じ明るさで点滅し、瞬いて見えない。
+            starMaterial = StandardMaterials.CreateStarField();
             starMaterial.hideFlags = createdFlags;
             starMaterial.color = Color.white;
             starMaterial.SetTexture("_EmissionMap", starTexture);
             starMaterial.SetColor("_EmissionColor", Color.black);
+            starMaterial.SetFloat("_TwinkleSpeed", 2.6f);
+            starMaterial.SetFloat("_TwinkleDepth", TwinkleDepth);
 
             var stars = PrimitiveMeshes.Create(PrimitiveType.Quad, "Stars", createdFlags);
             stars.transform.SetParent(transform, false);
@@ -1121,7 +1144,15 @@ namespace CivilizationToSpace.View
             stars.GetComponent<Renderer>().sharedMaterial = starMaterial;
         }
 
-        private static void Put(Color32[] pixels, int size, int x, int y, byte r, byte g, byte b)
+        /// <summary>
+        /// 星を1点置く。<paramref name="phase"/> は揺れの位相で、絵のアルファに焼く。
+        ///
+        /// **同じ星の中心と十字のにじみには、同じ位相を渡す。**
+        /// 別々にすると1粒が分解して揺れ、粒に見えなくなる。
+        /// 色は重ねて足すが、位相はあとから置いたもので上書きする。
+        /// </summary>
+        private static void Put(Color32[] pixels, int size, int x, int y,
+            byte r, byte g, byte b, byte phase)
         {
             if (x < 0 || y < 0 || x >= size || y >= size)
             {
@@ -1134,7 +1165,7 @@ namespace CivilizationToSpace.View
                 (byte)Mathf.Min(255, old.r + r),
                 (byte)Mathf.Min(255, old.g + g),
                 (byte)Mathf.Min(255, old.b + b),
-                255);
+                phase);
         }
 
         /// <summary>
@@ -1172,6 +1203,8 @@ namespace CivilizationToSpace.View
 
             if (starMaterial != null)
             {
+                starMaterial.SetFloat("_TwinkleDepth", ReducedMotion ? 0f : TwinkleDepth);
+
                 // 星は夜の深さでそのまま明るくする。薄明のあいだは弱い。
                 // 星は薄明のあいだに急に消える。少しでも空が明るいと見えない。
                 var night = Mathf.Clamp01(1f - daylight * 2.6f);

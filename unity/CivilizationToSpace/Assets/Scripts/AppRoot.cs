@@ -207,6 +207,33 @@ namespace CivilizationToSpace
         /// <summary>地表で見せる打ち上げの進み具合。</summary>
         private float rocketPhase;
 
+        /// <summary>打ち上げを始める時刻。太陽が上がりきる少し前。</summary>
+        private const float DayStart = 0.30f;
+
+        /// <summary>打ち上げを終える時刻。日が傾く前。</summary>
+        private const float DayEnd = 0.68f;
+
+        /// <summary>
+        /// 時刻から打ち上げの進み具合を出す。
+        ///
+        /// <see cref="DayStart"/> から <see cref="DayEnd"/> のあいだで
+        /// 0 から 0.80 まで進め、その外では 0.9 を返して機体を引っ込める。
+        /// 0.80 を超えると <see cref="View.SurfaceView.SetRocket"/> が
+        /// 機体を消すので、夜のあいだは何も出ない。
+        ///
+        /// **実際の打ち上げ時刻を表していない。** 明るいうちに見える、
+        /// ということだけを決めている。
+        /// </summary>
+        private static float RocketPhaseForDay(float day)
+        {
+            if (day < DayStart || day > DayEnd)
+            {
+                return 0.9f;
+            }
+
+            return (day - DayStart) / (DayEnd - DayStart) * 0.80f;
+        }
+
         /// <summary>検証済みカタログ。読込に失敗した場合は null。</summary>
         public EraCatalog Catalog
         {
@@ -667,7 +694,16 @@ namespace CivilizationToSpace
             // 衝突は空と地面の色そのものを変える。塗ったあとで色を変えると、
             // 1こま遅れて空だけが前の色のまま残る。
             impactPhase = 0f;
-            rocketPhase = 0f;
+
+            // **打ち上げがある時代は、朝から始める。**
+            // 1段階は1倍速で4秒しかない。夜から始まると、明るくなる前に
+            // 次の時代へ移ってしまい、打ち上げを一度も見られない。
+            if (SurfaceCatalog.ForEra(era).ShowsRocket)
+            {
+                dayPhase = DayStart;
+            }
+
+            rocketPhase = RocketPhaseForDay(dayPhase);
             surface.SetImpact(impactPhase);
             surface.SetRocket(rocketPhase);
             surface.SetTimeOfDay(dayPhase, sun);
@@ -844,10 +880,17 @@ namespace CivilizationToSpace
 
                 if (land.ShowsRocket)
                 {
-                    rocketPhase += View.SceneClock.Delta / period;
-                    rocketPhase -= Mathf.Floor(rocketPhase);
+                    // **打ち上げは明るいうちに上げる。**
+                    // 段階の長さで回していたときは、夜に上がることがあった。
+                    // 夜の街は窓の明かりを持たないので真っ暗で、
+                    // 白い機体も噴煙も何も見えなかった。
+                    // 昼の時間に結びつけて、太陽が出ているあいだに一巡させる。
+                    rocketPhase = RocketPhaseForDay(dayPhase);
                 }
             }
+
+            // 星の瞬きは動きである。減らす設定なら止める。
+            surface.ReducedMotion = motion != null && motion.Reduced;
 
             // 出来事を先に進めてから空を塗る。順が逆だと、空だけ1こま遅れる。
             surface.SetImpact(impactPhase);

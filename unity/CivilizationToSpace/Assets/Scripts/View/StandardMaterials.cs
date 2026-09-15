@@ -65,6 +65,17 @@ namespace CivilizationToSpace.View
         }
 
         /// <summary>
+        /// 夜空の星。加算で光を足し、**星ごとに明るさが揺れる。**
+        ///
+        /// 加算の層（<see cref="CreateGlow"/>）は材質ごとに1つの明るさしか持てないため、
+        /// それで星を描くと空ぜんたいが同じ明るさで点滅し、瞬いて見えない。
+        /// </summary>
+        public static Material CreateStarField()
+        {
+            return Copy("StarField");
+        }
+
+        /// <summary>
         /// 重ねて透かし、発光と凹凸の絵も貼るもの。
         /// 地表が次の時代へ移り変わる途中の層に使う。
         /// </summary>
