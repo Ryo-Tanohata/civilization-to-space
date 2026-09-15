@@ -122,7 +122,8 @@ namespace CivilizationToSpace.View
             /// <summary>
             /// 落ちてくるものの見かけの大きさ（メートル相当）。0なら出さない。
             ///
-            /// 巨大衝突では火星ほどの天体、白亜紀の終わりでは直径10〜15kmの小天体。
+            /// 巨大衝突では火星ほどの天体、白亜紀の終わりでは直径10〜14kmの小天体
+            /// （NASA JPL「A 'Smoking Gun' for Dinosaur Extinction」）。
             /// **どちらも実際の大きさも速さも表していない。** 空を横切り、
             /// 地平線の向こうで光る、という出来事の順序だけを見せる。
             /// </summary>
@@ -142,10 +143,51 @@ namespace CivilizationToSpace.View
             /// </summary>
             public bool DiesOnImpact;
 
-            /// <summary>落ちたあとの空と地面の色。</summary>
+            /// <summary>落ちた直後の空と地面の色。舞い上がった塵で赤黒い。</summary>
             public Color AfterSkyHigh;
             public Color AfterSkyLow;
             public Color AfterGround;
+
+            /// <summary>
+            /// 塵が空をおおったあとの、冷えた空と地面の色。
+            ///
+            /// 「衝突の冬」と呼ばれる寒冷化があったことは共通しているが、
+            /// **何が主に冷やしたのかは文献で分かれている。**
+            ///
+            /// - Brugger ほか (2017, Geophysical Research Letters)：硫酸エアロゾルが主因。
+            ///   世界の年平均気温が**少なくとも26℃**下がり、年平均が氷点下の年が
+            ///   **3年ほど**（エアロゾルの滞留時間しだいで3〜16年）続き、
+            ///   気候がもどるのに**30年**あまりかかった。**氷冠は広がった。**
+            ///   塵は比較的すぐ落ちるため、長い寒冷化への寄与は小さいとする。
+            /// - Senel ほか (2023, Nature Geoscience)：細かいケイ酸塩の塵が
+            ///   大気中に**15年**とどまり、世界の平均気温を**最大15℃**下げた。
+            ///   光合成は衝突後**2年ちかく**止まった。塵の寄与はこれまで
+            ///   見積もられてきたより大きいとする。
+            ///
+            /// **地面を白くしているのは「氷冠が広がった」「年平均が氷点下」に
+            /// ならったものである。** 画面に出す降るものは、舞い上がったものが
+            /// 降ってくることを読ませるための代表であって、
+            /// **どのエアロゾルが冷やしたかを主張するものではない。**
+            ///
+            /// **これは数年から数十年の出来事であり、
+            /// 約259万年前から続く第四紀の氷期とは別の出来事である。**
+            ///
+            /// **年数も気温も画面では表していない。** 暗く冷たくなった、
+            /// という移り変わりだけを見せる。
+            /// </summary>
+            public Color WinterSkyHigh;
+            public Color WinterSkyLow;
+            public Color WinterGround;
+
+            /// <summary>降ってくるものの数。0なら出さない。</summary>
+            public int AshFlakes;
+
+            /// <summary>
+            /// 降ってくるものの色。焼けた直後は灰、冷えるにつれて白へ移す。
+            /// 灰が降る空から、凍る空への移り変わりを、色だけで見せる。
+            /// </summary>
+            public Color AshEarly;
+            public Color AshLate;
 
             /// <summary>枯れた幹の色。生きている木の幹とは別に持つ。</summary>
             public Color DeadTrunk;
@@ -219,8 +261,19 @@ namespace CivilizationToSpace.View
         private Texture2D starTexture;
         private Transform rocket;
         private Transform exhaust;
+
+        /// <summary>
+        /// 足もとに広がる噴煙。
+        ///
+        /// **離陸そのものを見せるための煙である。** 機体だけだと、
+        /// 立っているのか上がっているのかが分かりにくい。
+        /// 地面から噴煙が出ていれば、いま地面を離れたことが読める。
+        /// </summary>
+        private Transform padSmoke;
         private Material rocketMaterial;
         private Material flameMaterial;
+        private Material bandMaterial;
+        private Material smokeMaterial;
 
         private Transform impactor;
         private Transform trail;
@@ -248,6 +301,26 @@ namespace CivilizationToSpace.View
         private Transform scatterParent;
 
         private bool worldIsDead;
+
+        /// <summary>
+        /// 空をおおう塵の濃さ。0で澄んでいる、1でふさがっている。
+        ///
+        /// **塵が地球をおおって日光をさえぎった、という一つの見方に沿っている。**
+        /// 細かいケイ酸塩の塵が大気中に15年とどまり、世界の平均気温を最大15℃下げ、
+        /// 光合成を2年ちかく止めたとする（Senel ほか 2023, Nature Geoscience）。
+        /// 硫酸エアロゾルを主因とする見方（Brugger ほか 2017）もあり、**定説は一つではない。**
+        /// ここでは塵でおおわれる見方を採っている。
+        /// **濃さも年数も実際の値を表していない。**
+        /// </summary>
+        private float dustCover;
+
+        /// <summary>降ってくる塵。落ちたあとだけ出す。</summary>
+        private Transform ashRoot;
+        private Transform[] ash;
+        private Vector3[] ashSeat;
+        private float[] ashSpeed;
+        private Material ashMaterial;
+        private float ashTop;
 
         /// <summary>直前に塗ったときの昼の度合いと朝夕の赤み。塗り直しに使う。</summary>
         private float lastDaylight = 1f;
@@ -321,10 +394,105 @@ namespace CivilizationToSpace.View
             ScatterNear(land.Bipeds, BuildBiped, land.PlantHeight * 0.40f, 0.26f);
             scatterParent = null;
 
+            BuildAsh(land);
+
             if (deadRoot != null)
             {
                 deadRoot.gameObject.SetActive(false);
             }
+        }
+
+        /// <summary>
+        /// 降ってくる塵。
+        ///
+        /// **空が暗くなるだけでは、何におおわれたのかが分からない。**
+        /// 舞い上がったものが降ってくるところを出して、
+        /// 暗いのは塵のせいだと読めるようにする。
+        /// **量も大きさも降る速さも、実際のものを表していない。**
+        /// </summary>
+        private void BuildAsh(Landscape land)
+        {
+            if (land.AshFlakes <= 0 || !land.DiesOnImpact)
+            {
+                return;
+            }
+
+            ashMaterial = StandardMaterials.CreateGlow();
+            ashMaterial.hideFlags = createdFlags;
+            ashMaterial.color = Color.white;
+            ashMaterial.SetColor("_EmissionColor", Color.black);
+
+            ashRoot = Group("Ash");
+            ashTop = land.FarZ * 0.30f;
+
+            ash = new Transform[land.AshFlakes];
+            ashSeat = new Vector3[land.AshFlakes];
+            ashSpeed = new float[land.AshFlakes];
+
+            // **細かくする。** 大きくすると降ってくる玉にしか見えない。
+            var size = Mathf.Max(0.12f, land.PlantHeight * 0.016f);
+            for (var i = 0; i < ash.Length; i++)
+            {
+                var flake = PrimitiveMeshes.Create(PrimitiveType.Sphere, "Ash", createdFlags);
+                flake.transform.SetParent(ashRoot, false);
+                flake.transform.localScale = Vector3.one * (size * (0.6f + (float)random.NextDouble()));
+                flake.GetComponent<Renderer>().sharedMaterial = ashMaterial;
+
+                ash[i] = flake.transform;
+                // カメラのすぐ前には置かない。近いものだけが大きく目立ってしまう。
+                ashSeat[i] = new Vector3(
+                    (float)(random.NextDouble() * 2.0 - 1.0) * land.HalfWidth * 0.55f,
+                    (float)random.NextDouble(),
+                    Mathf.Lerp(land.FarZ * 0.06f, land.FarZ * 0.55f, (float)random.NextDouble()));
+                ashSpeed[i] = 0.5f + (float)random.NextDouble() * 0.9f;
+            }
+
+            ashRoot.gameObject.SetActive(false);
+        }
+
+        /// <summary>塵を降らせる。落ちたあとだけ動かす。</summary>
+        private void MoveAsh(float phase, float chill)
+        {
+            if (ash == null || ashRoot == null)
+            {
+                return;
+            }
+
+            ashRoot.gameObject.SetActive(worldIsDead);
+            if (!worldIsDead)
+            {
+                return;
+            }
+
+            // 塵は一度に満ちない。濃くなるにつれて数を増やす。
+            var showing = Mathf.RoundToInt(ash.Length * (0.18f + 0.82f * dustCover));
+            for (var i = 0; i < ash.Length; i++)
+            {
+                if (i >= showing)
+                {
+                    ash[i].gameObject.SetActive(false);
+                    continue;
+                }
+
+                ash[i].gameObject.SetActive(true);
+
+                var fall = phase * 3.2f * ashSpeed[i] + ashSeat[i].y;
+                fall -= Mathf.Floor(fall);
+                ash[i].localPosition = new Vector3(
+                    ashSeat[i].x + Mathf.Sin((fall + ashSeat[i].y) * 6.283f) * ashTop * 0.03f,
+                    ashTop * (1f - fall),
+                    ashSeat[i].z);
+            }
+
+            // 灰が降る空から、凍る空へ。色だけで移り変わりを見せる。
+            var early = current.AshEarly.maxColorComponent > 0.001f
+                ? current.AshEarly
+                : Color.white;
+            var late = current.AshLate.maxColorComponent > 0.001f
+                ? current.AshLate
+                : Color.white;
+            ashMaterial.SetColor("_EmissionColor",
+                Color.Lerp(early, late, chill) * (0.4f + chill * 0.6f));
         }
 
         /// <summary>入れ物をひとつ作る。</summary>
@@ -366,10 +534,15 @@ namespace CivilizationToSpace.View
 
             DestroyImmediate(rocketMaterial);
             DestroyImmediate(flameMaterial);
+            DestroyImmediate(bandMaterial);
+            DestroyImmediate(smokeMaterial);
+            bandMaterial = null;
+            smokeMaterial = null;
             rocketMaterial = null;
             flameMaterial = null;
             rocket = null;
             exhaust = null;
+            padSmoke = null;
 
             DestroyImmediate(impactorMaterial);
             DestroyImmediate(trailMaterial);
@@ -389,6 +562,13 @@ namespace CivilizationToSpace.View
             deadRoot = null;
             scatterParent = null;
             worldIsDead = false;
+
+            DestroyImmediate(ashMaterial);
+            ashMaterial = null;
+            ashRoot = null;
+            ash = null;
+            ashSeat = null;
+            ashSpeed = null;
         }
 
         /// <summary>
@@ -495,18 +675,20 @@ namespace CivilizationToSpace.View
         /// </summary>
         private static Vector3 LaunchPad(Landscape land)
         {
-            // **カメラのすぐ前に置かない。**
-            // 手前へ寄せすぎたとき、機体が画面いっぱいの柱になり、
-            // 何が上がっているのか分からなくなった。街の手前の空き地へ置く。
-            return new Vector3(-land.HalfWidth * 0.42f,
-                0f, Mathf.Lerp(land.NearZ, land.FarZ, 0.17f));
+            // **街の中へ置かない。**
+            // 街並みにまぎれていたとき、機体は建物と同じ白さで同じ高さに立ち、
+            // **地面から離れるところが見えなかった。**
+            // 建物がまだ始まらない、いちばん手前の草地へ置く。
+            // そこなら足もとが空いていて、離陸そのものが見える。
+            return new Vector3(-land.HalfWidth * 0.30f, 0f, land.NearZ);
         }
 
         /// <summary>機体の背の高さ。近くに置くので、建物より大きく取る。</summary>
         private static float RocketScale(Landscape land)
         {
-            // 建物より少し高いくらいにする。倍以上にすると塔にしか見えない。
-            return Mathf.Max(14f, land.BuildingHeight * 0.95f);
+            // 手前へ出したぶん、建物より高く取ってよい。
+            // 遠くに置いて小さくすると、街並みの一部にしか見えない。
+            return Mathf.Max(14f, land.BuildingHeight * 1.35f);
         }
 
         /// <summary>
@@ -533,6 +715,17 @@ namespace CivilizationToSpace.View
             flameMaterial.color = Color.white;
             flameMaterial.SetColor("_EmissionColor", Color.black);
 
+            bandMaterial = StandardMaterials.CreateOpaque(false);
+            bandMaterial.hideFlags = createdFlags;
+            bandMaterial.color = land.Rocket * 0.28f;
+            bandMaterial.SetFloat("_Glossiness", 0f);
+            bandMaterial.SetFloat("_Metallic", 0f);
+
+            smokeMaterial = StandardMaterials.CreateGlow();
+            smokeMaterial.hideFlags = createdFlags;
+            smokeMaterial.color = Color.white;
+            smokeMaterial.SetColor("_EmissionColor", Color.black);
+
             var scale = RocketScale(land);
 
             var root = new GameObject("Rocket");
@@ -555,10 +748,23 @@ namespace CivilizationToSpace.View
             nose.GetComponent<MeshFilter>().sharedMesh = Cone();
             nose.GetComponent<MeshRenderer>().sharedMaterial = rocketMaterial;
 
+            // 濃い帯を1本入れる。まっ白のままだと、白い建物の並びに溶けて消える。
+            var band = PrimitiveMeshes.Create(PrimitiveType.Cylinder, "Band", createdFlags);
+            band.transform.SetParent(rocket, false);
+            band.transform.localPosition = new Vector3(0f, scale * 0.22f, 0f);
+            band.transform.localScale = new Vector3(scale * 0.178f, scale * 0.055f, scale * 0.178f);
+            band.GetComponent<Renderer>().sharedMaterial = bandMaterial;
+
             var fire = PrimitiveMeshes.Create(PrimitiveType.Sphere, "Flame", createdFlags);
             fire.transform.SetParent(transform, false);
             fire.GetComponent<Renderer>().sharedMaterial = flameMaterial;
             exhaust = fire.transform;
+
+            // 足もとの噴煙。地面に沿って広がるので平たくする。
+            var smoke = PrimitiveMeshes.Create(PrimitiveType.Sphere, "PadSmoke", createdFlags);
+            smoke.transform.SetParent(transform, false);
+            smoke.GetComponent<Renderer>().sharedMaterial = smokeMaterial;
+            padSmoke = smoke.transform;
         }
 
         /// <summary>
@@ -584,27 +790,50 @@ namespace CivilizationToSpace.View
             exhaust.gameObject.SetActive(flying);
             if (!flying)
             {
+                if (padSmoke != null)
+                {
+                    padSmoke.gameObject.SetActive(false);
+                }
+
                 return;
             }
 
+            var scale = RocketScale(land);
+
             // 待っているあいだは台の上。上がり始めてからは、加速して高くなる。
-            var climb = Mathf.Max(0f, (phase - 0.10f) / 0.70f);
-            // 街の上を越えて空へ抜けるところまで上げる。
-            // 建物の高さまでしか上がらないと、立っているのか上がっているのか分からない。
-            var height = land.FarZ * 1.15f * climb * climb;
+            //
+            // **上がる高さは機体の丈で決める。** 野の奥行きで決めていたときは、
+            // 奥行き900mの街で1000m以上まで一気に飛び、ひとこまで消えていた。
+            var climb = Mathf.Max(0f, (phase - 0.18f) / 0.62f);
+            var height = scale * 5f * climb * climb;
 
             rocket.localPosition = pad + new Vector3(0f, height, 0f);
 
-            var scale = RocketScale(land);
-
             // 噴射は上がり始めてから出す。待っているあいだは出さない。
-            var burning = phase >= 0.10f;
+            var burning = phase >= 0.18f;
             // 噴射は機体より細く短く。大きくすると白い楕円にしか見えない。
             var flame = burning ? scale * (0.22f + Mathf.Sin(phase * 120f) * 0.04f) : 0f;
             exhaust.localScale = new Vector3(flame * 0.55f, flame, flame * 0.55f);
             exhaust.localPosition = rocket.localPosition + new Vector3(0f, -flame * 0.75f, 0f);
             flameMaterial.SetColor("_EmissionColor",
                 burning ? land.Flame * (1.35f - climb * 0.7f) : Color.black);
+
+            if (padSmoke == null)
+            {
+                return;
+            }
+
+            // 足もとの噴煙。上がり始めに地面へ広がり、離れるにつれて薄れる。
+            // これが無いと、地面から離れた瞬間が読めない。
+            var puff = Mathf.Clamp01((phase - 0.18f) / 0.34f);
+            padSmoke.gameObject.SetActive(burning && puff < 1f);
+            if (burning && puff < 1f)
+            {
+                var spread = scale * Mathf.Lerp(0.30f, 1.5f, puff);
+                padSmoke.localPosition = pad + new Vector3(0f, spread * 0.16f, 0f);
+                padSmoke.localScale = new Vector3(spread, spread * 0.42f, spread);
+                smokeMaterial.SetColor("_EmissionColor", Color.white * (1f - puff) * 0.8f);
+            }
         }
 
         /// <summary>
@@ -637,7 +866,6 @@ namespace CivilizationToSpace.View
             current.Ground = dead ? current.AfterGround : livingGround;
 
             RecolorGround();
-            PaintSky();
         }
 
         /// <summary>今の空の色と昼の度合いで、空の帯を塗る。</summary>
@@ -651,6 +879,18 @@ namespace CivilizationToSpace.View
             var high = Color.Lerp(NightHigh, current.SkyHigh, lastDaylight);
             var low = Color.Lerp(NightLow, current.SkyLow, lastDaylight);
             low = Color.Lerp(low, DuskLow, lastDusk * 0.85f);
+
+            // **塵が濃いほど、空の上下の差を消す。**
+            // 晴れた空は上が濃く下が淡い。おおわれた空はその差が無くなり、
+            // 一枚のふたのように見える。これで「ふさがれた」ことを伝える。
+            if (dustCover > 0f)
+            {
+                // 濃い側（上）へ寄せてから平らにする。真ん中で平らにすると、
+                // 明るい下の色に引かれて、ふさがっているのに明るい空になった。
+                var flat = Color.Lerp(high, low, 0.3f) * (1f - dustCover * 0.28f);
+                high = Color.Lerp(high, flat, dustCover * 0.95f);
+                low = Color.Lerp(low, flat, dustCover * 0.95f);
+            }
 
             var height = skyTexture.height;
             for (var y = 0; y < height; y++)
@@ -675,6 +915,8 @@ namespace CivilizationToSpace.View
 
                 var t = DepthSteps > 1 ? i / (float)(DepthSteps - 1) : 0f;
                 material.color = Color.Lerp(current.Ground, current.SkyLow, t * HazeStrength);
+
+
             }
         }
 
@@ -703,6 +945,26 @@ namespace CivilizationToSpace.View
             // 落ちる前は生きている世界、落ちたあとは枯れた世界。
             // 順番を逆にすると、原因より先に結果が画面に出てしまう。
             SetWorldDead(phase >= 0.72f);
+
+            // **落ちたあとは4つの場面をこの順でたどる。**
+            // 1 生きた森 → 2 落ちてくる → 3 閃光 → 4 塵が空をおおって暗くなる → 5 凍る
+            // 実際の年数も温度も濃さも表していない。順序だけを見せる。
+            //
+            // 4 おおう：0.74 から塵が増え、空の上下の差が消えてふたのようになる。
+            //           同時に日光が落ちていく。**これが「太陽をさえぎった」の絵である。**
+            // 5 凍る：0.86 から冷えはじめ、空も地面も降るものも白へ寄る。
+            dustCover = worldIsDead ? Mathf.Clamp01((phase - 0.74f) / 0.16f) : 0f;
+            var chill = worldIsDead ? Mathf.Clamp01((phase - 0.86f) / 0.14f) : 0f;
+
+            if (worldIsDead && current.WinterSkyLow.maxColorComponent > 0.001f)
+            {
+                current.SkyHigh = Color.Lerp(current.AfterSkyHigh, current.WinterSkyHigh, chill);
+                current.SkyLow = Color.Lerp(current.AfterSkyLow, current.WinterSkyLow, chill);
+                current.Ground = Color.Lerp(current.AfterGround, current.WinterGround, chill);
+                RecolorGround();
+            }
+
+            MoveAsh(phase, chill);
 
             var land = current;
             var hit = ImpactPoint(land);
@@ -753,11 +1015,12 @@ namespace CivilizationToSpace.View
             }
 
             // 光ったあと、粉塵が立ちのぼって薄れる。
-            var rising = phase >= 0.74f && phase < 1f;
+            // 冷えきるまでに消す。残っていると、冷えた野に柱が立って見える。
+            var rising = phase >= 0.74f && phase < 0.92f;
             column.gameObject.SetActive(rising);
             if (rising)
             {
-                var t = (phase - 0.74f) / 0.26f;
+                var t = (phase - 0.74f) / 0.18f;
                 // 太さと高さに上限を置く。大きいものほど太くすると板に見える。
                 var height = Mathf.Min(land.FarZ * 0.55f, land.ImpactorSize * 14f)
                              * Mathf.Lerp(0.12f, 1f, Mathf.Sqrt(t));
@@ -912,6 +1175,14 @@ namespace CivilizationToSpace.View
                 // 星は薄明のあいだに急に消える。少しでも空が明るいと見えない。
                 var night = Mathf.Clamp01(1f - daylight * 2.6f);
                 night *= night;
+
+                // **塵におおわれた空には星が出ない。**
+                // 日光をさえぎるほどの塵なら、星明かりも通さない。
+                if (worldIsDead)
+                {
+                    night *= 0.12f;
+                }
+
                 starMaterial.SetColor("_EmissionColor", Color.white * night);
             }
 
@@ -919,10 +1190,12 @@ namespace CivilizationToSpace.View
             {
                 var day = elevation > 0f;
 
-                // **落ちたあとは昼でも暗い。**
-                // 舞い上がった塵が日光をさえぎるため、光を弱める。
-                // 何年つづいたかは表していない。暗くなった、ということだけを示す。
-                var dust = worldIsDead ? 0.34f : 1f;
+                // **塵が濃くなるにつれて、日光が弱まっていく。**
+                // 一段で暗くすると、暗幕を下ろしたように見えて理由が読めない。
+                // 塵が増えるのに合わせて落としていくと、
+                // **塵が日光をさえぎったのだ**と分かる。
+                // 何年つづいたかは表していない。
+                var dust = Mathf.Lerp(1f, 0.22f, dustCover);
 
                 // 夜は月あかりに置き換える。真っ暗にすると地形も輪郭も読めない。
                 var pitch = Mathf.Lerp(4f, 62f, Mathf.Abs(elevation));

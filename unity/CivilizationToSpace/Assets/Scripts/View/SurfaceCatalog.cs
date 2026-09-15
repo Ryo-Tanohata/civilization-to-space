@@ -269,6 +269,30 @@ namespace CivilizationToSpace.View
             land.AfterSkyHigh = Hex(0x231C18);
             land.AfterSkyLow = Hex(0x54453A);
             land.AfterGround = Hex(0x39322C);
+
+            // そのあと「衝突の冬」へ移る。
+            //
+            // 地面を白くしているのは Brugger ほか (2017, Geophysical Research
+            // Letters) による。世界の年平均気温が少なくとも26℃下がり、
+            // 年平均が氷点下の年が3年ほど（3〜16年）続き、**氷冠が広がった。**
+            // 気候がもどるのに30年あまりかかった。
+            // 降る塵は Senel ほか (2023, Nature Geoscience) による。細かい
+            // ケイ酸塩の塵が大気中に15年とどまり、光合成は2年ちかく止まった。
+            //
+            // **何が主に冷やしたのかは文献で分かれている。** 前者は硫酸エアロゾル、
+            // 後者は細かい塵を重く見る。画面の降るものはどちらかを主張していない。
+            //
+            // **これは数年から数十年の出来事であり、約259万年前から続く
+            // 第四紀の氷期（次の時代）とは別のものである。**
+            // 年数も気温も画面では表していない。
+            land.WinterSkyHigh = Hex(0x2E3740);
+            land.WinterSkyLow = Hex(0x818C96);
+            land.WinterGround = Hex(0x9AA0A4);
+
+            // 降ってくるもの。舞い上がった塵から、凍る白へ移す。
+            land.AshFlakes = 420;
+            land.AshEarly = Hex(0x9E8F82);
+            land.AshLate = Hex(0xFFFFFF);
             land.DeadTrunk = Hex(0x2E261F);
             land.DeadTrunks = 46;
             land.Buildings = 0;

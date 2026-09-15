@@ -93,7 +93,9 @@ namespace CivilizationToSpace.EditorTools
                 Vector3 eye;
                 float pitch;
                 SurfaceCatalog.EyeForEra(era, out eye, out pitch);
-                var phases = new[] { 0.30f, 0.60f, 0.71f, 0.745f, 0.80f, 0.90f };
+                // 場面が順に出るか見るための抜き取り。
+                // 生きた森 → 落ちてくる → 閃光 → 塵が広がる → おおわれる → 冷える → 凍る
+                var phases = new[] { 0.30f, 0.65f, 0.735f, 0.78f, 0.86f, 0.93f, 0.99f };
                 for (var i = 0; i < phases.Length; i++)
                 {
                     Capture(directory, EraNames[era] + "-impact" + (i + 1),
@@ -125,10 +127,14 @@ namespace CivilizationToSpace.EditorTools
             var view = host.AddComponent<SurfaceView>();
             view.Build(land, HideFlags.DontSave);
 
-            // 空の色・星の明るさ・光の向きと強さは、時刻からまとめて決まる。
-            view.SetTimeOfDay(timeOfDay, light);
+            // **出来事を先に進めてから空を塗る。** 実機と同じ順にする。
+            // 衝突は空と地面の色そのものを変えるため、順が逆だと
+            // 地面だけ枯れて空は青いまま、という画が出てしまう。
             view.SetImpact(impactPhase < 0f ? 0.99f : impactPhase);
             view.SetRocket(rocketPhase);
+
+            // 空の色・星の明るさ・光の向きと強さは、時刻からまとめて決まる。
+            view.SetTimeOfDay(timeOfDay, light);
 
             var cameraObject = new GameObject("Camera");
             var camera = cameraObject.AddComponent<Camera>();

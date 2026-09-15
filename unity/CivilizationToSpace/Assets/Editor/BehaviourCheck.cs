@@ -375,6 +375,23 @@ namespace CivilizationToSpace.EditorTools
                         shown.Length > 0,
                         shown.Length > 0 ? "地表が既定の時代 " + shown : "どの時代も宇宙が既定");
 
+                    // **暗くなった理由を画面に出す。**
+                    // 空が暗くなるだけでは、何におおわれたのかが読めない。
+                    // 舞い上がった塵が降ってくるところと、冷えていく色を持たせる。
+                    // 出典: Brugger ほか (2017, Geophysical Research Letters)
+                    // 「Baby, it's cold outside」。世界の年平均気温が少なくとも26℃下がり、
+                    // 年平均が氷点下の年が3年ほど続き、氷冠が広がった。
+                    // Senel ほか (2023, Nature Geoscience)「Chicxulub impact winter
+                    // sustained by fine silicate dust」。細かい塵は大気中に15年とどまり、
+                    // 光合成は2年ちかく止まった。
+                    Record("U-48 衝突のあとは塵が降り、冷えた色へ移る",
+                        impact.AshFlakes > 0
+                        && impact.WinterSkyLow.maxColorComponent > 0.001f
+                        && impact.WinterGround.maxColorComponent > 0.001f,
+                        "塵=" + impact.AshFlakes +
+                        " 冷えた空=" + (impact.WinterSkyLow.maxColorComponent > 0.001f) +
+                        " 冷えた地面=" + (impact.WinterGround.maxColorComponent > 0.001f));
+
                     Finish();
                     break;
             }

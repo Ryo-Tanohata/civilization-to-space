@@ -660,13 +660,17 @@ namespace CivilizationToSpace
 
             var era = timeline.CurrentEraIndex;
             surface.Build(SurfaceCatalog.ForEra(era), HideFlags.None);
-            surface.SetTimeOfDay(dayPhase, sun);
 
             // 時代を移ったら、落ちてくるものも打ち上げも最初から見せる。
+            //
+            // **出来事を先に進めてから空を塗る。**
+            // 衝突は空と地面の色そのものを変える。塗ったあとで色を変えると、
+            // 1こま遅れて空だけが前の色のまま残る。
             impactPhase = 0f;
             rocketPhase = 0f;
             surface.SetImpact(impactPhase);
             surface.SetRocket(rocketPhase);
+            surface.SetTimeOfDay(dayPhase, sun);
 
             var camera = Camera.main;
             if (camera == null)
@@ -845,9 +849,10 @@ namespace CivilizationToSpace
                 }
             }
 
-            surface.SetTimeOfDay(dayPhase, sun);
+            // 出来事を先に進めてから空を塗る。順が逆だと、空だけ1こま遅れる。
             surface.SetImpact(impactPhase);
             surface.SetRocket(rocketPhase);
+            surface.SetTimeOfDay(dayPhase, sun);
 
             // **ぶつかった瞬間はカメラを揺らす。**
             // 音も振動も出せないので、揺れだけが「ぶつかった」ことを伝える。
