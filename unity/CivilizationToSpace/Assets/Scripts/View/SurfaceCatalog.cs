@@ -111,6 +111,10 @@ namespace CivilizationToSpace.View
                 // 上下のぼかしだけでは、どこまでが空でどこからが遠景か分からず、
                 // 板を1枚立てたように見えていた。
                 // 雲の層・太陽・重なる稜線の3つで奥行きを出す。
+                // 起伏。平らな板だと地面が床にしか見えない。
+                // 置くものは同じ高さの式を通すので、斜面でも浮かない。
+                Relief = 0.055f,
+                ReliefDetail = 1f,
                 CloudCover = 0.75f,
                 ShowsSun = true,
                 Ridges = 3,

@@ -180,6 +180,22 @@ namespace CivilizationToSpace.View
             public Color WinterGround;
 
             /// <summary>
+            /// 地面の起伏の高さ（奥行きに対する比）。0で平ら。
+            ///
+            /// **平らな板だと、地面が床にしか見えない。**
+            /// 参考に挙がった風景では、起伏が手前から奥へ続いていて、
+            /// それが奥行きと質感の大きな部分を占めていた。
+            ///
+            /// 置いたものは <see cref="GroundHeight"/> で地面に沿わせる。
+            /// 高さを引かずに置くと、丘の斜面で木が宙に浮く。
+            /// **実在の地形ではない。**
+            /// </summary>
+            public float Relief;
+
+            /// <summary>起伏の細かさ。大きいほど細かく波打つ。</summary>
+            public float ReliefDetail;
+
+            /// <summary>
             /// 雲の濃さ。0で雲を出さない。
             ///
             /// **空がひと色の帯だけだと、奥行きも時刻も伝わらない。**
@@ -340,6 +356,8 @@ namespace CivilizationToSpace.View
         private Texture2D sunTexture;
         private Transform sunQuad;
         private float skyDistance;
+        private Terrain terrain;
+        private TerrainData terrainData;
         private Texture2D skyTexture;
         private Material starMaterial;
         private Texture2D starTexture;
@@ -668,6 +686,10 @@ namespace CivilizationToSpace.View
             deadRoot = null;
             scatterParent = null;
             worldIsDead = false;
+
+            DestroyImmediate(terrainData);
+            terrainData = null;
+            terrain = null;
 
             DestroyImmediate(ashMaterial);
             ashMaterial = null;
@@ -1028,7 +1050,7 @@ namespace CivilizationToSpace.View
         /// 打ち上げる場所。**街より手前に置く。**
         /// 街の中に混ぜると、建物に隠れて上がる様子が見えない。
         /// </summary>
-        private static Vector3 LaunchPad(Landscape land)
+        private Vector3 LaunchPad(Landscape land)
         {
             // **街の中へ置かない。画面の真ん中に置く。**
             // 街並みにまぎれていたとき、機体は建物と同じ白さで同じ高さに立ち、
@@ -1036,7 +1058,7 @@ namespace CivilizationToSpace.View
             // 建物がまだ始まらない、いちばん手前の草地へ置く。
             // そこなら足もとが空いていて、離陸そのものが見える。
             // 横は0にする。カメラは x=0 にあるので、画面の真ん中に立つ。
-            return new Vector3(0f, 0f, land.NearZ);
+            return new Vector3(0f, GroundHeight(0f, land.NearZ), land.NearZ);
         }
 
         /// <summary>機体の背の高さ。近くに置くので、建物より大きく取る。</summary>
@@ -1297,6 +1319,40 @@ namespace CivilizationToSpace.View
             cloudMaterial.SetColor("_EmissionColor", lit * strength);
         }
 
+        /// <summary>
+        /// その場所の地面の高さ。
+        ///
+        /// **置くものはすべてここを通す。** 地面を波打たせたのに置き場所を
+        /// 0のままにすると、丘の斜面で木も生きものも宙に浮く。
+        /// 地面そのものもこの値で作るので、形は必ず一致する。
+        ///
+        /// 粗い波に細かい波を足している。1つだけだと規則正しいうねりになる。
+        /// **実在の地形ではない。**
+        /// </summary>
+        public float GroundHeight(float x, float z)
+        {
+            if (current.Relief <= 0.0001f)
+            {
+                return 0f;
+            }
+
+            var scale = Mathf.Max(1f, current.FarZ);
+            var detail = current.ReliefDetail > 0f ? current.ReliefDetail : 1f;
+
+            var u = x / scale;
+            var w = z / scale;
+
+            // 種で位置をずらす。時代ごとに違う地形にする。
+            var shift = (current.Seed % 97) * 0.37f;
+
+            var h = Mathf.PerlinNoise(u * 1.6f * detail + shift, w * 1.6f * detail + shift) * 0.62f
+                    + Mathf.PerlinNoise(u * 4.3f * detail + shift * 2f, w * 4.3f * detail + shift * 2f) * 0.26f
+                    + Mathf.PerlinNoise(u * 9.1f * detail + shift * 3f, w * 9.1f * detail + shift * 3f) * 0.12f;
+
+            // 真ん中あたりを基準にして、上下へ振らせる。
+            return (h - 0.5f) * current.Relief * scale;
+        }
+
         /// <summary>今の空の色と昼の度合いで、空の帯を塗る。</summary>
         private void PaintSky()
         {
@@ -1350,9 +1406,11 @@ namespace CivilizationToSpace.View
         }
 
         /// <summary>ぶつかる場所。地平線の少し手前へ置く。</summary>
-        private static Vector3 ImpactPoint(Landscape land)
+        private Vector3 ImpactPoint(Landscape land)
         {
-            return new Vector3(land.HalfWidth * 0.5f, 0f, land.FarZ * 0.9f);
+            var x = land.HalfWidth * 0.5f;
+            var z = land.FarZ * 0.9f;
+            return new Vector3(x, GroundHeight(x, z), z);
         }
 
         /// <summary>
@@ -1674,6 +1732,100 @@ namespace CivilizationToSpace.View
         /// </summary>
         private void BuildGround(Landscape land)
         {
+            if (land.Relief > 0.0001f)
+            {
+                BuildTerrain(land);
+                return;
+            }
+
+            BuildFlatGround(land);
+        }
+
+        /// <summary>
+        /// 起伏のある地面。Unity の Terrain を**コードから組み立てる**。
+        ///
+        /// **手で塗らない。** 時代ごとに地面を手で描くと、時代を足すたびに
+        /// 手作業が増え、データから組み立てるという作りが崩れる。
+        /// 高さは <see cref="GroundHeight"/> から引く。置くものと同じ式なので、
+        /// 木も生きものも必ず地面の上に立つ。
+        ///
+        /// **材質は Terrain の既定を使わない。** 既定の地形用シェーダーは
+        /// 塗り分けの絵を要求し、WebGLビルドに残るかも確かめにくい。
+        /// この作品で実績のある自前のシェーダーを割り当て、色1つで塗る。
+        /// 遠さによる霞は、地面ぜんたいでは掛けずに空の色へ寄せた1色で近似する。
+        ///
+        /// **実在の地形ではない。**
+        /// </summary>
+        private void BuildTerrain(Landscape land)
+        {
+            // Terrain の高さの升目は 2のべき乗+1 でなければならない。
+            const int resolution = 129;
+
+            var width = land.HalfWidth * 6f;
+            var length = land.FarZ * 1.6f;
+            var originZ = -land.FarZ * 0.25f;
+
+            // 起伏の振れ幅を測ってから、その幅に合わせて升目を正規化する。
+            var lowest = float.MaxValue;
+            var highest = float.MinValue;
+            var raw = new float[resolution, resolution];
+            for (var zi = 0; zi < resolution; zi++)
+            {
+                var z = originZ + length * zi / (float)(resolution - 1);
+                for (var xi = 0; xi < resolution; xi++)
+                {
+                    var x = -width * 0.5f + width * xi / (float)(resolution - 1);
+
+                    // Terrain の高さは [zi, xi] の順に入れる。逆にすると地形が転置する。
+                    var h = GroundHeight(x, z);
+                    raw[zi, xi] = h;
+                    lowest = Mathf.Min(lowest, h);
+                    highest = Mathf.Max(highest, h);
+                }
+            }
+
+            var span = Mathf.Max(0.01f, highest - lowest);
+            for (var zi = 0; zi < resolution; zi++)
+            {
+                for (var xi = 0; xi < resolution; xi++)
+                {
+                    raw[zi, xi] = (raw[zi, xi] - lowest) / span;
+                }
+            }
+
+            terrainData = new TerrainData();
+            terrainData.hideFlags = createdFlags;
+            terrainData.heightmapResolution = resolution;
+            terrainData.size = new Vector3(width, span, length);
+            terrainData.SetHeights(0, 0, raw);
+
+            var host = Terrain.CreateTerrainGameObject(terrainData);
+            host.name = "Ground";
+            host.hideFlags = createdFlags;
+            host.transform.SetParent(transform, false);
+            host.transform.localPosition = new Vector3(-width * 0.5f, lowest, originZ);
+
+            // 当たり判定は要らない。誰も歩かないし、当たりを取る相手もいない。
+            var collider = host.GetComponent<TerrainCollider>();
+            if (collider != null)
+            {
+                DestroyImmediate(collider);
+            }
+
+            terrain = host.GetComponent<Terrain>();
+            terrain.materialTemplate = Tinted("Ground", land.Ground, 2);
+            terrain.drawTreesAndFoliage = false;
+            terrain.heightmapPixelError = 8f;
+            terrain.basemapDistance = land.FarZ * 2f;
+            terrain.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        }
+
+        /// <summary>
+        /// 平らな地面。奥行きで色を分けた帯を並べる。
+        /// 起伏を持たない時代（水面や溶けた地面）で使う。
+        /// </summary>
+        private void BuildFlatGround(Landscape land)
+        {
             const int bands = DepthSteps;
             var end = land.FarZ * 1.3f;
 
@@ -1775,7 +1927,7 @@ namespace CivilizationToSpace.View
 
                 var item = build(scale);
                 item.transform.SetParent(ScatterRoot, false);
-                item.transform.localPosition = new Vector3(x, 0f, z);
+                item.transform.localPosition = new Vector3(x, GroundHeight(x, z), z);
 
                 var turn = profile
                     ? (random.Next(2) == 0 ? 90f : 270f) + (float)(random.NextDouble() * 2.0 - 1.0) * 26f
@@ -1823,7 +1975,7 @@ namespace CivilizationToSpace.View
                     var height = land.BuildingHeight * (0.7f + (float)random.NextDouble() * 0.8f);
                     var item = BuildStructure(height);
                     item.transform.SetParent(transform, false);
-                    item.transform.localPosition = new Vector3(x, 0f, z);
+                    item.transform.localPosition = new Vector3(x, GroundHeight(x, z), z);
                     item.transform.localRotation = Quaternion.Euler(0f,
                         (float)(random.NextDouble() * 2.0 - 1.0) * 8f, 0f);
                     ApplyDepth(item, z);
@@ -1843,7 +1995,7 @@ namespace CivilizationToSpace.View
 
                 var item = build(scale);
                 item.transform.SetParent(ScatterRoot, false);
-                item.transform.localPosition = new Vector3(x, 0f, z);
+                item.transform.localPosition = new Vector3(x, GroundHeight(x, z), z);
                 item.transform.localRotation = Quaternion.Euler(0f,
                     (random.Next(2) == 0 ? 90f : 270f) + (float)(random.NextDouble() * 2.0 - 1.0) * 24f, 0f);
                 ApplyDepth(item, z);
