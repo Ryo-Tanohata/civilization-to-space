@@ -432,6 +432,23 @@ namespace CivilizationToSpace.EditorTools
                         "星 " + (View.StarCatalog.Stars.Length / View.StarCatalog.StarStride)
                         + "個 / 名のある6星のいちばん大きなずれ " + worst.ToString("F4") + "度");
 
+                    // **星座の線は既定で出さない。**
+                    // 空ぜんたいに線が走ると星座早見盤のようになり、
+                    // 星空を見ている感じが薄れる。見たいときだけ出す。
+                    Record("U-50 星座の線は最初は出ていない",
+                        !app.ConstellationLines,
+                        "線=" + app.ConstellationLines);
+
+                    app.ToggleConstellationLines();
+                    Record("U-51 押すと星座の線が出る",
+                        app.ConstellationLines,
+                        "線=" + app.ConstellationLines);
+
+                    app.ToggleConstellationLines();
+                    Record("U-52 もう一度押すと消える",
+                        !app.ConstellationLines,
+                        "線=" + app.ConstellationLines);
+
                     Finish();
                     break;
             }

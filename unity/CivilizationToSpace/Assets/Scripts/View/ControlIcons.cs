@@ -136,6 +136,38 @@ namespace CivilizationToSpace.View
             return c.ToSprite();
         }
 
+        /// <summary>
+        /// 星座の線を出す・消す。
+        ///
+        /// 消えているときは星の粒だけ、出ているときは線で結んだ姿を描く。
+        /// **押したらどうなるかではなく、いまどちらかを描く。**
+        /// 地表と宇宙の切り替えは「押したら何が見えるか」だが、
+        /// これは入切の札なので、いまの状態を出すほうが分かりやすい。
+        /// </summary>
+        public static Sprite Constellation(bool showing)
+        {
+            var c = new Raster();
+
+            // ひしゃくの形に4点。実在の星座をなぞったものではない。
+            var x = new[] { 16f, 30f, 44f, 50f };
+            var y = new[] { 44f, 20f, 30f, 50f };
+
+            if (showing)
+            {
+                for (var i = 0; i < 3; i++)
+                {
+                    c.Line(x[i], y[i], x[i + 1], y[i + 1], 2.2f, Muted, 1f);
+                }
+            }
+
+            for (var i = 0; i < 4; i++)
+            {
+                c.Disc(x[i], y[i], i == 1 ? 5f : 3.6f, Line, 1f);
+            }
+
+            return c.ToSprite();
+        }
+
         /// <summary>前へ・次へ。向きだけを変えた三角。</summary>
         public static Sprite Step(bool forward)
         {

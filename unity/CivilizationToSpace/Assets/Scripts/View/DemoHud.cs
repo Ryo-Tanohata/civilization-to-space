@@ -66,6 +66,7 @@ namespace CivilizationToSpace.View
         private Button motionButton;
         private Button resetViewButton;
         private Button surfaceButton;
+        private Button constellationButton;
         private Slider eraSlider;
         private Text statusText;
         private bool suppressSliderCallback;
@@ -127,8 +128,14 @@ namespace CivilizationToSpace.View
         /// </summary>
         public bool SurfaceMode { get; set; }
 
+        /// <summary>いま星座の線を出しているか。</summary>
+        public bool ConstellationLines { get; set; }
+
         /// <summary>地表と宇宙を切り替えてほしいとき呼ぶ。<see cref="AppRoot"/> が受ける。</summary>
         public System.Action SurfaceToggleRequested;
+
+        /// <summary>星座の線の入切を押されたときに呼ばれる。</summary>
+        public System.Action ConstellationToggleRequested;
 
         public void Bind(
             EraTimeline eraTimeline,
@@ -205,6 +212,11 @@ namespace CivilizationToSpace.View
             resetViewButton.onClick.AddListener(framing.ResetView);
             descriptionButton.onClick.AddListener(ToggleDescription);
             surfaceButton.onClick.AddListener(RequestSurfaceToggle);
+
+            if (constellationButton != null)
+            {
+                constellationButton.onClick.AddListener(RequestConstellationToggle);
+            }
 
             timeline.Changed += Show;
             playback.Changed += Refresh;
@@ -362,6 +374,27 @@ namespace CivilizationToSpace.View
             if (surfaceInfo != null)
             {
                 surfaceInfo.Title = SurfaceMode ? "宇宙から見る" : "地表から見る";
+            }
+
+            if (constellationButton != null)
+            {
+                // **星座の線は宇宙から見るときだけのもの。**
+                // 地表では効かないので、押せるように見せない。
+                constellationButton.gameObject.SetActive(!SurfaceMode);
+
+                SetButtonFace(
+                    constellationButton,
+                    ConstellationLines ? "星座の線：オン" : "星座の線：オフ",
+                    ControlIcons.Constellation(ConstellationLines));
+                SetNormalColor(
+                    constellationButton, ConstellationLines ? ButtonSelectedColor : ButtonColor);
+
+                var constellationInfo = constellationButton.GetComponent<LongPressInfo>();
+                if (constellationInfo != null)
+                {
+                    constellationInfo.Title =
+                        ConstellationLines ? "星座の線：オン" : "星座の線：オフ";
+                }
             }
 
             // コマ送り中は時間を止めている。止めていることが分からないと、
@@ -610,6 +643,9 @@ namespace CivilizationToSpace.View
                 UiFactory.SetWidth(speedButton.gameObject, ControlIconSize, 0f);
                 AttachControlInfo(speedButton, "再生の速さ");
 
+                constellationButton = CreateControlIcon(
+                    playbackRoot, "Constellation", ControlIcons.Constellation(false), "星座の線");
+
                 surfaceButton = CreateControlIcon(
                     playbackRoot, "Surface", ControlIcons.Surface(false), "地表から見る");
                 SetNormalColor(surfaceButton, ViewButtonColor);
@@ -625,6 +661,10 @@ namespace CivilizationToSpace.View
 
                 speedButton = UiFactory.CreateButton(playbackRoot, "Speed", 15, ButtonColor, TextColor);
                 UiFactory.SetWidth(speedButton.gameObject, 96f, 0f);
+
+                constellationButton = UiFactory.CreateButton(
+                    playbackRoot, "Constellation", 15, ButtonColor, TextColor);
+                UiFactory.SetWidth(constellationButton.gameObject, 150f, 0f);
 
                 surfaceButton = UiFactory.CreateButton(playbackRoot, "Surface", 15, ViewButtonColor, TextColor);
                 UiFactory.SetWidth(surfaceButton.gameObject, 150f, 0f);
@@ -1051,6 +1091,21 @@ namespace CivilizationToSpace.View
             {
                 handler();
             }
+
+            // 地表と宇宙で出すボタンが変わる。押したその場で描き直す。
+            Refresh();
+        }
+
+        private void RequestConstellationToggle()
+        {
+            var handler = ConstellationToggleRequested;
+            if (handler != null)
+            {
+                handler();
+            }
+
+            // 呼び出し側が入切を書き換えたあとに、札と色を合わせる。
+            Refresh();
         }
 
         private static void SetNormalColor(Button button, Color color)

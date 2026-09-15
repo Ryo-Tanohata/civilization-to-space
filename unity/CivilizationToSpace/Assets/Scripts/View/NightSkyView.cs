@@ -67,12 +67,35 @@ namespace CivilizationToSpace.View
         private Texture2D dotTexture;
         private Mesh starMesh;
         private Mesh lineMesh;
+        private GameObject lineHost;
 
         /// <summary>
         /// 動きを減らす設定。真のとき星を光らせない。
         /// **瞬きは動きである。** 減らすと決めたなら止める。
         /// </summary>
         public bool ReducedMotion { get; set; }
+
+        /// <summary>
+        /// 星座の線を出すか。**既定は出さない。**
+        ///
+        /// 線があると星座は見つけやすいが、空ぜんたいに線が走るので
+        /// 星座早見盤のようになり、星空を見ている感じが薄れる。
+        /// ふだんは星だけを出し、見たいときにボタンで出す。
+        /// </summary>
+        public bool ShowConstellationLines
+        {
+            get { return showLines; }
+            set
+            {
+                showLines = value;
+                if (lineHost != null)
+                {
+                    lineHost.SetActive(value);
+                }
+            }
+        }
+
+        private bool showLines;
 
         /// <summary>光っていないときの明るさ。</summary>
         private const float TwinkleBase = 0.62f;
@@ -111,6 +134,7 @@ namespace CivilizationToSpace.View
             dotTexture = null;
             starMesh = null;
             lineMesh = null;
+            lineHost = null;
         }
 
         private void OnDestroy()
@@ -354,10 +378,11 @@ namespace CivilizationToSpace.View
             lineMaterial.SetFloat("_TwinkleDepth", 0f);
             lineMaterial.SetFloat("_Cull", 0f);
 
-            Place("ConstellationLines", lineMesh, lineMaterial);
+            lineHost = Place("ConstellationLines", lineMesh, lineMaterial);
+            lineHost.SetActive(showLines);
         }
 
-        private void Place(string name, Mesh mesh, Material material)
+        private GameObject Place(string name, Mesh mesh, Material material)
         {
             var host = new GameObject(name, typeof(MeshFilter), typeof(MeshRenderer));
             host.hideFlags = createdFlags;
@@ -368,6 +393,7 @@ namespace CivilizationToSpace.View
             renderer.sharedMaterial = material;
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             renderer.receiveShadows = false;
+            return host;
         }
     }
 }

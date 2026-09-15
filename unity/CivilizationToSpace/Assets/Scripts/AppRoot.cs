@@ -547,6 +547,8 @@ namespace CivilizationToSpace
 
             hud.Build(camera, catalog.Title, catalog.Disclaimer, catalog.ParameterNote);
             hud.SurfaceToggleRequested = ToggleSurface;
+            hud.ConstellationToggleRequested = ToggleConstellationLines;
+            hud.ConstellationLines = nightSky != null && nightSky.ShowConstellationLines;
 
             timeline.Changed += OnEraChanged;
             hud.Bind(
@@ -621,6 +623,34 @@ namespace CivilizationToSpace
         public void ToggleSurface()
         {
             SetSurfaceMode(!surfaceMode);
+        }
+
+        /// <summary>
+        /// 星座の線を出す・消す。
+        ///
+        /// **既定は出さない。** 線があると星座は見つけやすいが、
+        /// 空ぜんたいに線が走るので星座早見盤のようになり、
+        /// 星空を見ている感じが薄れる。見たいときだけ出す。
+        /// </summary>
+        public void ToggleConstellationLines()
+        {
+            if (nightSky == null)
+            {
+                return;
+            }
+
+            nightSky.ShowConstellationLines = !nightSky.ShowConstellationLines;
+
+            if (hud != null)
+            {
+                hud.ConstellationLines = nightSky.ShowConstellationLines;
+            }
+        }
+
+        /// <summary>いま星座の線を出しているか。点検ツールが読む。</summary>
+        public bool ConstellationLines
+        {
+            get { return nightSky != null && nightSky.ShowConstellationLines; }
         }
 
         /// <summary>いま地表を見ているか。点検ツールが読む。</summary>
