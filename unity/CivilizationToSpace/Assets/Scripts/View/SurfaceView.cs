@@ -675,12 +675,13 @@ namespace CivilizationToSpace.View
         /// </summary>
         private static Vector3 LaunchPad(Landscape land)
         {
-            // **街の中へ置かない。**
+            // **街の中へ置かない。画面の真ん中に置く。**
             // 街並みにまぎれていたとき、機体は建物と同じ白さで同じ高さに立ち、
             // **地面から離れるところが見えなかった。**
             // 建物がまだ始まらない、いちばん手前の草地へ置く。
             // そこなら足もとが空いていて、離陸そのものが見える。
-            return new Vector3(-land.HalfWidth * 0.30f, 0f, land.NearZ);
+            // 横は0にする。カメラは x=0 にあるので、画面の真ん中に立つ。
+            return new Vector3(0f, 0f, land.NearZ);
         }
 
         /// <summary>機体の背の高さ。近くに置くので、建物より大きく取る。</summary>
