@@ -1345,9 +1345,44 @@ namespace CivilizationToSpace.View
             // 種で位置をずらす。時代ごとに違う地形にする。
             var shift = (current.Seed % 97) * 0.37f;
 
-            var h = Mathf.PerlinNoise(u * 1.6f * detail + shift, w * 1.6f * detail + shift) * 0.62f
-                    + Mathf.PerlinNoise(u * 4.3f * detail + shift * 2f, w * 4.3f * detail + shift * 2f) * 0.26f
-                    + Mathf.PerlinNoise(u * 9.1f * detail + shift * 3f, w * 9.1f * detail + shift * 3f) * 0.12f;
+            // **格子を曲げてから引く。**
+            // そのまま引くと、Perlin の格子が縦横に並んでいるのが見えて、
+            // 規則正しい碁盤の目のうねりになる。引く場所そのものを
+            // 別の波でずらすと、稜線がうねって自然な曲がりになる。
+            var warpU = Mathf.PerlinNoise(u * 1.1f + shift * 5f, w * 1.1f + shift * 5f) - 0.5f;
+            var warpW = Mathf.PerlinNoise(u * 1.1f + shift * 7f, w * 1.1f + shift * 7f) - 0.5f;
+            u += warpU * 0.45f;
+            w += warpW * 0.45f;
+
+            // **尾根を立てる。** ただ足し合わせると丸い瘤の連なりにしかならない。
+            // 0.5からの隔たりを取って裏返すと、峰が細く谷が広い形になり、
+            // 山なみらしい稜線が出る。
+            var h = 0f;
+            var amplitude = 1f;
+            var total = 0f;
+            var frequency = 1.6f * detail;
+            for (var octave = 0; octave < 4; octave++)
+            {
+                var n = Mathf.PerlinNoise(
+                    u * frequency + shift * (octave + 1f),
+                    w * frequency + shift * (octave + 1f));
+
+                var ridged = 1f - Mathf.Abs(n * 2f - 1f);
+                ridged *= ridged;
+
+                // 粗い層は尾根を強く、細かい層はそのまま足して肌を作る。
+                h += amplitude * Mathf.Lerp(n, ridged, octave < 2 ? 0.7f : 0.25f);
+                total += amplitude;
+                amplitude *= 0.48f;
+                frequency *= 2.3f;
+            }
+
+            h /= Mathf.Max(0.0001f, total);
+
+            // **手前は平らに寄せる。** 目のすぐ前が盛り上がっていると、
+            // 立っている場所が分からず、画面の下半分が土手でふさがる。
+            var near = Mathf.Clamp01(z / (current.FarZ * 0.35f));
+            h = Mathf.Lerp(0.5f, h, near * near);
 
             // 真ん中あたりを基準にして、上下へ振らせる。
             return (h - 0.5f) * current.Relief * scale;
