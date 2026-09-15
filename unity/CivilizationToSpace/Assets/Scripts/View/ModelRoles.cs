@@ -17,5 +17,16 @@ namespace CivilizationToSpace.View
     {
         /// <summary>面と同じ並び順の役の名前。<see cref="SurfaceView"/> が読む。</summary>
         public string[] Roles;
+
+        /// <summary>
+        /// 真なら、置いたあとの塗り直しをしない。
+        ///
+        /// **写真の絵を貼った形を、時代の色で塗りつぶしてはいけない。**
+        /// 遠さで色を薄める処理は、面の名前から役を引いて材質を差し替える。
+        /// 写真から起こした形は役の名前を持たないので、
+        /// 行き先の分からないものとして地面の色で塗られていた。
+        /// 木が砂色の塊になって見えていたのはこれが原因である。
+        /// </summary>
+        public bool KeepOwnMaterials;
     }
 }

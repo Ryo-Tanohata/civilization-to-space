@@ -1925,6 +1925,12 @@ namespace CivilizationToSpace.View
                 // **面が複数あるものは、面ごとに塗る。**
                 // 1つ目だけ差し替えると、2つ目の面に素材側の色が残る。
                 var marker = renderer.GetComponent<ModelRoles>();
+                if (marker != null && marker.KeepOwnMaterials)
+                {
+                    // 自前の絵を持っている。塗り直さない。
+                    continue;
+                }
+
                 if (marker != null && marker.Roles != null && marker.Roles.Length > 1)
                 {
                     var slots = new Material[marker.Roles.Length];
@@ -2086,7 +2092,7 @@ namespace CivilizationToSpace.View
         /// </summary>
         private GameObject BuildRock(float height)
         {
-            var model = TryModel("rock_largeA", height);
+            var model = TryModel("ph_rock", height);
             if (model != null)
             {
                 return model;
@@ -2118,6 +2124,12 @@ namespace CivilizationToSpace.View
         /// </summary>
         private GameObject BuildDeadTrunk(float height)
         {
+            var model = TryModel("imp_dead_trunk", height);
+            if (model != null)
+            {
+                return model;
+            }
+
             var root = Root("DeadTrunk");
             var lean = (float)(random.NextDouble() * 2.0 - 1.0) * 14f;
 
@@ -2148,10 +2160,28 @@ namespace CivilizationToSpace.View
         /// </summary>
         private GameObject TryModel(string name, float height)
         {
+            // **丸ごと1枚の絵に焼いたものは、板に貼る。**
+            // 名前が imp_ で始まるものがこれにあたる。形を持たず絵だけなので、
+            // 形の読み込みより先に分ける。あとに置くと、形が無いところで
+            // 帰ってしまい、絵にたどり着かない。
+            if (name.StartsWith("imp_"))
+            {
+                return BuildImpostor(name, height);
+            }
+
             var prefab = Resources.Load<GameObject>("Nature/" + name);
             if (prefab == null)
             {
                 return null;
+            }
+
+            // **写真から起こした形は、絵をそのまま貼る。**
+            // 名前が ph_ で始まるものは Poly Haven の素材で、
+            // 幹にも葉にも写真の絵が付いている。時代の色で塗りつぶすと、
+            // 写実であることの意味が無くなる。
+            if (name.StartsWith("ph_"))
+            {
+                return TexturedModel(prefab, name, height);
             }
 
             var item = Instantiate(prefab);
@@ -2193,10 +2223,262 @@ namespace CivilizationToSpace.View
 
             if (!first && bounds.size.y > 0.0001f)
             {
-                item.transform.localScale = Vector3.one * (height / bounds.size.y);
+                // **拡大率を上書きしない。掛ける。**
+                // Blender から書き出した形は、根に100倍の拡大率を持って入る。
+                // 上書きすると、その100倍が消えて100分の1の大きさになる。
+                item.transform.localScale *= height / Reference(bounds.size);
             }
 
             return item;
+        }
+
+        /// <summary>
+        /// 丸ごと1枚の絵に焼いた木を、板に貼って立てる。
+        ///
+        /// **面は2つしかない。** 葉の茂りは絵の中にあるので、
+        /// 枚数を減らして枝だけになる、ということが起きない。
+        /// 容量も絵の分（数百KB）だけで済む。
+        ///
+        /// 板は根元を地面に合わせる。板そのものは中心が原点なので、
+        /// 入れ物を作って高さの半分だけ持ち上げている。
+        /// </summary>
+        private GameObject BuildImpostor(string name, float height)
+        {
+            var texture = Resources.Load<Texture2D>("Nature/" + name);
+            if (texture == null)
+            {
+                return null;
+            }
+
+            var root = Root(name);
+            root.AddComponent<Billboard>();
+
+            var quad = PrimitiveMeshes.Create(PrimitiveType.Quad, "Impostor", createdFlags);
+            quad.transform.SetParent(root.transform, false);
+
+            // 焼いた絵は正方形で、木は中央に収まっている。
+            // 根元が絵の下端より少し上にあるので、そのぶん下げる。
+            quad.transform.localPosition = new Vector3(0f, height * 0.46f, 0f);
+            quad.transform.localScale = new Vector3(height, height, 1f);
+
+            var id = "Impostor/" + name;
+            Material material;
+            if (!materials.TryGetValue(id, out material) || material == null)
+            {
+                material = StandardMaterials.CreateFoliageCutout();
+                material.hideFlags = createdFlags;
+                material.color = Color.white;
+                material.SetTexture("_MainTex", texture);
+                material.SetFloat("_Cutoff", 0.35f);
+                material.SetFloat("_Glossiness", 0f);
+                material.SetFloat("_Metallic", 0f);
+                materials[id] = material;
+            }
+
+            var renderer = quad.GetComponent<Renderer>();
+            renderer.sharedMaterial = material;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+
+            // 置いたあとの塗り直しから守る。焼いた絵を時代の色で塗りつぶさない。
+            var keep = quad.AddComponent<ModelRoles>();
+            keep.KeepOwnMaterials = true;
+
+            return root;
+        }
+
+        /// <summary>
+        /// 写真から起こした形。絵をそのまま貼る。
+        ///
+        /// 葉は板に絵を貼って抜き色で切り抜く作りなので、切り抜くシェーダーを使う。
+        /// 幹は普通の不透明でよい。どちらかは材質名から決める。
+        ///
+        /// **遠さで色を薄める仕組みは通さない。** 写真の絵を空の色へ寄せると
+        /// 濁って見える。そのぶん、遠くのものは山なみと雲に任せる。
+        /// </summary>
+        private GameObject TexturedModel(GameObject prefab, string name, float height)
+        {
+            var item = Instantiate(prefab);
+            item.name = name;
+            item.hideFlags = createdFlags;
+
+            KeepOneLod(item);
+
+            var bounds = new Bounds(Vector3.zero, Vector3.zero);
+            var first = true;
+            foreach (var renderer in item.GetComponentsInChildren<Renderer>())
+            {
+                if (first)
+                {
+                    bounds = renderer.bounds;
+                    first = false;
+                }
+                else
+                {
+                    bounds.Encapsulate(renderer.bounds);
+                }
+
+                var sources = renderer.sharedMaterials;
+                var slots = new Material[sources.Length];
+                for (var i = 0; i < slots.Length; i++)
+                {
+                    var part = sources[i] != null ? sources[i].name.ToLowerInvariant() : string.Empty;
+                    slots[i] = TexturedMaterial(name, part);
+                }
+
+                renderer.sharedMaterials = slots;
+                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+
+                // 置いたあとの塗り直しから守る。写真の絵を時代の色で
+                // 塗りつぶすと、写実であることの意味が無くなる。
+                var keep = renderer.gameObject.AddComponent<ModelRoles>();
+                keep.KeepOwnMaterials = true;
+            }
+
+            if (!first && bounds.size.y > 0.0001f)
+            {
+                // **拡大率を上書きしない。掛ける。**
+                // Blender から書き出した形は、根に100倍の拡大率を持って入る。
+                // 上書きすると、その100倍が消えて100分の1の大きさになる。
+                item.transform.localScale *= height / Reference(bounds.size);
+            }
+
+            return item;
+        }
+
+        /// <summary>
+        /// **段階のある形は1つだけ残す。**
+        /// 写真計測の素材は、遠さで差し替えるための粗さ違い（LOD0〜LOD3）を
+        /// まとめて持っている。Unity は差し替えの仕掛けを知らないので、
+        /// そのまま置くと4つ全部が同じ場所に重なって描かれる。
+        /// いちばん粗いものだけを残す。遠くに小さく映るので、細かさは要らない。
+        /// </summary>
+        private static void KeepOneLod(GameObject item)
+        {
+            var best = -1;
+            foreach (var renderer in item.GetComponentsInChildren<Renderer>())
+            {
+                var level = LodLevel(renderer.gameObject.name);
+                if (level > best)
+                {
+                    best = level;
+                }
+            }
+
+            if (best < 0)
+            {
+                return;
+            }
+
+            foreach (var renderer in item.GetComponentsInChildren<Renderer>())
+            {
+                var level = LodLevel(renderer.gameObject.name);
+                if (level >= 0 && level != best)
+                {
+                    renderer.gameObject.SetActive(false);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 高さをそろえるときの基準の長さ。
+        ///
+        /// **縦の長さだけを見てはいけない。** 平たい岩は縦が極端に短いので、
+        /// 縦を置きたい高さに合わせると、横がその何十倍にも伸びる。
+        /// 実際、岩が地面に横たわる巨大な板になって出ていた。
+        /// 縦と、いちばん長い辺の6割の、大きいほうを基準にする。
+        /// 立っているものは縦が、寝ているものは長辺が効く。
+        /// </summary>
+        private static float Reference(Vector3 size)
+        {
+            var longest = Mathf.Max(size.x, Mathf.Max(size.y, size.z));
+            return Mathf.Max(0.0001f, Mathf.Max(size.y, longest * 0.6f));
+        }
+
+        /// <summary>名前の末尾の LOD の段。持たないものは -1。</summary>
+        private static int LodLevel(string name)
+        {
+            var at = name.LastIndexOf("LOD", System.StringComparison.OrdinalIgnoreCase);
+            if (at < 0 || at + 3 >= name.Length)
+            {
+                return -1;
+            }
+
+            int level;
+            return int.TryParse(name.Substring(at + 3), out level) ? level : -1;
+        }
+
+        /// <summary>
+        /// 写真の絵を貼った材質。名前ごとに1つだけ作って使い回す。
+        /// 置くたびに作ると、木の数だけ材質が増えて描き直しが重くなる。
+        /// </summary>
+        private Material TexturedMaterial(string modelName, string part)
+        {
+            // **素材ごとに絵の呼び名が違う。** 取りうる名前を順に試す。
+            // leaves と leaf、trunk と main が素材によって入れ替わる。
+            // 決め打ちにすると、名前の合わない素材が白いまま置かれる。
+            string[] candidates;
+            var leafy = part.Contains("leaf") || part.Contains("leaves");
+            if (leafy)
+            {
+                candidates = new[] { "leaves", "leaf", "main" };
+            }
+            else if (part.Contains("branch"))
+            {
+                candidates = new[] { "branches", "branch", "trunk", "main" };
+            }
+            else
+            {
+                candidates = new[] { "trunk", "bark", "main" };
+            }
+
+            var stem = candidates[candidates.Length - 1];
+            Texture2D cutout = null;
+            foreach (var candidate in candidates)
+            {
+                var texture = Resources.Load<Texture2D>("Nature/" + modelName + "_" + candidate);
+                if (texture == null)
+                {
+                    continue;
+                }
+
+                cutout = texture;
+                stem = candidate;
+                break;
+            }
+
+            var id = modelName + "/" + stem;
+            Material found;
+            if (materials.TryGetValue(id, out found) && found != null)
+            {
+                return found;
+            }
+
+            // 葉だけ切り抜く。幹や岩を切り抜くと、影の縁がぎざぎざになる。
+            leafy = leafy || modelName.Contains("fern");
+            var material = leafy
+                ? StandardMaterials.CreateFoliageCutout()
+                : StandardMaterials.CreateOpaque(false);
+
+            material.hideFlags = createdFlags;
+            material.color = Color.white;
+            if (cutout != null)
+            {
+                material.SetTexture("_MainTex", cutout);
+            }
+
+            material.SetFloat("_Glossiness", 0f);
+            material.SetFloat("_Metallic", 0f);
+
+            if (leafy)
+            {
+                // **切り抜く境目を低めに取る。**
+                // 葉の絵は縁がぼけており、高い境目にすると輪郭から削られていく。
+                // 板そのものが消えて、枝だけの木になっていた。
+                material.SetFloat("_Cutoff", 0.15f);
+            }
+
+            materials[id] = material;
+            return material;
         }
 
         /// <summary>
@@ -2226,7 +2508,7 @@ namespace CivilizationToSpace.View
 
         private GameObject BuildConifer(float height)
         {
-            var model = TryModel("tree_cone", height);
+            var model = TryModel("imp_tree_quiver", height);
             if (model != null)
             {
                 return model;
@@ -2245,7 +2527,7 @@ namespace CivilizationToSpace.View
         /// <summary>シダ。短い幹と、上へ跳ねる葉の束。低いところを埋める。</summary>
         private GameObject BuildFern(float height)
         {
-            var model = TryModel("grass_large", height);
+            var model = TryModel("ph_fern", height);
             if (model != null)
             {
                 return model;
@@ -2274,7 +2556,7 @@ namespace CivilizationToSpace.View
         /// <summary>広葉樹。幹と、いびつな冠。球ひとつにすると円盤に見える。</summary>
         private GameObject BuildBroadleaf(float height)
         {
-            var model = TryModel("tree_oak", height);
+            var model = TryModel("imp_tree_broad", height);
             if (model != null)
             {
                 return model;

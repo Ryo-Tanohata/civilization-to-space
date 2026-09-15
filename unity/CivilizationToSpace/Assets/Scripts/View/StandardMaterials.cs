@@ -76,6 +76,18 @@ namespace CivilizationToSpace.View
         }
 
         /// <summary>
+        /// 葉の板。絵の抜き色で切り抜く。
+        ///
+        /// 写真計測の木は、葉を1枚ずつ作らずに板へ葉の絵を貼り、
+        /// 透明なところを捨てる作りになっている。切り抜かないと、
+        /// 葉のまわりの四角い板がそのまま出て、木が板の塊に見える。
+        /// </summary>
+        public static Material CreateFoliageCutout()
+        {
+            return Copy("FoliageCutout");
+        }
+
+        /// <summary>
         /// 重ねて透かし、発光と凹凸の絵も貼るもの。
         /// 地表が次の時代へ移り変わる途中の層に使う。
         /// </summary>
