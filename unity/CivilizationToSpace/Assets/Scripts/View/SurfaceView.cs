@@ -89,6 +89,18 @@ namespace CivilizationToSpace.View
             /// 手前をうめるものが石しかない。
             /// </summary>
             public int GroundRubble;
+
+            /// <summary>
+            /// 遠景に貼る写真の名前（Resources/Sky/ の中）。空なら描いた空を使う。
+            ///
+            /// **作った空には限界がある。** 色の帯と、手で作った雲と、
+            /// 雑音で作った稜線を重ねても、「それらしい遠く」にはなっても
+            /// 「そこにある遠く」にはならない。写真を1枚貼るほうが早い。
+            ///
+            /// 写真を使うときは、雲・太陽・稜線を作らない。
+            /// 写真がすでにその3つを持っているので、重ねると二重になる。
+            /// </summary>
+            public string Backdrop;
             public int Broadleaves;
             public int Quadrupeds;
             public int Bipeds;
@@ -467,6 +479,7 @@ namespace CivilizationToSpace.View
         private static Mesh upQuadMesh;
         private Texture2D grainTexture;
         private Texture2D grainNormalTexture;
+        private Texture2D backdrop;
 
         /// <summary>生きものが画面に収まる寄り方。背の高さを見るための位置。</summary>
         public static void AimAtCreatures(Camera camera)
@@ -671,6 +684,10 @@ namespace CivilizationToSpace.View
             starMaterial = null;
             starTexture = null;
 
+            // 写真は Resources から借りているだけなので壊さない。
+            // 壊すと、次に読み込んだときに真っ白になる。
+            backdrop = null;
+
             DestroyImmediate(cloudMaterial);
             DestroyImmediate(sunMaterial);
             DestroyImmediate(cloudTexture);
@@ -748,11 +765,27 @@ namespace CivilizationToSpace.View
 
             skyTexture.Apply();
 
+            // **写真があればそれを貼る。** 縦の色の帯は作らない。
+            backdrop = string.IsNullOrEmpty(land.Backdrop)
+                ? null
+                : Resources.Load<Texture2D>("Sky/" + land.Backdrop);
+
             skyMaterial = StandardMaterials.CreateOpaque(true);
             skyMaterial.hideFlags = createdFlags;
             skyMaterial.color = Color.black;
-            skyMaterial.SetTexture("_EmissionMap", skyTexture);
+            skyMaterial.SetTexture("_EmissionMap", backdrop != null ? (Texture)backdrop : skyTexture);
             skyMaterial.SetColor("_EmissionColor", Color.white);
+
+            // **塵でふさぐときの行き先を、次の絵として持たせておく。**
+            // 写真に色を掛けるだけでは、青空の青が残ってしまう。
+            // 塵が日を遮った空は色を失い、一枚のふたになる。
+            // 描いた空（縦の帯）を次の絵に置き、塵の濃さで混ぜれば、
+            // 遠くの丘もろとも murk に沈む。これが見通しの利かなさになる。
+            if (backdrop != null)
+            {
+                skyMaterial.SetTexture("_EmissionMapNext", skyTexture);
+            }
+
             skyMaterial.SetFloat("_Blend", 0f);
 
             // **空を遠くへ置く。** 山なみを空の手前へ並べる余地がいる。
@@ -777,10 +810,21 @@ namespace CivilizationToSpace.View
             QualitySettings.shadowDistance = Mathf.Max(60f, land.FarZ * 0.55f);
             QualitySettings.shadowCascades = 2;
 
-            BuildClouds(land, distance * 0.955f);
-            BuildSun(land, distance * 0.975f);
+            // **写真には雲も太陽も稜線も写っている。** 重ねない。
+            // 重ねると、雲が二層になり、太陽が2つ出て、稜線が写真の
+            // 地平線を横切る。どれも「貼り物」であることを見せてしまう。
+            if (backdrop == null)
+            {
+                BuildClouds(land, distance * 0.955f);
+                BuildSun(land, distance * 0.975f);
+            }
+
             BuildStars(distance * 0.99f);
-            BuildRidges(land);
+
+            if (backdrop == null)
+            {
+                BuildRidges(land);
+            }
         }
 
         /// <summary>
@@ -1477,6 +1521,17 @@ namespace CivilizationToSpace.View
         /// <summary>今の空の色と昼の度合いで、空の帯を塗る。</summary>
         private void PaintSky()
         {
+            // **写真は塗り替えない。掛ける。**
+            // 写真は1つの時刻で撮られている。夜にするには、
+            // 絵の上から暗く青い色を掛けるほかない。
+            // 朝夕は暖かい色を掛ける。形は変わらないので、
+            // 「同じ景色の時刻が移った」ようには見えるが、
+            // **影の向きは動かない。** そこは表せていない。
+            if (backdrop != null)
+            {
+                TintBackdrop();
+            }
+
             if (skyTexture == null)
             {
                 return;
@@ -1506,6 +1561,29 @@ namespace CivilizationToSpace.View
             }
 
             skyTexture.Apply();
+        }
+
+        /// <summary>遠景の写真に、時刻の色を掛ける。</summary>
+        private void TintBackdrop()
+        {
+            if (skyMaterial == null)
+            {
+                return;
+            }
+
+            // 夜は暗く青く。昼はそのまま。
+            var tint = Color.Lerp(new Color(0.10f, 0.13f, 0.24f), Color.white, lastDaylight);
+
+            // 朝夕は暖かく。掛け算なので、青を落として赤を残す形になる。
+            tint = Color.Lerp(tint, new Color(1f, 0.66f, 0.42f), lastDusk * 0.55f);
+
+            skyMaterial.SetColor("_EmissionColor", tint);
+
+            // **塵がおおえば、写真ごと描いた空へ移す。**
+            // 色を掛けるだけでは青空の青が残る。塵が日を遮った空は
+            // 色を失うので、写真から縦の帯（塵で平らに塗ってある）へ
+            // 混ぜていく。遠くの丘も一緒に沈み、見通しが利かなくなる。
+            skyMaterial.SetFloat("_Blend", dustCover);
         }
 
         /// <summary>地面の帯を今の色で塗り直す。遠いぶんは空の色へ寄せる。</summary>
@@ -1775,7 +1853,7 @@ namespace CivilizationToSpace.View
         /// </summary>
         public void SetTimeOfDay(float phase, Light sun)
         {
-            if (skyTexture == null)
+            if (skyTexture == null && backdrop == null)
             {
                 return;
             }

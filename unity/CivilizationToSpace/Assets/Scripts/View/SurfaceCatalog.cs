@@ -215,13 +215,18 @@ namespace CivilizationToSpace.View
             var land = Near(4);
             land.SkyHigh = Hex(0x5C8FC8);
             land.SkyLow = Hex(0xCBDCE6);
-            land.Ground = Hex(0x5E5434);
+            // 遠景の林床は下草の緑なので、手前もそちらへ寄せる。
+            land.Ground = Hex(0x55552F);
             land.Foliage = Hex(0x3E6E34);
             land.PlantHeight = 30f;
             land.Conifers = 48;
             land.Ferns = 56;
             land.Broadleaves = 14;
             land.GroundCover = 120;
+
+            // 遠景は写真。**これは現在の針葉樹林である。** 石炭紀の森でも
+            // 白亜紀の森でもない。表しているのは「木が密に立ち並ぶ奥行き」だけ。
+            land.Backdrop = "backdrop_forest";
             land.Quadrupeds = 0;
             land.Bipeds = 0;
             land.DeadTrunks = 0;
@@ -244,6 +249,12 @@ namespace CivilizationToSpace.View
             land.Ferns = 58;
             land.Broadleaves = 28;
             land.GroundCover = 110;
+
+            // **遠景は写真。** 乾いた低木地と、その向こうの丘。
+            // 白亜紀の写真は存在しない。**これは現在の南アフリカである。**
+            // 表しているのは「乾いた広い野と、遠くの丘」という形だけで、
+            // 白亜紀の植生でも地形でもない。
+            land.Backdrop = "backdrop_dry_scrub";
             land.Quadrupeds = 3;
             land.Bipeds = 4;
             land.DeadTrunks = 0;
@@ -331,7 +342,10 @@ namespace CivilizationToSpace.View
             var land = Near(7);
             land.SkyHigh = Hex(0x6E93B6);
             land.SkyLow = Hex(0xD4DFE6);
-            land.Ground = Hex(0x8A8468);
+            // **遠景の雪と手前の地面を近づける。**
+            // 遠くが雪の野で手前が乾いた土のままだと、境目で色が切れて
+            // 貼り物であることが見えてしまう。雪をかぶった枯れ草の色にする。
+            land.Ground = Hex(0xB2AE99);
             land.Foliage = Hex(0x6E7748);
             land.Creature = Hex(0x6B5540);
             land.Rock = Hex(0x7E7868);
@@ -365,6 +379,10 @@ namespace CivilizationToSpace.View
             land.CreatureTusks = true;
             land.DeadTrunks = 0;
             land.Buildings = 0;
+
+            // 遠景は写真。**これは現在の雪の野である。** 氷期の景観ではない。
+            // 表しているのは「雪におおわれた平らな野と、まばらな裸の木」だけ。
+            land.Backdrop = "backdrop_snow_steppe";
             return land;
         }
 
@@ -390,6 +408,10 @@ namespace CivilizationToSpace.View
             land.Bipeds = 0;
             land.DeadTrunks = 0;
             land.Buildings = 46;
+
+            // 遠景は写真。**これは現在の草地である。** アナトリアでもない。
+            // 表しているのは「草地と、その向こうの林」だけ。
+            land.Backdrop = "backdrop_meadow";
             return land;
         }
 
@@ -420,6 +442,12 @@ namespace CivilizationToSpace.View
             land.Bipeds = 0;
             land.DeadTrunks = 0;
             land.Buildings = 150;
+
+            // 遠景は写真。**これは現在の南アフリカの高地である。**
+            // 高いところから見下ろす広い野。街はその中に置かれる。
+            // 実在の都市でも、実在の地形でもない。
+            // Future() はこれを受け継ぐので、未来の街も同じ野に立つ。
+            land.Backdrop = "backdrop_wide_plain";
             return land;
         }
 
