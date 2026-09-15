@@ -144,6 +144,7 @@ namespace CivilizationToSpace.View
             land.GroundGlow = Hex(0x8A2A08);
             land.Rock = Hex(0x16100E);
             land.Rocks = 70;
+            land.GroundRubble = 90;
 
             // 巨大衝突。大きく、ゆっくり落ちる。実際の大きさも速さも表していない。
             land.ImpactorSize = 46f;
@@ -172,6 +173,7 @@ namespace CivilizationToSpace.View
             land.Ground = Hex(0x4A443E);
             land.Rock = Hex(0x5E564E);
             land.Rocks = 80;
+            land.GroundRubble = 90;
             land.PlantHeight = 14f;
             land.Conifers = 0;
             land.Ferns = 0;
@@ -192,6 +194,7 @@ namespace CivilizationToSpace.View
             land.Ground = Hex(0xD6E2EA);
             land.Rock = Hex(0xAFC4D2);
             land.Rocks = 70;
+            land.GroundRubble = 80;
             land.PlantHeight = 15f;
             land.Conifers = 0;
             land.Ferns = 0;
@@ -215,9 +218,10 @@ namespace CivilizationToSpace.View
             land.Ground = Hex(0x5E5434);
             land.Foliage = Hex(0x3E6E34);
             land.PlantHeight = 30f;
-            land.Conifers = 40;
-            land.Ferns = 44;
-            land.Broadleaves = 10;
+            land.Conifers = 48;
+            land.Ferns = 56;
+            land.Broadleaves = 14;
+            land.GroundCover = 120;
             land.Quadrupeds = 0;
             land.Bipeds = 0;
             land.DeadTrunks = 0;
@@ -236,9 +240,10 @@ namespace CivilizationToSpace.View
             land.SkyLow = Hex(0xCBDCE6);
             land.Ground = Hex(0x6E5C3E);
             land.PlantHeight = 26f;
-            land.Conifers = 34;
-            land.Ferns = 46;
-            land.Broadleaves = 22;
+            land.Conifers = 42;
+            land.Ferns = 58;
+            land.Broadleaves = 28;
+            land.GroundCover = 110;
             land.Quadrupeds = 3;
             land.Bipeds = 4;
             land.DeadTrunks = 0;
@@ -270,6 +275,10 @@ namespace CivilizationToSpace.View
             // 落ちる前は恐竜の時代そのもの。種だけ変えて並びをずらす。
             var land = Dinosaurs();
             land.Seed = 6;
+
+            // 草は枯れて消えるので、枯れたあとの手前に残るものを足しておく。
+            // 何も無い地面に枯れ幹だけが並ぶと、遠くの帯にしか見えない。
+            land.GroundRubble = 60;
 
             // 白亜紀の終わりの衝突。小さく速い。実際の大きさも速さも表していない。
             land.ImpactorSize = 7f;
@@ -336,9 +345,10 @@ namespace CivilizationToSpace.View
             land.FarZ = 130f;
             land.HalfWidth = 52f;
             land.PlantHeight = 9f;
-            land.Conifers = 16;
+            land.Conifers = 22;
             land.Ferns = 90;
             land.Broadleaves = 0;
+            land.GroundCover = 96;
             land.Quadrupeds = 5;
             land.Bipeds = 0;
 
@@ -372,9 +382,10 @@ namespace CivilizationToSpace.View
             land.BuildingHeight = 5f;
             land.BuildingSpacing = 1.05f;
             land.Windows = false;
-            land.Conifers = 18;
-            land.Ferns = 26;
-            land.Broadleaves = 20;
+            land.Conifers = 24;
+            land.Ferns = 34;
+            land.Broadleaves = 26;
+            land.GroundCover = 84;
             land.Quadrupeds = 0;
             land.Bipeds = 0;
             land.DeadTrunks = 0;
@@ -401,9 +412,10 @@ namespace CivilizationToSpace.View
 
             // 衛星が上がり始めた時代。地表からも打ち上げが見える。
             land.ShowsRocket = true;
-            land.Conifers = 16;
+            land.Conifers = 20;
             land.Ferns = 0;
-            land.Broadleaves = 26;
+            land.Broadleaves = 32;
+            land.GroundCover = 60;
             land.Quadrupeds = 0;
             land.Bipeds = 0;
             land.DeadTrunks = 0;

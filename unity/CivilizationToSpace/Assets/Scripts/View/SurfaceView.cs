@@ -69,6 +69,26 @@ namespace CivilizationToSpace.View
 
             public int Conifers;
             public int Ferns;
+
+            /// <summary>
+            /// 下草の数。**手前をうめるための小さな草。**
+            ///
+            /// これまで画面の下半分は、何も置かれていない地面だった。
+            /// 遠くに木が並ぶだけでは野の中にいる感じにならず、
+            /// **影も落ちる先が無かった。** 手前に何も無い地面では、
+            /// 遠くの木が落とす影は地平線ぞいの細い線に潰れてしまう。
+            ///
+            /// 1本1本は目立たなくてよい。集まったときに、
+            /// 地面の起伏と光の向きが読めるようになる。
+            /// </summary>
+            public int GroundCover;
+
+            /// <summary>
+            /// 手前に転がす小石の数。草の生えていない時代に使う。
+            /// 冥王代・最初の海・全球凍結には草が無いので、
+            /// 手前をうめるものが石しかない。
+            /// </summary>
+            public int GroundRubble;
             public int Broadleaves;
             public int Quadrupeds;
             public int Bipeds;
@@ -444,6 +464,9 @@ namespace CivilizationToSpace.View
         private Color livingGround;
 
         private static Mesh coneMesh;
+        private static Mesh upQuadMesh;
+        private Texture2D grainTexture;
+        private Texture2D grainNormalTexture;
 
         /// <summary>生きものが画面に収まる寄り方。背の高さを見るための位置。</summary>
         public static void AimAtCreatures(Camera camera)
@@ -490,10 +513,12 @@ namespace CivilizationToSpace.View
             Scatter(land.Conifers, BuildConifer, land.PlantHeight, false);
             Scatter(land.Ferns, BuildFern, land.PlantHeight * 0.30f, false);
             Scatter(land.Broadleaves, BuildBroadleaf, land.PlantHeight * 0.75f, false);
+            ScatterCover(land.GroundCover, BuildFern, land.PlantHeight * 0.11f);
 
             // 岩は落ちても残る。どちらの入れ物にも入れない。
             scatterParent = null;
             Scatter(land.Rocks, BuildRock, Mathf.Max(1.2f, land.PlantHeight * 0.22f), false);
+            ScatterCover(land.GroundRubble, BuildRock, Mathf.Max(0.5f, land.PlantHeight * 0.075f));
 
             scatterParent = deadRoot;
             Scatter(land.DeadTrunks, BuildDeadTrunk, land.PlantHeight * 0.8f, false);
@@ -688,8 +713,12 @@ namespace CivilizationToSpace.View
             worldIsDead = false;
 
             DestroyImmediate(terrainData);
+            DestroyImmediate(grainTexture);
+            DestroyImmediate(grainNormalTexture);
             terrainData = null;
             terrain = null;
+            grainTexture = null;
+            grainNormalTexture = null;
 
             DestroyImmediate(ashMaterial);
             ashMaterial = null;
@@ -736,6 +765,17 @@ namespace CivilizationToSpace.View
             sky.transform.localPosition = new Vector3(0f, distance * 0.36f, distance);
             sky.transform.localScale = new Vector3(distance * 4f, distance * 1.9f, 1f);
             sky.GetComponent<Renderer>().sharedMaterial = skyMaterial;
+
+            // **影の届く距離を、見えている野の広さに合わせる。**
+            // 既定は数十メートルしかなく、手前の数本にしか影が出ない。
+            // 遠くまで伸ばすと粗くなるので、野の奥行きの半分までにする。
+            // **品質設定で影そのものが切られていることがある。**
+            // 光の側で影を有効にしても、ここが切れていると何も出ない。
+            QualitySettings.shadows = ShadowQuality.All;
+            QualitySettings.shadowResolution = ShadowResolution.Medium;
+            QualitySettings.shadowProjection = ShadowProjection.StableFit;
+            QualitySettings.shadowDistance = Mathf.Max(60f, land.FarZ * 0.55f);
+            QualitySettings.shadowCascades = 2;
 
             BuildClouds(land, distance * 0.955f);
             BuildSun(land, distance * 0.975f);
@@ -1270,6 +1310,56 @@ namespace CivilizationToSpace.View
         /// 高さを縮めて、昇って沈むことだけが読めるようにしている。
         /// 地平線より下へ行ったら引っ込める。
         /// </summary>
+        /// <summary>
+        /// 空のどこに太陽の丸を出すか。奥の面までの割合で返す。
+        /// 画面の横の広がりは片側で40度ほどなので、その内側に収める。
+        /// 丸が画面から出ると、光がどこから来ているのかが読めなくなる。
+        /// </summary>
+        private static Vector3 SunSpot(float elevation)
+        {
+            var lift = Mathf.Clamp01(elevation);
+            return new Vector3(-0.30f, Mathf.Lerp(-0.02f, 0.72f, lift), 1f);
+        }
+
+        /// <summary>
+        /// 照らす向き（太陽へ向かう向き）。
+        ///
+        /// **空に描く丸とは、わざと合わせていない。**
+        /// 丸は画面のなかに見えていないと、光の源が読めない。だから正面寄りに置く。
+        /// ところが正面から当てると、影は物の真後ろへ落ちて物自身に隠れる。
+        /// 実際これまで影は1つも見えていなかった。合わせたうえで横へ振ると、
+        /// 今度は逆光になって、生きものも木もすべて黒い影絵になった。
+        ///
+        /// そこで光だけを大きく振る。**左から当たっている**という読みは
+        /// 丸と揃うので、食い違いとしては現れない。舞台で、見えている灯りとは
+        /// 別に横から当てるのと同じ考えである。
+        ///
+        /// **カメラの後ろ寄り、かつ大きく横へ。**
+        /// 正面から当てると影は手前へ伸びてよく見えるが、こちらを向いた面が
+        /// すべて陰になり、生きものも木も黒い影絵になる。実際そうなった。
+        /// 後ろから当てれば面は明るいままで、横へ大きく振ってあるぶん、
+        /// 影は物の真後ろではなく真横へずれて出る。物に隠れない。
+        ///
+        /// **低くしすぎない。** 影の長さは高さの 1/tan 倍なので、
+        /// 地平線まで下ろすと影が影の届く距離を越え、そこでぶつりと切れる。
+        /// 切れた縁は地面に引いた線に見え、影よりも目立ってしまう。
+        /// 15度を下限にすると、影は物の高さの3.7倍でとまる。
+        /// </summary>
+        private static Vector3 SunLight(float elevation)
+        {
+            // 画面の奥を0度、真横を90度として、左へどれだけ振るか。
+            // 90度を越えているぶんがカメラの後ろ側にあたる。
+            const float Azimuth = -118f;
+
+            var lift = Mathf.Clamp01(elevation);
+            var high = Mathf.Lerp(15f, 30f, lift) * Mathf.Deg2Rad;
+            var yaw = Azimuth * Mathf.Deg2Rad;
+            return new Vector3(
+                Mathf.Sin(yaw) * Mathf.Cos(high),
+                Mathf.Sin(high),
+                Mathf.Cos(yaw) * Mathf.Cos(high));
+        }
+
         private void PlaceSun(float elevation, float daylight, float dusk)
         {
             if (sunQuad == null || sunMaterial == null)
@@ -1285,11 +1375,7 @@ namespace CivilizationToSpace.View
             }
 
             var distance = skyDistance * 0.975f;
-            var lift = Mathf.Clamp01(elevation);
-            sunQuad.localPosition = new Vector3(
-                -distance * 0.26f,
-                distance * Mathf.Lerp(-0.02f, 0.72f, lift),
-                distance);
+            sunQuad.localPosition = SunSpot(elevation) * distance;
 
             // 地平線の近くは赤く、高いところは白い。
             // 塵がかかっていれば、どちらでも弱める。
@@ -1739,6 +1825,13 @@ namespace CivilizationToSpace.View
             {
                 var day = elevation > 0f;
 
+                // **影を落とす光にする。** 立体感はほとんど影から来る。
+                // 夜は月あかりなので、影を弱めて輪郭だけ残す。
+                sun.shadows = LightShadows.Soft;
+                sun.shadowStrength = day ? 0.80f : 0.32f;
+                sun.shadowBias = 0.02f;
+                sun.shadowNormalBias = 0.6f;
+
                 // **塵が濃くなるにつれて、日光が弱まっていく。**
                 // 一段で暗くすると、暗幕を下ろしたように見えて理由が読めない。
                 // 塵が増えるのに合わせて落としていくと、
@@ -1746,9 +1839,19 @@ namespace CivilizationToSpace.View
                 // 何年つづいたかは表していない。
                 var dust = Mathf.Lerp(1f, 0.22f, dustCover);
 
+                // **横から当てる。** 影はここからしか生まれず、
+                // 立体に見えるかどうかも影で決まる。詳しくは SunLight を参照。
+                //
                 // 夜は月あかりに置き換える。真っ暗にすると地形も輪郭も読めない。
-                var pitch = Mathf.Lerp(4f, 62f, Mathf.Abs(elevation));
-                sun.transform.rotation = Quaternion.Euler(pitch, day ? -35f : 145f, 0f);
+                // 月は太陽と左右を入れ替えた側に置く。
+                var toward = SunLight(elevation);
+                if (!day)
+                {
+                    toward.x = -toward.x;
+                }
+
+                var toSun = transform.TransformDirection(toward.normalized);
+                sun.transform.rotation = Quaternion.LookRotation(-toSun, Vector3.up);
                 sun.color = day
                     ? Color.Lerp(new Color(1f, 0.74f, 0.52f), Color.white, Mathf.Clamp01(elevation * 2.4f))
                     : MoonLight;
@@ -1757,8 +1860,24 @@ namespace CivilizationToSpace.View
                     : 0.16f);
             }
 
-            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-            RenderSettings.ambientLight = Color.Lerp(NightLow * 0.7f, current.SkyLow * 0.5f, daylight);
+            // **影の側を黒く沈ませない。** 横から当てると、カメラを向いた面は
+            // 直接の光を受けなくなる。回り込みが一色だけだと、生きものも木も
+            // 黒い影絵になり、時代ごとの色が消える。実際そうなった。
+            //
+            // 上からは空の色、下からは地面の色を入れる。
+            // **日なたの地面は明るく、まわりへ色を跳ね返している。**
+            // 砂なら暖かく、氷なら白く、跳ね返った色が物の下側に回る。
+            // 一色で足すより、これのほうが場所の色が出る。
+            // **上からの回り込みは弱めに。** ここを強くすると、影に落ちた地面と
+            // 日の当たる地面の差が詰まって、全体が白っぽく平らになる。
+            // 下からの照り返しは残す。そちらは陰の側だけを起こすので、
+            // 影を薄めずに黒つぶれだけを防げる。
+            var fromSky = Color.Lerp(NightLow * 0.7f, current.SkyLow * 0.40f, daylight);
+            var fromGround = Color.Lerp(NightLow * 0.4f, current.Ground * 0.45f, daylight);
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
+            RenderSettings.ambientSkyColor = fromSky;
+            RenderSettings.ambientEquatorColor = Color.Lerp(fromGround, fromSky, 0.5f);
+            RenderSettings.ambientGroundColor = fromGround;
         }
 
         /// <summary>
@@ -1848,11 +1967,175 @@ namespace CivilizationToSpace.View
             }
 
             terrain = host.GetComponent<Terrain>();
-            terrain.materialTemplate = Tinted("Ground", land.Ground, 2);
+            terrain.materialTemplate = GroundMaterial(land, width, length);
             terrain.drawTreesAndFoliage = false;
             terrain.heightmapPixelError = 8f;
             terrain.basemapDistance = land.FarZ * 2f;
+            // **地面は影を受ける。** 受けないと、木を照らしても足もとに何も出ず、
+            // 置いたものが地面から浮いて見える。落とす側にはしなくてよい。
             terrain.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        }
+
+        /// <summary>
+        /// 地面の材質。**粒と凹凸を入れる。**
+        ///
+        /// これまで地面は1色で塗っていた。起伏を付けても、色が一様だと
+        /// 大きな床にしか見えない。手前に寄るほど、何も無いことがはっきりする。
+        ///
+        /// 細かい粒があると、目はそれを土や砂として読む。粒の凹凸を法線の絵で
+        /// 与えると、**光の向きに応じて明暗が出る。** 横から当てている場面では
+        /// これが効く。落ちた影も、平らな面より地面らしく見える。
+        ///
+        /// 絵は1枚だけ作って敷き詰める。継ぎ目が出ないよう、
+        /// 端がつながる作り方（TileableNoise）で作る。
+        /// 時代ごとの色は _Color で掛けるので、絵は時代によらず1枚でよい。
+        /// </summary>
+        private Material GroundMaterial(Landscape land, float width, float length)
+        {
+            const int size = 256;
+            if (grainTexture == null)
+            {
+                var field = TileableNoise(size, 91);
+                grainTexture = new Texture2D(size, size, TextureFormat.RGBA32, true);
+                grainTexture.hideFlags = createdFlags;
+                grainTexture.wrapMode = TextureWrapMode.Repeat;
+
+                var grain = new Color32[size * size];
+                for (var i = 0; i < field.Length; i++)
+                {
+                    // 0.70〜1.0 に収める。1を越える値は絵に入らないので、
+                    // 明るい側を1に置き、そのぶん色のほうを持ち上げる。
+                    var v = (byte)Mathf.Clamp(Mathf.Lerp(0.70f, 1f, field[i]) * 255f, 0f, 255f);
+                    grain[i] = new Color32(v, v, v, 255);
+                }
+
+                grainTexture.SetPixels32(grain);
+                grainTexture.Apply();
+            }
+
+            if (grainNormalTexture == null)
+            {
+                var field = TileableNoise(size, 91);
+                grainNormalTexture = new Texture2D(size, size, TextureFormat.RGBA32, true);
+                grainNormalTexture.hideFlags = createdFlags;
+                grainNormalTexture.wrapMode = TextureWrapMode.Repeat;
+
+                var packed = new Color32[size * size];
+                for (var y = 0; y < size; y++)
+                {
+                    for (var x = 0; x < size; x++)
+                    {
+                        var left = field[y * size + (x + size - 1) % size];
+                        var right = field[y * size + (x + 1) % size];
+                        var down = field[((y + size - 1) % size) * size + x];
+                        var up = field[((y + 1) % size) * size + x];
+
+                        var nx = Mathf.Clamp((left - right) * 2.4f, -1f, 1f);
+                        var ny = Mathf.Clamp((down - up) * 2.4f, -1f, 1f);
+
+                        // **2通りの詰め方の両方に合うように入れる。**
+                        // Unity の UnpackNormal は環境によって (a, g) を読む形と
+                        // (r, g, b) を読む形に分かれる。x を r と a の両方に入れ、
+                        // z にあたる b を1に置けば、どちらで読まれても成り立つ。
+                        var r = (byte)Mathf.Clamp((nx * 0.5f + 0.5f) * 255f, 0f, 255f);
+                        var g = (byte)Mathf.Clamp((ny * 0.5f + 0.5f) * 255f, 0f, 255f);
+                        packed[y * size + x] = new Color32(r, g, 255, r);
+                    }
+                }
+
+                grainNormalTexture.SetPixels32(packed);
+                grainNormalTexture.Apply();
+            }
+
+            var material = StandardMaterials.CreateOpaque(true);
+            material.hideFlags = createdFlags;
+
+            // **色は持ち上げない。** 粒の絵は1を越えられないので、
+            // 明るさを取り戻そうと色を上げると、白に近い地面（全球凍結の氷）が
+            // 振り切れて真っ白になり、粒も起伏も消える。実際そうなった。
+            // 地面は少し暗くなるが、そのほうが影も出る。
+            material.color = land.Ground;
+            material.SetTexture("_MainTex", grainTexture);
+            material.SetTexture("_BumpMap", grainNormalTexture);
+            material.SetFloat("_BumpScale", 0.85f);
+            material.SetFloat("_Glossiness", 0f);
+            material.SetFloat("_Metallic", 0f);
+
+            // 1枚を何メートルぶんに敷くか。
+            // **敷く枚数に上限を置く。** 街の時代は野が2km近くあり、
+            // 20mごとに敷くと100枚並んで、同じ模様の繰り返しが縞に見えた。
+            var tiles = Mathf.Clamp(width / 24f, 4f, 40f);
+            var scale = new Vector2(tiles, tiles * length / width);
+            material.SetTextureScale("_MainTex", scale);
+            material.SetTextureScale("_BumpMap", scale);
+
+            materials["Terrain"] = material;
+            return material;
+        }
+
+        /// <summary>
+        /// 端どうしがつながる濃淡を作る。敷き詰めても継ぎ目が出ない。
+        ///
+        /// Mathf.PerlinNoise は端がつながらないため、敷き詰めると
+        /// 升目の線がそのまま見える。ここでは周期のある格子の上で
+        /// 値を補間し、格子の端を反対側へ回している。
+        /// </summary>
+        private static float[] TileableNoise(int size, int seed)
+        {
+            var field = new float[size * size];
+            var random = new System.Random(seed);
+            var amplitude = 1f;
+            var total = 0f;
+
+            // **粗い波を入れない。** 粗い波は敷き詰めたときに
+            // まだら模様として繰り返しが見えてしまう。大きな起伏は
+            // 地形そのものが持っているので、ここは細かい粒だけでよい。
+            for (var octave = 0; octave < 4; octave++)
+            {
+                var period = 16 << octave;
+                if (period > size)
+                {
+                    break;
+                }
+
+                var lattice = new float[period * period];
+                for (var i = 0; i < lattice.Length; i++)
+                {
+                    lattice[i] = (float)random.NextDouble();
+                }
+
+                for (var y = 0; y < size; y++)
+                {
+                    var fy = y * period / (float)size;
+                    var y0 = (int)fy;
+                    var ty = fy - y0;
+                    var y1 = (y0 + 1) % period;
+                    var sy = ty * ty * (3f - 2f * ty);
+
+                    for (var x = 0; x < size; x++)
+                    {
+                        var fx = x * period / (float)size;
+                        var x0 = (int)fx;
+                        var tx = fx - x0;
+                        var x1 = (x0 + 1) % period;
+                        var sx = tx * tx * (3f - 2f * tx);
+
+                        var a = Mathf.Lerp(lattice[y0 * period + x0], lattice[y0 * period + x1], sx);
+                        var b = Mathf.Lerp(lattice[y1 * period + x0], lattice[y1 * period + x1], sx);
+                        field[y * size + x] += Mathf.Lerp(a, b, sy) * amplitude;
+                    }
+                }
+
+                total += amplitude;
+                amplitude *= 0.55f;
+            }
+
+            for (var i = 0; i < field.Length; i++)
+            {
+                field[i] /= total;
+            }
+
+            return field;
         }
 
         /// <summary>
@@ -2059,6 +2342,66 @@ namespace CivilizationToSpace.View
             }
         }
 
+        /// <summary>
+        /// 下草を撒く。**カメラのすぐ手前から撒く。**
+        ///
+        /// ほかの撒き方は置き場所の手前の端（NearZ）より先にしか置かない。
+        /// カメラはそこからさらに手前にあるので、画面の下半分には何も無く、
+        /// 地面の帯だけが広がっていた。ここでは端より手前まで撒く。
+        ///
+        /// **手前を濃くする。** 木とは逆である。木は近いと画面を覆ってしまうが、
+        /// 下草は膝の高さしかないので、近いほど地面の起伏が読める。
+        /// </summary>
+        private void ScatterCover(int count, Func<float, GameObject> build, float height)
+        {
+            if (count <= 0)
+            {
+                return;
+            }
+
+            var from = -current.NearZ * 2.4f;
+            var to = current.FarZ * 0.42f;
+
+            // **かたまりで生やす。** 一様に撒くと、間が等しく空いて
+            // 人が並べたように見える。草は群れて生え、あいだに地面が出る。
+            // その粗密こそが、地面が平らでないことを見せる。
+            var clumpCount = Mathf.Max(1, count / 5);
+            var clumpX = new float[clumpCount];
+            var clumpZ = new float[clumpCount];
+            for (var i = 0; i < clumpCount; i++)
+            {
+                clumpZ[i] = Mathf.Lerp(from, to, Mathf.Pow((float)random.NextDouble(), 1.45f));
+                clumpX[i] = (float)(random.NextDouble() * 2.0 - 1.0) * current.HalfWidth * 0.72f;
+            }
+
+            for (var i = 0; i < count; i++)
+            {
+                var clump = random.Next(clumpCount);
+
+                // かたまりの広がりは、奥行きに合わせて広げる。
+                // 手前で広げすぎると、群れではなく散らばりに見える。
+                var spread = Mathf.Lerp(3f, 16f,
+                    Mathf.Clamp01(Mathf.InverseLerp(from, to, clumpZ[clump])));
+                var z = clumpZ[clump] + (float)(random.NextDouble() * 2.0 - 1.0) * spread;
+                var x = clumpX[clump] + (float)(random.NextDouble() * 2.0 - 1.0) * spread;
+                z = Mathf.Clamp(z, from, to);
+                x = Mathf.Clamp(x, -current.HalfWidth * 0.8f, current.HalfWidth * 0.8f);
+
+                // 手前のものを少し大きくする。奥は小さく、粒として効く。
+                var near = 1f - Mathf.Clamp01(Mathf.InverseLerp(from, to, z));
+
+                var scale = height * Mathf.Lerp(0.55f, 1.25f, near)
+                            * (0.7f + (float)random.NextDouble() * 0.7f);
+
+                var item = build(scale);
+                item.transform.SetParent(ScatterRoot, false);
+                item.transform.localPosition = new Vector3(x, GroundHeight(x, z), z);
+                item.transform.localRotation = Quaternion.Euler(
+                    0f, (float)random.NextDouble() * 360f, 0f);
+                ApplyDepth(item, z);
+            }
+        }
+
         private GameObject Piece(GameObject parent, PrimitiveType type, string role, Vector3 position, Vector3 scale)
         {
             var piece = PrimitiveMeshes.Create(type, role, createdFlags);
@@ -2218,7 +2561,8 @@ namespace CivilizationToSpace.View
                 var marker = renderer.gameObject.AddComponent<ModelRoles>();
                 marker.Roles = roles;
                 renderer.gameObject.name = roles.Length > 0 ? roles[0] : "Foliage";
-                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+                renderer.receiveShadows = true;
             }
 
             if (!first && bounds.size.y > 0.0001f)
@@ -2253,7 +2597,9 @@ namespace CivilizationToSpace.View
             var root = Root(name);
             root.AddComponent<Billboard>();
 
-            var quad = PrimitiveMeshes.Create(PrimitiveType.Quad, "Impostor", createdFlags);
+            var quad = new GameObject("Impostor", typeof(MeshFilter), typeof(MeshRenderer));
+            quad.hideFlags = createdFlags;
+            quad.GetComponent<MeshFilter>().sharedMesh = UpFacingQuad();
             quad.transform.SetParent(root.transform, false);
 
             // 焼いた絵は正方形で、木は中央に収まっている。
@@ -2277,7 +2623,11 @@ namespace CivilizationToSpace.View
 
             var renderer = quad.GetComponent<Renderer>();
             renderer.sharedMaterial = material;
-            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+
+            // **板でも影を落とす。** 切り抜いた形のまま地面へ落ちるので、
+            // 板だと気づかれにくくなり、地面との結びつきも強まる。
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+            renderer.receiveShadows = false;
 
             // 置いたあとの塗り直しから守る。焼いた絵を時代の色で塗りつぶさない。
             var keep = quad.AddComponent<ModelRoles>();
@@ -2326,7 +2676,10 @@ namespace CivilizationToSpace.View
                 }
 
                 renderer.sharedMaterials = slots;
-                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                // **影を落とさせる。** 立体感はほとんど影から来る。
+                // 影が無いと、どれも同じ平面に貼った絵のように見える。
+                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+                renderer.receiveShadows = true;
 
                 // 置いたあとの塗り直しから守る。写真の絵を時代の色で
                 // 塗りつぶすと、写実であることの意味が無くなる。
@@ -2744,6 +3097,45 @@ namespace CivilizationToSpace.View
         /// 円錐の網。針葉樹と屋根に使う。
         /// Unityの基本形には円錐が無いので自分で作る。球を積むと雪だるまになる。
         /// </summary>
+        /// <summary>
+        /// インポスター用の板。**法線を真上へ向けてある。**
+        ///
+        /// 板はいつもカメラを向くので、普通の板だと法線もいつもカメラを向く。
+        /// すると明るさは光の前後の成分だけで決まり、横から当てたとたんに
+        /// どの木も真っ黒になる。実際そうなった。
+        ///
+        /// 焼いた絵にはすでに陰影が入っているので、ここでは向きによらず
+        /// 平らに照らすのが正しい。法線を上へ向けると、明るさは太陽の高さだけで
+        /// 決まる。朝夕は暗く、昼は明るく、横を向いても変わらない。
+        /// </summary>
+        private static Mesh UpFacingQuad()
+        {
+            if (upQuadMesh != null)
+            {
+                return upQuadMesh;
+            }
+
+            upQuadMesh = new Mesh();
+            upQuadMesh.name = "SurfaceImpostorQuad";
+            upQuadMesh.vertices = new[]
+            {
+                new Vector3(-0.5f, -0.5f, 0f),
+                new Vector3(0.5f, -0.5f, 0f),
+                new Vector3(-0.5f, 0.5f, 0f),
+                new Vector3(0.5f, 0.5f, 0f),
+            };
+            upQuadMesh.uv = new[]
+            {
+                new Vector2(0f, 0f), new Vector2(1f, 0f),
+                new Vector2(0f, 1f), new Vector2(1f, 1f),
+            };
+            upQuadMesh.normals = new[] { Vector3.up, Vector3.up, Vector3.up, Vector3.up };
+            upQuadMesh.triangles = new[] { 0, 2, 1, 2, 3, 1 };
+            upQuadMesh.RecalculateBounds();
+            upQuadMesh.hideFlags = HideFlags.DontSave;
+            return upQuadMesh;
+        }
+
         private static Mesh Cone()
         {
             if (coneMesh != null)
