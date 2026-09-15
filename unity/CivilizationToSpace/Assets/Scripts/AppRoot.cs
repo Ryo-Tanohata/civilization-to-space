@@ -207,6 +207,20 @@ namespace CivilizationToSpace
         /// <summary>宇宙から見る星空。実在の星と星座を置く。</summary>
         private NightSkyView nightSky;
 
+        /// <summary>
+        /// 前の絵を控えて、溶明を始める。
+        /// 画面がまだ無いときや、作り直しの前に呼べないときは何もしない。
+        /// </summary>
+        private void BeginDissolve()
+        {
+            if (hud == null || hud.Dissolve == null)
+            {
+                return;
+            }
+
+            hud.Dissolve.Begin(Camera.main);
+        }
+
         /// <summary>地表で見せる打ち上げの進み具合。</summary>
         private float rocketPhase;
 
@@ -479,6 +493,13 @@ namespace CivilizationToSpace
                 moonResult.Ok ? moonResult.Expansion.Phases.Count : 0);
 
             playback = new TimelinePlayback(timeline);
+
+            // **地表から見る時代は長く取る。**
+            // 昼夜が一巡するのに10秒かかり、隕石が落ちて塵が広がって
+            // 冷えるまでもひと続きで見せたい。4秒だと途中で次へ移る。
+            // どの時代を地表から見るかを知っているのは描画側なので、
+            // 判断だけをここから渡す。
+            playback.SlowStep = SurfaceCatalog.DefaultsToSurface;
             motion = new MotionSettings();
             Debug.Log(BuildSummary(result));
         }
@@ -647,6 +668,14 @@ namespace CivilizationToSpace
             }
         }
 
+        /// <summary>
+        /// 場面の切り替わりをつなぐ溶明。点検ツールが読む。
+        /// </summary>
+        public SceneDissolve Dissolve
+        {
+            get { return hud != null ? hud.Dissolve : null; }
+        }
+
         /// <summary>いま星座の線を出しているか。点検ツールが読む。</summary>
         public bool ConstellationLines
         {
@@ -661,6 +690,12 @@ namespace CivilizationToSpace
 
         private void SetSurfaceMode(bool enabled)
         {
+            // 地表と宇宙の行き来も一瞬で入れ替わる。ここも溶明でつなぐ。
+            if (surfaceMode != enabled)
+            {
+                BeginDissolve();
+            }
+
             surfaceMode = enabled;
 
             if (hud != null)
@@ -731,6 +766,11 @@ namespace CivilizationToSpace
             {
                 return;
             }
+
+            // **作り直す前に、いまの絵を控える。**
+            // 風景は丸ごと作り直され、カメラも別の場所へ飛ぶ。
+            // 控えた絵を重ねて薄れさせると、前の場面から溶けるように移る。
+            BeginDissolve();
 
             var era = timeline.CurrentEraIndex;
             surface.Build(SurfaceCatalog.ForEra(era), HideFlags.None);

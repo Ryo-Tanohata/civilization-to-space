@@ -67,6 +67,7 @@ namespace CivilizationToSpace.View
         private Button resetViewButton;
         private Button surfaceButton;
         private Button constellationButton;
+        private SceneDissolve dissolve;
         private Slider eraSlider;
         private Text statusText;
         private bool suppressSliderCallback;
@@ -107,6 +108,10 @@ namespace CivilizationToSpace.View
             var canvas = UiFactory.CreateCanvas("Hud", camera);
             var root = (RectTransform)canvas.transform;
 
+            // 場面の切り替わりを溶明でつなぐ板。操作の帯より後ろへ置く。
+            dissolve = canvas.gameObject.AddComponent<SceneDissolve>();
+            dissolve.Attach(root);
+
             BuildHeader(root, catalogTitle, disclaimer, parameterNote);
             BuildInfoPanel(root);
 
@@ -130,6 +135,15 @@ namespace CivilizationToSpace.View
 
         /// <summary>いま星座の線を出しているか。</summary>
         public bool ConstellationLines { get; set; }
+
+        /// <summary>
+        /// 場面の切り替わりをつなぐ溶明。<see cref="AppRoot"/> が
+        /// 作り直しの直前に <see cref="SceneDissolve.Begin"/> を呼ぶ。
+        /// </summary>
+        public SceneDissolve Dissolve
+        {
+            get { return dissolve; }
+        }
 
         /// <summary>地表と宇宙を切り替えてほしいとき呼ぶ。<see cref="AppRoot"/> が受ける。</summary>
         public System.Action SurfaceToggleRequested;

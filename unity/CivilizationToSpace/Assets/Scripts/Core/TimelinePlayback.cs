@@ -37,6 +37,25 @@ namespace CivilizationToSpace.Core
         public const float FormationStepSeconds = 8f;
 
         /// <summary>
+        /// 1倍のときの、地表から見る時代の1段階あたりの秒数。
+        ///
+        /// **地表の場面は4秒では短い。** 昼夜が一巡するのに10秒かかり、
+        /// 隕石が落ちて塵が広がって冷えるまでもひと続きで見せたい。
+        /// 4秒だと、どちらも途中で次の時代へ移ってしまう。
+        ///
+        /// 宇宙から見る時代は4秒のままにする。地球の姿が移り変わるだけなので、
+        /// 長く取っても見えるものが増えない。
+        ///
+        /// どの時代を地表から見るかを知っているのは描画側なので、
+        /// 判断そのものは <see cref="SlowStep"/> で外から渡してもらう。
+        /// **Core は地表かどうかを知らない。**
+        ///
+        /// 時代の4秒は site/app.js と対応させていたが、
+        /// これはUnityの地表の場面だけの話なので、ブラウザ側は4秒のままでよい。
+        /// </summary>
+        public const float SurfaceStepSeconds = 9f;
+
+        /// <summary>
         /// 選べる速度。8倍では1段階0.5秒になり、通しで約8秒になる。
         /// これより速くすると、段階が切り替わったことを目で追えない。
         /// </summary>
@@ -87,15 +106,28 @@ namespace CivilizationToSpace.Core
         }
 
         /// <summary>
+        /// その時代をじっくり見せるかどうかを返す。null なら、どれも短いほう。
+        /// 描画側が入れる。<see cref="SurfaceStepSeconds"/> を参照。
+        /// </summary>
+        public System.Func<int, bool> SlowStep { get; set; }
+
+        /// <summary>
         /// いま指している段階を、次へ進めるまでの秒数。
-        /// 形成過程のあいだだけ長く、時代へ入ると4秒へ戻る。
+        /// 形成過程は長く、地表から見る時代も長く、それ以外は4秒。
         /// </summary>
         public float StepSeconds
         {
             get
             {
-                var seconds = timeline.HeadIndex >= 0 ? FormationStepSeconds : BaseStepSeconds;
-                return seconds / speed;
+                if (timeline.HeadIndex >= 0)
+                {
+                    return FormationStepSeconds / speed;
+                }
+
+                var slow = SlowStep != null
+                           && timeline.InEra
+                           && SlowStep(timeline.CurrentEraIndex);
+                return (slow ? SurfaceStepSeconds : BaseStepSeconds) / speed;
             }
         }
 

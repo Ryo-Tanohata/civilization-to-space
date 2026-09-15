@@ -31,6 +31,7 @@ namespace CivilizationToSpace.EditorTools
         private static Func<bool> waitCondition;
         private static float waitDeadline;
         private static bool waitTimedOut;
+        private static bool dissolveStarted;
 
         private static int startIndex;
         private static float startTime;
@@ -448,6 +449,72 @@ namespace CivilizationToSpace.EditorTools
                     Record("U-52 もう一度押すと消える",
                         !app.ConstellationLines,
                         "線=" + app.ConstellationLines);
+
+                    // **地表から見る時代は長く取る。**
+                    // 昼夜が一巡するのに10秒、衝突も落ちて冷えるまでひと続き。
+                    // 4秒だとどちらも途中で次の時代へ移ってしまう。
+                    var spaceEra = -1;
+                    var groundEra = -1;
+                    for (var era = 0; era < 10 && (spaceEra < 0 || groundEra < 0); era++)
+                    {
+                        if (View.SurfaceCatalog.DefaultsToSurface(era))
+                        {
+                            if (groundEra < 0)
+                            {
+                                groundEra = era;
+                            }
+                        }
+                        else if (spaceEra < 0)
+                        {
+                            spaceEra = era;
+                        }
+                    }
+
+                    // 時代の位置は先頭からいくつ目か分からないので、探して合わせる。
+                    var spaceSeconds = 0f;
+                    var groundSeconds = 0f;
+                    for (var at = 0; at < timeline.Count; at++)
+                    {
+                        timeline.Select(at);
+                        if (!timeline.InEra)
+                        {
+                            continue;
+                        }
+
+                        if (timeline.CurrentEraIndex == spaceEra)
+                        {
+                            spaceSeconds = playback.StepSeconds;
+                        }
+                        else if (timeline.CurrentEraIndex == groundEra)
+                        {
+                            groundSeconds = playback.StepSeconds;
+                        }
+                    }
+
+                    Record("U-53 地表から見る時代は宇宙の時代より長い",
+                        groundSeconds > spaceSeconds + 0.5f,
+                        "宇宙の時代 " + spaceSeconds.ToString("F1") + "秒 / 地表の時代 "
+                        + groundSeconds.ToString("F1") + "秒");
+
+                    // **場面の切り替わりは溶明でつなぐ。**
+                    // 時代が移るたびに風景は丸ごと作り直され、カメラも飛ぶ。
+                    // 前の絵を1枚控えて重ね、薄れさせることでつなげる。
+                    //
+                    // ここはエディタの実時間で測る。WebGLのヘッドレスは
+                    // 描画が遅く、0.4秒の溶明を数こまでは捉えられない。
+                    timeline.Select(0);
+                    dissolveStarted = app.Dissolve != null && app.Dissolve.Running;
+                    Record("U-54 場面が切り替わると溶明が始まる",
+                        dissolveStarted,
+                        "溶明=" + dissolveStarted);
+
+                    WaitFor(() => app.Dissolve == null || !app.Dissolve.Running, 5f);
+                    break;
+
+                case 6:
+                    Record("U-55 溶明はひとりでに終わる",
+                        app.Dissolve != null && !app.Dissolve.Running,
+                        "溶明=" + (app.Dissolve != null && app.Dissolve.Running));
 
                     Finish();
                     break;
