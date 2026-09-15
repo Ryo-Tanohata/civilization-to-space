@@ -95,7 +95,7 @@ namespace CivilizationToSpace.EditorTools
                 SurfaceCatalog.EyeForEra(era, out eye, out pitch);
                 // 場面が順に出るか見るための抜き取り。
                 // 生きた森 → 落ちてくる → 閃光 → 塵が広がる → おおわれる → 冷える → 凍る
-                var phases = new[] { 0.30f, 0.65f, 0.735f, 0.78f, 0.86f, 0.93f, 0.99f };
+                var phases = new[] { 0.14f, 0.36f, 0.45f, 0.52f, 0.66f, 0.80f, 0.99f };
                 for (var i = 0; i < phases.Length; i++)
                 {
                     Capture(directory, EraNames[era] + "-impact" + (i + 1),

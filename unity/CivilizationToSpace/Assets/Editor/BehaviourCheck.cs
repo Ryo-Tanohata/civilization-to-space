@@ -496,6 +496,50 @@ namespace CivilizationToSpace.EditorTools
                         "宇宙の時代 " + spaceSeconds.ToString("F1") + "秒 / 地表の時代 "
                         + groundSeconds.ToString("F1") + "秒");
 
+                    // **1段階につき1回だけ落ちる。くり返さない。**
+                    // 周期でぐるぐる回していたころは、枯れた世界がまた生き返って
+                    // もう一度落ちてきた。起きたことが取り消されたように見える。
+                    //
+                    // 端（1.0）まで進めても枯れたままであることを確かめる。
+                    // 以前は 1.0 が 0.0 へ回り込み、世界が生き返っていた。
+                    var impactEra = -1;
+                    for (var era = 0; era < 10; era++)
+                    {
+                        if (View.SurfaceCatalog.ForEra(era).DiesOnImpact)
+                        {
+                            impactEra = era;
+                            break;
+                        }
+                    }
+
+                    for (var at = 0; at < timeline.Count; at++)
+                    {
+                        timeline.Select(at);
+                        if (timeline.InEra && timeline.CurrentEraIndex == impactEra)
+                        {
+                            break;
+                        }
+                    }
+
+                    var scene = app.Surface;
+                    scene.SetImpact(0.1f);
+                    var aliveBefore = !scene.WorldIsDead;
+                    scene.SetImpact(0.5f);
+                    var deadAfter = scene.WorldIsDead;
+                    scene.SetImpact(1f);
+                    var deadAtEnd = scene.WorldIsDead;
+                    var dustAtEnd = scene.DustCover;
+
+                    Record("U-56 隕石は1段階に1回だけで、終わっても生き返らない",
+                        aliveBefore && deadAfter && deadAtEnd,
+                        "落ちる前=生きている:" + aliveBefore
+                        + " / 落ちたあと=枯れている:" + deadAfter
+                        + " / 端でも枯れている:" + deadAtEnd);
+
+                    Record("U-57 端まで進むと塵が満ちている",
+                        dustAtEnd > 0.99f,
+                        "塵の濃さ " + dustAtEnd.ToString("F2"));
+
                     // **場面の切り替わりは溶明でつなぐ。**
                     // 時代が移るたびに風景は丸ごと作り直され、カメラも飛ぶ。
                     // 前の絵を1枚控えて重ね、薄れさせることでつなげる。

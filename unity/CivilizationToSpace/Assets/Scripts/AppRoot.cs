@@ -676,6 +676,12 @@ namespace CivilizationToSpace
             get { return hud != null ? hud.Dissolve : null; }
         }
 
+        /// <summary>いま組み立てている地表の風景。点検ツールが読む。</summary>
+        public SurfaceView Surface
+        {
+            get { return surface; }
+        }
+
         /// <summary>いま星座の線を出しているか。点検ツールが読む。</summary>
         public bool ConstellationLines
         {
@@ -785,7 +791,9 @@ namespace CivilizationToSpace
             // **打ち上げがある時代は、朝から始める。**
             // 1段階は1倍速で4秒しかない。夜から始まると、明るくなる前に
             // 次の時代へ移ってしまい、打ち上げを一度も見られない。
-            if (SurfaceCatalog.ForEra(era).ShowsRocket)
+            // 落ちてくるものも同じ。塵が舞うところは暗いと何も見えない。
+            var land = SurfaceCatalog.ForEra(era);
+            if (land.ShowsRocket || land.ShowsImpact)
             {
                 dayPhase = DayStart;
             }
@@ -954,15 +962,19 @@ namespace CivilizationToSpace
                 // **出来事の周期は、1段階を見ている長さに合わせる。**
                 // 固定の秒数にしていたときは、落ちきる前に次の時代へ移ってしまい、
                 // 再生したまま見ていると一度も見られなかった。
-                // 段階の長さに合わせれば、速度を変えても必ず一巡する。
+                //
+                // **いま見ている段階の長さをそのまま使う。**
+                // 4秒固定にしていたため、地表の9秒の段階では2回以上くり返し、
+                // 枯れた世界がまた生き返ってもう一度落ちてきた。
                 var period = Mathf.Max(0.3f, playback != null
-                    ? playback.EraStepSeconds
+                    ? playback.StepSeconds
                     : Core.TimelinePlayback.BaseStepSeconds);
 
                 if (land.ShowsImpact)
                 {
-                    impactPhase += View.SceneClock.Delta / period;
-                    impactPhase -= Mathf.Floor(impactPhase);
+                    // **1段階につき1回だけ落ちる。** 端で止め、くり返さない。
+                    // 起きたことが取り消されるように見えてはいけない。
+                    impactPhase = Mathf.Min(1f, impactPhase + View.SceneClock.Delta / period);
                 }
 
                 if (land.ShowsRocket)

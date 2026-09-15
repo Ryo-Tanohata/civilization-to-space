@@ -261,6 +261,30 @@ namespace CivilizationToSpace.View
         private const float TwinkleSharp = 3.4f;
 
         /// <summary>
+        /// 衝突の場面の進み具合を、どこで区切るか。0で場面の始め、1で終わり。
+        ///
+        /// **落ちたあとに半分以上を使う。** 落ちてくるところは一瞬でよく、
+        /// 塵が広がって暗くなり、冷えて凍るまでを見せるほうが時間を要る。
+        /// はじめは落下に0.72を使っていたため、塵が舞うところが一瞬で終わっていた。
+        /// </summary>
+        private const float Struck = 0.42f;
+
+        /// <summary>閃光の終わり。短く強く光らせる。</summary>
+        private const float FlashTo = 0.48f;
+
+        /// <summary>舞い上がった粉塵の柱が立ちのぼる範囲。</summary>
+        private const float ColumnFrom = 0.43f;
+        private const float ColumnTo = 0.60f;
+
+        /// <summary>塵が空をおおっていく範囲。</summary>
+        private const float DustFrom = 0.44f;
+        private const float DustTo = 0.64f;
+
+        /// <summary>冷えていく範囲。ここを過ぎると凍ったまま保つ。</summary>
+        private const float ChillFrom = 0.62f;
+        private const float ChillTo = 0.88f;
+
+        /// <summary>
         /// 動きを減らす設定。真のとき星を揺らさない。
         /// **瞬きは動きである。** 減らすと決めたなら止める。
         /// </summary>
@@ -324,6 +348,18 @@ namespace CivilizationToSpace.View
         private Transform scatterParent;
 
         private bool worldIsDead;
+
+        /// <summary>いま世界が枯れているか。点検ツールが読む。</summary>
+        public bool WorldIsDead
+        {
+            get { return worldIsDead; }
+        }
+
+        /// <summary>いまの塵の濃さ。点検ツールが読む。</summary>
+        public float DustCover
+        {
+            get { return dustCover; }
+        }
 
         /// <summary>
         /// 空をおおう塵の濃さ。0で澄んでいる、1でふさがっている。
@@ -979,22 +1015,25 @@ namespace CivilizationToSpace.View
                 return;
             }
 
-            phase -= Mathf.Floor(phase);
+            // **1段階につき1回だけ落ちる。くり返さない。**
+            // 周期でぐるぐる回していたころは、枯れた世界がまた生き返って
+            // もう一度落ちてきた。起きたことが取り消されたように見える。
+            // 呼ぶ側が0から1へ一度だけ進めるので、ここでは端で止めるだけにする。
+            phase = Mathf.Clamp01(phase);
 
             // **光った瞬間に世界を入れ替える。**
             // 落ちる前は生きている世界、落ちたあとは枯れた世界。
             // 順番を逆にすると、原因より先に結果が画面に出てしまう。
-            SetWorldDead(phase >= 0.72f);
+            SetWorldDead(phase >= Struck);
 
-            // **落ちたあとは4つの場面をこの順でたどる。**
+            // **落ちたあとは5つの場面をこの順でたどる。**
             // 1 生きた森 → 2 落ちてくる → 3 閃光 → 4 塵が空をおおって暗くなる → 5 凍る
             // 実際の年数も温度も濃さも表していない。順序だけを見せる。
             //
-            // 4 おおう：0.74 から塵が増え、空の上下の差が消えてふたのようになる。
-            //           同時に日光が落ちていく。**これが「太陽をさえぎった」の絵である。**
-            // 5 凍る：0.86 から冷えはじめ、空も地面も降るものも白へ寄る。
-            dustCover = worldIsDead ? Mathf.Clamp01((phase - 0.74f) / 0.16f) : 0f;
-            var chill = worldIsDead ? Mathf.Clamp01((phase - 0.86f) / 0.14f) : 0f;
+            // **落ちたあとに半分以上を使う。** 落ちてくるところは一瞬でよく、
+            // 塵が広がって暗くなり、冷えて凍るまでを見せるほうが時間を要る。
+            dustCover = worldIsDead ? Mathf.Clamp01((phase - DustFrom) / (DustTo - DustFrom)) : 0f;
+            var chill = worldIsDead ? Mathf.Clamp01((phase - ChillFrom) / (ChillTo - ChillFrom)) : 0f;
 
             if (worldIsDead && current.WinterSkyLow.maxColorComponent > 0.001f)
             {
@@ -1008,13 +1047,13 @@ namespace CivilizationToSpace.View
 
             var land = current;
             var hit = ImpactPoint(land);
-            var falling = phase < 0.72f;
+            var falling = phase < Struck;
 
             impactor.gameObject.SetActive(falling);
             trail.gameObject.SetActive(falling);
             if (falling)
             {
-                var t = phase / 0.72f;
+                var t = phase / Struck;
 
                 // 遠くの高いところから、落ちる場所へ向かわせる。
                 var from = new Vector3(-land.HalfWidth * 1.7f, land.FarZ * 0.75f, land.FarZ * 0.9f);
@@ -1038,11 +1077,11 @@ namespace CivilizationToSpace.View
             }
 
             // 光は短く強く。長く光らせると日の出に見える。
-            var burning = phase >= 0.72f && phase < 0.80f;
+            var burning = phase >= Struck && phase < FlashTo;
             flash.gameObject.SetActive(burning);
             if (burning)
             {
-                var t = (phase - 0.72f) / 0.08f;
+                var t = (phase - Struck) / (FlashTo - Struck);
 
                 // **広がる大きさに上限を置く。**
                 // 大きいものほど大きく光らせると、光の球がカメラを包んでしまう。
@@ -1056,11 +1095,11 @@ namespace CivilizationToSpace.View
 
             // 光ったあと、粉塵が立ちのぼって薄れる。
             // 冷えきるまでに消す。残っていると、冷えた野に柱が立って見える。
-            var rising = phase >= 0.74f && phase < 0.92f;
+            var rising = phase >= ColumnFrom && phase < ColumnTo;
             column.gameObject.SetActive(rising);
             if (rising)
             {
-                var t = (phase - 0.74f) / 0.18f;
+                var t = (phase - ColumnFrom) / (ColumnTo - ColumnFrom);
                 // 太さと高さに上限を置く。大きいものほど太くすると板に見える。
                 var height = Mathf.Min(land.FarZ * 0.55f, land.ImpactorSize * 14f)
                              * Mathf.Lerp(0.12f, 1f, Mathf.Sqrt(t));
@@ -1074,8 +1113,8 @@ namespace CivilizationToSpace.View
             }
 
             // 揺れ。ぶつかった直後だけ強く、すぐ収まる。
-            Shake = phase >= 0.72f && phase < 0.86f
-                ? (1f - (phase - 0.72f) / 0.14f)
+            Shake = phase >= Struck && phase < Struck + 0.08f
+                ? (1f - (phase - Struck) / 0.08f)
                 : 0f;
         }
 
