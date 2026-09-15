@@ -9,11 +9,21 @@
 // 同じ星の中心と十字のにじみが別々の位相になり、粒が分解して見える。
 // 絵を作るときに1粒へ同じ値を書いておけば、粒ごとにきれいにそろう。
 //
-// 揺れる速さも位相からずらしている。同じ速さだと、ばらばらに見えず
+// **揺れは滑らかな波ではなく、短く強く光らせる。**
+// sin をそのまま使うと、星が明るくなったり暗くなったりを
+// ゆっくりくり返すだけで、瞬いているというより息をしているように見える。
+// 速さの違う波を2つ掛けてから累乗でとがらせると、
+// ふだんは控えめで、ときどき短く強く光る。これが「ピカピカ」に見える。
+//
+// **2つの波は割り切れない速さにする。** 同じ速さの倍数だと、
+// 一定の間隔で規則正しく光り、電飾の点滅に見える。
+// 割り切れない比にすると、光る間隔が毎回ずれて不規則になる。
+//
+// 速さ自体も粒ごとに変えている。そろえると、ばらばらに見えず
 // 全体が脈打って見える。
 //
 // **実際の瞬きの仕組み（大気のゆらぎによる屈折）は表していない。**
-// 光の点が揺れている、ということだけを見せる。
+// 光の点が不規則に光っている、ということだけを見せる。
 Shader "CivilizationToSpace/StarField"
 {
     Properties
@@ -21,8 +31,10 @@ Shader "CivilizationToSpace/StarField"
         _EmissionColor ("光の色と強さ", Color) = (1,1,1,1)
         _EmissionMap ("星の絵（アルファに揺れの位相）", 2D) = "white" {}
         _Color ("濃さ（アルファ）", Color) = (1,1,1,1)
-        _TwinkleDepth ("揺れの深さ", Range(0,1)) = 0.55
-        _TwinkleSpeed ("揺れの速さ", Float) = 2.6
+        _TwinkleBase ("光っていないときの明るさ", Range(0,1)) = 0.5
+        _TwinkleDepth ("光ったときに足す明るさ", Range(0,4)) = 2.0
+        _TwinkleSharp ("光のとがり（大きいほど短く強く）", Range(1,8)) = 3.4
+        _TwinkleSpeed ("揺れの速さ", Float) = 2.2
     }
 
     SubShader
@@ -45,7 +57,9 @@ Shader "CivilizationToSpace/StarField"
             float4 _EmissionMap_ST;
             fixed4 _EmissionColor;
             fixed4 _Color;
+            half _TwinkleBase;
             half _TwinkleDepth;
+            half _TwinkleSharp;
             half _TwinkleSpeed;
 
             struct appdata
@@ -76,11 +90,17 @@ Shader "CivilizationToSpace/StarField"
                 half phase = c.a * 6.2831853;
 
                 // 速さも位相でずらす。そろえると全体が脈打って見える。
-                half speed = _TwinkleSpeed * (0.55 + c.a);
-                half wave = 0.5 + 0.5 * sin(_Time.y * speed + phase);
+                half speed = _TwinkleSpeed * (0.45 + c.a * 1.7);
 
-                // 深さ0で揺れない。動きを減らす設定のときは0を渡す。
-                half twinkle = 1.0 - _TwinkleDepth + _TwinkleDepth * wave;
+                // 割り切れない速さの波を2つ。光る間隔が毎回ずれる。
+                half w1 = 0.5 + 0.5 * sin(_Time.y * speed + phase);
+                half w2 = 0.5 + 0.5 * sin(_Time.y * speed * 0.37 + phase * 2.3);
+
+                // 掛けてから累乗でとがらせる。ふだんは控えめ、ときどき短く強く。
+                half spark = pow(w1 * w2, _TwinkleSharp);
+
+                // 足す分を0にすると光らない。動きを減らす設定ではそうする。
+                half twinkle = _TwinkleBase + _TwinkleDepth * spark;
 
                 return fixed4(c.rgb * _EmissionColor.rgb * twinkle, _Color.a);
             }

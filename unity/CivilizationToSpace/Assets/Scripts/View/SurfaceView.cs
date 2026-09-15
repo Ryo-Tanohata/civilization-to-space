@@ -243,11 +243,22 @@ namespace CivilizationToSpace.View
         /// </summary>
         public const float DaySeconds = 10f;
 
+        /// <summary>光っていないときの星の明るさ。</summary>
+        private const float TwinkleBase = 0.5f;
+
         /// <summary>
-        /// 星の揺れの深さ。0で揺れない、1で消えるまで揺れる。
-        /// 深くしすぎると星が明滅する電飾に見える。
+        /// 光ったときに足す明るさ。**1を超えてよい。**
+        /// 加算で描いているので、超えたぶんは白く飛んで強い光になる。
+        /// これが無いと、明るくなったり暗くなったりするだけで
+        /// 「ピカピカ」には見えない。
         /// </summary>
-        private const float TwinkleDepth = 0.6f;
+        private const float TwinkleDepth = 2.0f;
+
+        /// <summary>
+        /// 光のとがり。大きいほど、ふだんは控えめでときどき短く強く光る。
+        /// 小さいとゆっくり息をしているように見える。
+        /// </summary>
+        private const float TwinkleSharp = 3.4f;
 
         /// <summary>
         /// 動きを減らす設定。真のとき星を揺らさない。
@@ -881,6 +892,22 @@ namespace CivilizationToSpace.View
             RecolorGround();
         }
 
+        /// <summary>
+        /// 星の光り方を材質へ渡す。
+        /// 動きを減らす設定のときは光らせず、そのぶん地の明るさを上げて
+        /// 星が暗くならないようにする。
+        /// </summary>
+        private void ApplyTwinkle()
+        {
+            if (starMaterial == null)
+            {
+                return;
+            }
+
+            starMaterial.SetFloat("_TwinkleBase", ReducedMotion ? 1f : TwinkleBase);
+            starMaterial.SetFloat("_TwinkleDepth", ReducedMotion ? 0f : TwinkleDepth);
+        }
+
         /// <summary>今の空の色と昼の度合いで、空の帯を塗る。</summary>
         private void PaintSky()
         {
@@ -1134,8 +1161,9 @@ namespace CivilizationToSpace.View
             starMaterial.color = Color.white;
             starMaterial.SetTexture("_EmissionMap", starTexture);
             starMaterial.SetColor("_EmissionColor", Color.black);
-            starMaterial.SetFloat("_TwinkleSpeed", 2.6f);
-            starMaterial.SetFloat("_TwinkleDepth", TwinkleDepth);
+            starMaterial.SetFloat("_TwinkleSpeed", 2.2f);
+            starMaterial.SetFloat("_TwinkleSharp", TwinkleSharp);
+            ApplyTwinkle();
 
             var stars = PrimitiveMeshes.Create(PrimitiveType.Quad, "Stars", createdFlags);
             stars.transform.SetParent(transform, false);
@@ -1203,7 +1231,7 @@ namespace CivilizationToSpace.View
 
             if (starMaterial != null)
             {
-                starMaterial.SetFloat("_TwinkleDepth", ReducedMotion ? 0f : TwinkleDepth);
+                ApplyTwinkle();
 
                 // 星は夜の深さでそのまま明るくする。薄明のあいだは弱い。
                 // 星は薄明のあいだに急に消える。少しでも空が明るいと見えない。
