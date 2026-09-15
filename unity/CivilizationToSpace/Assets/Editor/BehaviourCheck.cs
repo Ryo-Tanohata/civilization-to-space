@@ -346,6 +346,35 @@ namespace CivilizationToSpace.EditorTools
                         "恐竜の首 " + dino.CreatureNeck.ToString("F2") +
                         " / 氷期の首 " + ice.CreatureNeck.ToString("F2"));
 
+                    // **原因より先に結果を出さない。**
+                    // 衝突の場面を最初から枯れた幹と暗い空で作っていたとき、
+                    // 隕石がまだ空にあるのに地上はすでに死んでおり、
+                    // 恐竜→隕石→氷期という順につながって見えなかった。
+                    var impact = View.SurfaceCatalog.ForEra(5);
+                    Record("U-46 衝突の場面は落ちる前に生きた世界から始まる",
+                        impact.DiesOnImpact && impact.Conifers > 0 && impact.Quadrupeds > 0,
+                        "枯れる=" + impact.DiesOnImpact +
+                        " 木=" + impact.Conifers + " 生きもの=" + impact.Quadrupeds);
+
+                    // **見えない場所に出来事を置かない。**
+                    // ロケットは地表にしか出ない。すべての打ち上げが宇宙の既定の
+                    // 時代にあったときは、切り替えない限り一度も見られなかった。
+                    // 地球を離れたあとの時代は宇宙の既定でよいが、
+                    // 少なくとも1つは、何もしなくても打ち上げが見えなければならない。
+                    var shown = string.Empty;
+                    for (var era = 0; era < 10; era++)
+                    {
+                        if (View.SurfaceCatalog.ForEra(era).ShowsRocket
+                            && View.SurfaceCatalog.DefaultsToSurface(era))
+                        {
+                            shown += (shown.Length > 0 ? "," : string.Empty) + era;
+                        }
+                    }
+
+                    Record("U-47 切り替えなくても打ち上げが見える時代がある",
+                        shown.Length > 0,
+                        shown.Length > 0 ? "地表が既定の時代 " + shown : "どの時代も宇宙が既定");
+
                     Finish();
                     break;
             }

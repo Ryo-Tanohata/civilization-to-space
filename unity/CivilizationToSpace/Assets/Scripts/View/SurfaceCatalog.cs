@@ -68,6 +68,12 @@ namespace CivilizationToSpace.View
                 case 5:  // 衝突と暗い空
                 case 6:  // 氷期のくり返し
                 case 7:  // 人類の広がり
+                case 8:  // 情報と接続
+                    // **打ち上げは地上の出来事である。**
+                    // 宇宙を既定にしていたとき、ロケットは地表にしか出ないため
+                    // 一度も見られなかった。街から機体が上がるところを既定にし、
+                    // 地球ぜんたいを見たいときは切り替えて見てもらう。
+                    // 地球を離れたあと（未来・月・ラグランジュ）は宇宙のままにする。
                     return true;
                 default:
                     return false;
@@ -236,27 +242,34 @@ namespace CivilizationToSpace.View
         }
 
         /// <summary>
-        /// 衝突と暗い空。塵で日光がさえぎられ、昼でも暗い。
-        /// 葉を持つ木を出さず、枯れた幹だけを残す。
+        /// 衝突。**恐竜のいる世界から始め、落ちた瞬間に枯れて暗くなる。**
+        ///
+        /// はじめ、この場面は最初から枯れた幹と暗い空で作っていた。
+        /// 隕石がまだ空にあるのに地上はすでに死んでおり、
+        /// **原因より先に結果が出ていた。** 恐竜→隕石→氷期という順に
+        /// つながって見えず、見ている側には順番が入れ替わって映る。
+        ///
+        /// そこで、落ちる前は前の時代と同じ姿にしている。
+        /// 同じ森、同じ生きもの、同じ寄り方である。変わるのは落ちたあとだけ。
         /// </summary>
         private static SurfaceView.Landscape Impact()
         {
-            var land = Near(6);
-            land.SkyHigh = Hex(0x231C18);
-            land.SkyLow = Hex(0x54453A);
-            land.Ground = Hex(0x39322C);
-            land.Trunk = Hex(0x2E261F);
-            land.PlantHeight = 22f;
+            // 落ちる前は恐竜の時代そのもの。種だけ変えて並びをずらす。
+            var land = Dinosaurs();
+            land.Seed = 6;
 
             // 白亜紀の終わりの衝突。小さく速い。実際の大きさも速さも表していない。
             land.ImpactorSize = 7f;
             land.Impactor = Hex(0xFFD08A);
             land.ShowsImpact = true;
-            land.Conifers = 0;
-            land.Ferns = 0;
-            land.Broadleaves = 0;
-            land.Quadrupeds = 0;
-            land.Bipeds = 0;
+
+            // 落ちたあと。塵で日光がさえぎられ、昼でも暗い。
+            // 葉を持つ木は消え、枯れた幹だけが残る。
+            land.DiesOnImpact = true;
+            land.AfterSkyHigh = Hex(0x231C18);
+            land.AfterSkyLow = Hex(0x54453A);
+            land.AfterGround = Hex(0x39322C);
+            land.DeadTrunk = Hex(0x2E261F);
             land.DeadTrunks = 46;
             land.Buildings = 0;
             return land;

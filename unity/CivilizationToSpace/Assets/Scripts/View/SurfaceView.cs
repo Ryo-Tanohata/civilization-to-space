@@ -132,6 +132,25 @@ namespace CivilizationToSpace.View
             public Color Impactor;
 
             /// <summary>
+            /// 落ちた瞬間に世界が枯れるか。
+            ///
+            /// **結果を先に描かない。** はじめ、衝突の場面は最初から枯れた幹と
+            /// 暗い空で作っていた。隕石がまだ空にあるのに地上はすでに死んでおり、
+            /// 恐竜→隕石→氷期という順につながって見えなかった。
+            /// 真にすると、落ちるまでは生きている世界を出し、
+            /// 光った瞬間に枯れた幹と暗い空へ入れ替える。
+            /// </summary>
+            public bool DiesOnImpact;
+
+            /// <summary>落ちたあとの空と地面の色。</summary>
+            public Color AfterSkyHigh;
+            public Color AfterSkyLow;
+            public Color AfterGround;
+
+            /// <summary>枯れた幹の色。生きている木の幹とは別に持つ。</summary>
+            public Color DeadTrunk;
+
+            /// <summary>
             /// 落ちてくるものを出すか。
             ///
             /// **周期は持たない。1段階を見ているあいだにちょうど一巡させる。**
@@ -221,6 +240,22 @@ namespace CivilizationToSpace.View
         private Landscape current;
         private System.Random random;
 
+        /// <summary>生きているものと枯れたもの。落ちた瞬間に入れ替える。</summary>
+        private Transform livingRoot;
+        private Transform deadRoot;
+
+        /// <summary>撒くものの置き先。null なら自分の直下。</summary>
+        private Transform scatterParent;
+
+        private bool worldIsDead;
+
+        /// <summary>直前に塗ったときの昼の度合いと朝夕の赤み。塗り直しに使う。</summary>
+        private float lastDaylight = 1f;
+        private float lastDusk;
+        private Color livingSkyHigh;
+        private Color livingSkyLow;
+        private Color livingGround;
+
         private static Mesh coneMesh;
 
         /// <summary>生きものが画面に収まる寄り方。背の高さを見るための位置。</summary>
@@ -252,16 +287,59 @@ namespace CivilizationToSpace.View
             BuildImpactor(land);
             BuildRocket(land);
 
+            // 落ちた瞬間に枯れる時代は、生きているものと枯れたものを
+            // 別の入れ物へ入れ、片方だけを出す。
+            livingSkyHigh = land.SkyHigh;
+            livingSkyLow = land.SkyLow;
+            livingGround = land.Ground;
+            worldIsDead = false;
+            if (land.DiesOnImpact)
+            {
+                livingRoot = Group("Living");
+                deadRoot = Group("Dead");
+            }
+
+            scatterParent = livingRoot;
             Scatter(land.Conifers, BuildConifer, land.PlantHeight, false);
             Scatter(land.Ferns, BuildFern, land.PlantHeight * 0.30f, false);
             Scatter(land.Broadleaves, BuildBroadleaf, land.PlantHeight * 0.75f, false);
+
+            // 岩は落ちても残る。どちらの入れ物にも入れない。
+            scatterParent = null;
             Scatter(land.Rocks, BuildRock, Mathf.Max(1.2f, land.PlantHeight * 0.22f), false);
+
+            scatterParent = deadRoot;
             Scatter(land.DeadTrunks, BuildDeadTrunk, land.PlantHeight * 0.8f, false);
+
+            scatterParent = null;
             PlaceBuildings(land);
+
             // 生きものは手前寄りに置く。奥へ撒くと小さすぎて形が読めない。
+            scatterParent = livingRoot;
             ScatterNear(land.Quadrupeds, BuildQuadruped,
                 land.CreatureHeight > 0f ? land.CreatureHeight : land.PlantHeight * 0.85f, 0.34f);
             ScatterNear(land.Bipeds, BuildBiped, land.PlantHeight * 0.40f, 0.26f);
+            scatterParent = null;
+
+            if (deadRoot != null)
+            {
+                deadRoot.gameObject.SetActive(false);
+            }
+        }
+
+        /// <summary>入れ物をひとつ作る。</summary>
+        private Transform Group(string name)
+        {
+            var group = new GameObject(name);
+            group.hideFlags = createdFlags;
+            group.transform.SetParent(transform, false);
+            return group.transform;
+        }
+
+        /// <summary>撒いたものの置き先。</summary>
+        private Transform ScatterRoot
+        {
+            get { return scatterParent != null ? scatterParent : transform; }
         }
 
         public void Clear()
@@ -306,6 +384,11 @@ namespace CivilizationToSpace.View
             flash = null;
             column = null;
             Shake = 0f;
+
+            livingRoot = null;
+            deadRoot = null;
+            scatterParent = null;
+            worldIsDead = false;
         }
 
         /// <summary>
@@ -412,13 +495,18 @@ namespace CivilizationToSpace.View
         /// </summary>
         private static Vector3 LaunchPad(Landscape land)
         {
-            return new Vector3(-land.HalfWidth * 0.14f, 0f, land.NearZ * 0.38f);
+            // **カメラのすぐ前に置かない。**
+            // 手前へ寄せすぎたとき、機体が画面いっぱいの柱になり、
+            // 何が上がっているのか分からなくなった。街の手前の空き地へ置く。
+            return new Vector3(-land.HalfWidth * 0.42f,
+                0f, Mathf.Lerp(land.NearZ, land.FarZ, 0.17f));
         }
 
         /// <summary>機体の背の高さ。近くに置くので、建物より大きく取る。</summary>
         private static float RocketScale(Landscape land)
         {
-            return Mathf.Max(14f, land.BuildingHeight * 1.5f);
+            // 建物より少し高いくらいにする。倍以上にすると塔にしか見えない。
+            return Mathf.Max(14f, land.BuildingHeight * 0.95f);
         }
 
         /// <summary>
@@ -462,7 +550,8 @@ namespace CivilizationToSpace.View
             nose.hideFlags = createdFlags;
             nose.transform.SetParent(rocket, false);
             nose.transform.localPosition = new Vector3(0f, scale, 0f);
-            nose.transform.localScale = new Vector3(scale * 0.34f, scale * 0.3f, scale * 0.34f);
+            // 先端は胴と同じ太さにする。太いとキノコに見える。
+            nose.transform.localScale = new Vector3(scale * 0.17f, scale * 0.26f, scale * 0.17f);
             nose.GetComponent<MeshFilter>().sharedMesh = Cone();
             nose.GetComponent<MeshRenderer>().sharedMaterial = rocketMaterial;
 
@@ -500,7 +589,9 @@ namespace CivilizationToSpace.View
 
             // 待っているあいだは台の上。上がり始めてからは、加速して高くなる。
             var climb = Mathf.Max(0f, (phase - 0.10f) / 0.70f);
-            var height = land.FarZ * 0.55f * climb * climb;
+            // 街の上を越えて空へ抜けるところまで上げる。
+            // 建物の高さまでしか上がらないと、立っているのか上がっているのか分からない。
+            var height = land.FarZ * 1.15f * climb * climb;
 
             rocket.localPosition = pad + new Vector3(0f, height, 0f);
 
@@ -508,11 +599,83 @@ namespace CivilizationToSpace.View
 
             // 噴射は上がり始めてから出す。待っているあいだは出さない。
             var burning = phase >= 0.10f;
-            var flame = burning ? scale * (0.45f + Mathf.Sin(phase * 120f) * 0.06f) : 0f;
-            exhaust.localScale = new Vector3(flame * 0.7f, flame, flame * 0.7f);
-            exhaust.localPosition = rocket.localPosition + new Vector3(0f, -flame * 0.8f, 0f);
+            // 噴射は機体より細く短く。大きくすると白い楕円にしか見えない。
+            var flame = burning ? scale * (0.22f + Mathf.Sin(phase * 120f) * 0.04f) : 0f;
+            exhaust.localScale = new Vector3(flame * 0.55f, flame, flame * 0.55f);
+            exhaust.localPosition = rocket.localPosition + new Vector3(0f, -flame * 0.75f, 0f);
             flameMaterial.SetColor("_EmissionColor",
                 burning ? land.Flame * (1.35f - climb * 0.7f) : Color.black);
+        }
+
+        /// <summary>
+        /// 生きている世界と枯れた世界を入れ替える。
+        ///
+        /// 木と生きものを出し入れし、空と地面の色を差し替える。
+        /// 岩は残す。落ちても岩は無くならない。
+        /// </summary>
+        private void SetWorldDead(bool dead)
+        {
+            if (!current.DiesOnImpact || dead == worldIsDead)
+            {
+                return;
+            }
+
+            worldIsDead = dead;
+
+            if (livingRoot != null)
+            {
+                livingRoot.gameObject.SetActive(!dead);
+            }
+
+            if (deadRoot != null)
+            {
+                deadRoot.gameObject.SetActive(dead);
+            }
+
+            current.SkyHigh = dead ? current.AfterSkyHigh : livingSkyHigh;
+            current.SkyLow = dead ? current.AfterSkyLow : livingSkyLow;
+            current.Ground = dead ? current.AfterGround : livingGround;
+
+            RecolorGround();
+            PaintSky();
+        }
+
+        /// <summary>今の空の色と昼の度合いで、空の帯を塗る。</summary>
+        private void PaintSky()
+        {
+            if (skyTexture == null)
+            {
+                return;
+            }
+
+            var high = Color.Lerp(NightHigh, current.SkyHigh, lastDaylight);
+            var low = Color.Lerp(NightLow, current.SkyLow, lastDaylight);
+            low = Color.Lerp(low, DuskLow, lastDusk * 0.85f);
+
+            var height = skyTexture.height;
+            for (var y = 0; y < height; y++)
+            {
+                var t = y / (float)(height - 1);
+                skyTexture.SetPixel(0, y, Color.Lerp(low, high, Mathf.Pow(t, 0.6f)));
+            }
+
+            skyTexture.Apply();
+        }
+
+        /// <summary>地面の帯を今の色で塗り直す。遠いぶんは空の色へ寄せる。</summary>
+        private void RecolorGround()
+        {
+            for (var i = 0; i < DepthSteps; i++)
+            {
+                Material material;
+                if (!materials.TryGetValue("Ground/" + i, out material) || material == null)
+                {
+                    continue;
+                }
+
+                var t = DepthSteps > 1 ? i / (float)(DepthSteps - 1) : 0f;
+                material.color = Color.Lerp(current.Ground, current.SkyLow, t * HazeStrength);
+            }
         }
 
         /// <summary>ぶつかる場所。地平線の少し手前へ置く。</summary>
@@ -535,6 +698,11 @@ namespace CivilizationToSpace.View
             }
 
             phase -= Mathf.Floor(phase);
+
+            // **光った瞬間に世界を入れ替える。**
+            // 落ちる前は生きている世界、落ちたあとは枯れた世界。
+            // 順番を逆にすると、原因より先に結果が画面に出てしまう。
+            SetWorldDead(phase >= 0.72f);
 
             var land = current;
             var hit = ImpactPoint(land);
@@ -734,18 +902,9 @@ namespace CivilizationToSpace.View
             // 朝夕の赤み。太陽が地平線の近くにあるときだけ強い。
             var dusk = Mathf.Clamp01(1f - Mathf.Abs(elevation) * 3.4f);
 
-            var high = Color.Lerp(NightHigh, current.SkyHigh, daylight);
-            var low = Color.Lerp(NightLow, current.SkyLow, daylight);
-            low = Color.Lerp(low, DuskLow, dusk * 0.85f);
-
-            var height = skyTexture.height;
-            for (var y = 0; y < height; y++)
-            {
-                var t = y / (float)(height - 1);
-                skyTexture.SetPixel(0, y, Color.Lerp(low, high, Mathf.Pow(t, 0.6f)));
-            }
-
-            skyTexture.Apply();
+            lastDaylight = daylight;
+            lastDusk = dusk;
+            PaintSky();
 
             if (starMaterial != null)
             {
@@ -760,15 +919,20 @@ namespace CivilizationToSpace.View
             {
                 var day = elevation > 0f;
 
+                // **落ちたあとは昼でも暗い。**
+                // 舞い上がった塵が日光をさえぎるため、光を弱める。
+                // 何年つづいたかは表していない。暗くなった、ということだけを示す。
+                var dust = worldIsDead ? 0.34f : 1f;
+
                 // 夜は月あかりに置き換える。真っ暗にすると地形も輪郭も読めない。
                 var pitch = Mathf.Lerp(4f, 62f, Mathf.Abs(elevation));
                 sun.transform.rotation = Quaternion.Euler(pitch, day ? -35f : 145f, 0f);
                 sun.color = day
                     ? Color.Lerp(new Color(1f, 0.74f, 0.52f), Color.white, Mathf.Clamp01(elevation * 2.4f))
                     : MoonLight;
-                sun.intensity = day
+                sun.intensity = dust * (day
                     ? Mathf.Lerp(0.35f, 1.25f, Mathf.Clamp01(elevation * 1.6f))
-                    : 0.16f;
+                    : 0.16f);
             }
 
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
@@ -852,6 +1016,10 @@ namespace CivilizationToSpace.View
             switch (key)
             {
                 case "Trunk": return current.Trunk;
+                case "DeadTrunk":
+                    return current.DeadTrunk.maxColorComponent > 0.001f
+                        ? current.DeadTrunk
+                        : current.Trunk;
                 case "Foliage": return current.Foliage;
                 case "Creature": return current.Creature;
                 case "Rock": return current.Rock;
@@ -877,7 +1045,7 @@ namespace CivilizationToSpace.View
                 var scale = height * (0.62f + (float)random.NextDouble() * 0.95f);
 
                 var item = build(scale);
-                item.transform.SetParent(transform, false);
+                item.transform.SetParent(ScatterRoot, false);
                 item.transform.localPosition = new Vector3(x, 0f, z);
 
                 var turn = profile
@@ -945,7 +1113,7 @@ namespace CivilizationToSpace.View
                 var scale = height * (0.7f + (float)random.NextDouble() * 0.6f);
 
                 var item = build(scale);
-                item.transform.SetParent(transform, false);
+                item.transform.SetParent(ScatterRoot, false);
                 item.transform.localPosition = new Vector3(x, 0f, z);
                 item.transform.localRotation = Quaternion.Euler(0f,
                     (random.Next(2) == 0 ? 90f : 270f) + (float)(random.NextDouble() * 2.0 - 1.0) * 24f, 0f);
@@ -1015,7 +1183,7 @@ namespace CivilizationToSpace.View
             var root = Root("DeadTrunk");
             var lean = (float)(random.NextDouble() * 2.0 - 1.0) * 14f;
 
-            var trunk = Piece(root, PrimitiveType.Cylinder, "Trunk",
+            var trunk = Piece(root, PrimitiveType.Cylinder, "DeadTrunk",
                 new Vector3(0f, height * 0.5f, 0f),
                 new Vector3(height * 0.045f, height * 0.5f, height * 0.045f));
             trunk.transform.localRotation = Quaternion.Euler(lean, 0f, lean * 0.6f);
@@ -1023,7 +1191,7 @@ namespace CivilizationToSpace.View
             // 折れた枝を2本だけ。多いと生きている木に見えてしまう。
             for (var i = 0; i < 2; i++)
             {
-                var branch = Piece(root, PrimitiveType.Cylinder, "Trunk",
+                var branch = Piece(root, PrimitiveType.Cylinder, "DeadTrunk",
                     new Vector3(0f, height * (0.6f + i * 0.18f), 0f),
                     new Vector3(height * 0.022f, height * 0.16f, height * 0.022f));
                 branch.transform.localRotation = Quaternion.Euler(
