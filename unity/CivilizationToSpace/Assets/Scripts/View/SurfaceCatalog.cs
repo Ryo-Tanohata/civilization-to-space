@@ -244,6 +244,12 @@ namespace CivilizationToSpace.View
             land.SkyHigh = Hex(0x5C8FC8);
             land.SkyLow = Hex(0xCBDCE6);
             land.Ground = Hex(0x6E5C3E);
+
+            // **獣の色を地面から離す。** 既定の砂色のままだと、乾いた野に
+            // 同じ色の獣が立ち、輪郭が地面に溶けて数も形も読めなかった。
+            // 緑がかった暗い色にすると、砂の上でも遠景の丘の上でも影絵になる。
+            // 復元色ではない。読みやすさのための決めである。
+            land.Creature = Hex(0x5C6146);
             land.PlantHeight = 26f;
             land.Conifers = 42;
             land.Ferns = 58;

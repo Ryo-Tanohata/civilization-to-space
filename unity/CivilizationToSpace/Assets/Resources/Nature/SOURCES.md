@@ -94,10 +94,17 @@ Blender は 5.2 を使いました。
 | --- | --- | --- | --- | --- |
 | `sdf_mammoth.obj` + `.mtl` | [試作](../../../../../docs/prototypes/mammoth.html)のマンモス | 格子2.8cmで網目にし、面を減らした | 7,000 | 0.39 MB |
 | `sdf_rhino.obj` + `.mtl` | 同じ試作のケサイ | 格子2.0cmで網目にし、面を減らした | 6,000 | 0.33 MB |
+| `sdf_sauropod.obj` + `.mtl` | 首と尾の長い四つ足 | 格子3.5cmで網目にし、面を減らした | 4,500 | 0.25 MB |
+| `sdf_ceratopsian.obj` + `.mtl` | 角と襟飾りのある四つ足 | 格子2.2cmで網目にし、面を減らした | 4,500 | 0.25 MB |
+| `sdf_theropod.obj` + `.mtl` | 二本足の大型 | 格子2.4cmで網目にし、面を減らした | 4,500 | 0.25 MB |
 
 焼き方は [bake_creatures.py](../../../../../docs/prototypes/bake_creatures.py)。
-`python3 bake_creatures.py 出力先` で2つとも作り直せる（scikit-image と
+`python3 bake_creatures.py 出力先` で5つとも作り直せる（scikit-image と
 fast-simplification が要る）。
+
+**中生代の3種は毛皮を持たない。** 表面の揺らぎを引かないので、
+氷期の2種より面が少なくて足りる。角を持たない竜脚類と獣脚類は、
+第2の材質を遠くへ置いて面が振られないようにしてある。
 
 **なぜ焼いたか。** 試作は距離関数を毛の分だけ外へ押し出して毛皮にしている。
 Unity の地表は球と円柱の組み立てなので、それができなかった。同じ距離関数を

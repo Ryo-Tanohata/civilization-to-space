@@ -3091,20 +3091,29 @@ namespace CivilizationToSpace.View
         /// 白亜紀の終わり（約6600万年前）に絶滅しており、そのあとの時代に
         /// 立っていてはいけない。氷期はその6400万年あとである。
         /// </summary>
+        /// <summary>四つ足を何頭置いたか。種を交互に出すために数える。</summary>
+        private int beastTurn;
+
         private GameObject BuildQuadruped(float height)
         {
-            // **恐竜は素材から採る。**
-            // 球を連ねた形では、首も胴も尾も同じ大きさの玉の列にしかならず、
-            // 体色も地面と同じ砂色で輪郭が溶けていた。
-            // 角のあるものと背板のあるものを交互に置く。1種だけ並べると
-            // 同じ形の繰り返しになり、群れではなく複製に見える。
+            // **恐竜も距離関数から焼いた網目で置く。**
+            // 球を連ねた形では、首も胴も尾も同じ大きさの玉の列にしかならなかった。
+            // 焼いた網目なら、首の付け根から頭までが一続きに細っていく。
+            //
+            // 首の長いものと、低く構えて角を持つものを混ぜる。1種だけ並べると
+            // 群れではなく複製に見える。背丈は焼いた網目の高さに掛ける。
+            // 竜脚類は求められた背丈の1.7倍（約11m）、角竜は0.62倍（約4m）。
+            // 同じ野に置いたとき、背の高さの差でどちらか分かる。
             if (current.HornedBeasts)
             {
-                var model = TryModel(
-                    random.NextDouble() < 0.5 ? "gob_triceratops" : "gob_stegosaurus", height);
-                if (model != null)
+                // **交互に出す。乱数で選ばない。** 四つ足は3頭しか置かないので、
+                // 5分5分で振ると3頭とも同じ種になることが実際に起きた。
+                var tall = (beastTurn++ % 2) == 0;
+                var baked = TryModel(tall ? "sdf_sauropod" : "sdf_ceratopsian",
+                    height * (tall ? 1.7f : 0.62f));
+                if (baked != null)
                 {
-                    return model;
+                    return baked;
                 }
             }
 
@@ -3333,12 +3342,15 @@ namespace CivilizationToSpace.View
         /// <summary>二本足の生きもの。胴を立て、尾で釣り合わせる。</summary>
         private GameObject BuildBiped(float height)
         {
+            // 二足の大型。胴を水平に構え、尾で釣り合わせた形を焼いてある。
+            // 渡される背丈は草木から出た値で、そのままでは高すぎる。
+            // 0.55倍（約5.7m）にすると、竜脚類より低く角竜より高い並びになる。
             if (current.HornedBeasts)
             {
-                var model = TryModel("gob_trex", height);
-                if (model != null)
+                var baked = TryModel("sdf_theropod", height * 0.55f);
+                if (baked != null)
                 {
-                    return model;
+                    return baked;
                 }
             }
 
