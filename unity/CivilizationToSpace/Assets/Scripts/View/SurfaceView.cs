@@ -2833,7 +2833,9 @@ namespace CivilizationToSpace.View
                 // 長さのほうが効いてしまう。背板のあるものは全長9.8に対して
                 // 背が4.4しかなく、基準が5.9になって、背丈15を求めたときに
                 // 全長32メートルの獣が出ていた。立つものは縦で測ればよい。
-                var reference = name.StartsWith("gob_") ? bounds.size.y : Reference(bounds.size);
+                var reference = name.StartsWith("gob_") || name.StartsWith("sdf_")
+                    ? bounds.size.y
+                    : Reference(bounds.size);
                 item.transform.localScale *= height / reference;
             }
 
@@ -2985,6 +2987,13 @@ namespace CivilizationToSpace.View
         {
             var lower = materialName.ToLowerInvariant();
 
+            // 距離関数から焼いた獣（sdf_）は creature と tusk の2つの材質を持つ。
+            // 牙も胴と同じ役にする。手組みのマンモス（BuildTusker）と同じ扱いである。
+            if (lower.Contains("creature") || lower.Contains("tusk"))
+            {
+                return "Creature";
+            }
+
             if (lower.Contains("leaf") || lower.Contains("green") || lower.Contains("foliage")
                 || lower.Contains("grass"))
             {
@@ -3102,8 +3111,23 @@ namespace CivilizationToSpace.View
             // **牙のある獣は、ふつうの比では読み取れない。**
             // 胴に脚を付けて牙を足すだけでは、丸い塊に棒が刺さった姿になる。
             // 別の組み立てへ回す。
+            //
+            // **毛皮は、焼いた網目で持ち込む。** 球と円柱の組み立てでは、毛の分だけ
+            // 表面を外へ押し出せなかった（BuildTusker の注）。試作の距離関数を
+            // 格子で評価して網目にしたものが sdf_ で、毛皮の盛り上がりと腹の下の
+            // 裾がそのまま残っている。焼き方は docs/prototypes/bake_creatures.py。
+            //
+            // マンモスとケサイを混ぜる。1種だけ並べると複製に見える。
+            // ケサイの背丈はマンモスの0.54倍（焼いた網目の高さ 2.02 / 3.74）。
             if (current.CreatureTusks)
             {
+                var rhino = random.NextDouble() < 0.4;
+                var baked = TryModel(rhino ? "sdf_rhino" : "sdf_mammoth", rhino ? height * 0.54f : height);
+                if (baked != null)
+                {
+                    return baked;
+                }
+
                 return BuildTusker(height);
             }
 

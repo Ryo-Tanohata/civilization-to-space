@@ -1,0 +1,5 @@
+newmtl creature
+Kd 0.35 0.22 0.12
+
+newmtl tusk
+Kd 0.80 0.74 0.60
