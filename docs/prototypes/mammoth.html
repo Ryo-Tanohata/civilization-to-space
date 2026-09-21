@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>計算で描いたマンモス（試作）</title>
+<style>
+:root{
+  --sky:#c9d3d6; --ink:#2a2e2c; --panel:rgba(236,231,219,.88); --line:#8d7b5a;
+  --on:#5a3a22; --onText:#f3ecdc;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --sky:#1d2224; --ink:#ece5d6; --panel:rgba(30,32,31,.84); --line:#a08e6b;
+    --on:#e6dcc4; --onText:#2a2016;
+  }
+}
+:root[data-theme="dark"]{
+  --sky:#1d2224; --ink:#ece5d6; --panel:rgba(30,32,31,.84); --line:#a08e6b;
+  --on:#e6dcc4; --onText:#2a2016;
+}
+html{height:100%; scroll-padding-top:env(safe-area-inset-top,0px);}
+body{
+  height:100%; margin:0; background:var(--sky); color:var(--ink); overflow:hidden;
+  font-family:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP","Yu Gothic",system-ui,sans-serif;
+}
+*,*::before,*::after{box-sizing:inherit;}
+.stage{position:relative; height:100%;}
+canvas{position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none; cursor:grab;}
+canvas:active{cursor:grabbing;}
+canvas:focus-visible{outline:2px solid var(--line); outline-offset:-4px;}
+.caption{
+  position:absolute; left:14px; top:12px; max-width:min(28em, calc(100% - 28px));
+  background:var(--panel); padding:10px 14px 11px; border-radius:6px; line-height:1.65;
+}
+.caption h1{font-size:1.02rem; margin:0 0 3px; font-weight:700; letter-spacing:.02em;}
+.caption p{margin:0; font-size:.8rem;}
+.caption .hint{opacity:.75; margin-top:3px;}
+.controls{
+  position:absolute; left:50%; transform:translateX(-50%); bottom:14px;
+  display:flex; gap:6px; background:var(--panel); padding:6px; border-radius:999px; max-width:calc(100% - 20px);
+}
+button{
+  font:inherit; font-size:.88rem; border:1px solid var(--line); background:transparent; color:var(--ink);
+  padding:8px 14px; border-radius:999px; cursor:pointer; min-height:40px; white-space:nowrap;
+}
+button[aria-pressed="true"]{background:var(--on); color:var(--onText); border-color:var(--on);}
+button:focus-visible{outline:2px solid var(--line); outline-offset:2px;}
+.err{position:absolute; inset:0; display:none; place-items:center; padding:24px; text-align:center; line-height:1.7;}
+</style>
+</head>
+<body>
+<div class="stage">
+  <canvas id="c" tabindex="0" aria-label="マンモスの立体表示。ドラッグまたは矢印キーで回転、ピンチまたは＋−キーで寄り引き"></canvas>
+  <div class="caption">
+    <h1>計算で描いたマンモス（試作）</h1>
+    <p>高い肩、下がる背、丸い頭頂、小さな耳という体つきをもとに、身と毛皮を形の組み合わせと揺らぎだけで描いています。素材ファイルは使っていません。毛の色と長さは推定です。</p>
+    <p class="hint">ドラッグで回転、ピンチで寄り引き</p>
+  </div>
+  <div class="controls">
+    <button id="bFur" aria-pressed="true">毛皮</button>
+    <button id="bWalk" aria-pressed="true">歩く</button>
+    <button id="bReset">向きを戻す</button>
+  </div>
+  <div class="err" id="err">この端末ではWebGLが使えないため、立体を表示できません。別のブラウザで開くか、WebGLを有効にしてください。</div>
+</div>
+
+<script id="vs" type="x-shader/x-vertex">
+attribute vec2 aPos;
+void main(){ gl_Position = vec4(aPos, 0.0, 1.0); }
+</script>
+
+<script id="fs" type="x-shader/x-fragment">
+precision highp float;
+uniform vec2 uRes;
+uniform vec3 uRo;
+uniform vec3 uTa;
+uniform float uFur;
+uniform float uPh;
+uniform float uScroll;
+uniform float uTime;
+
+float hash(vec3 p){
+  p = fract(p*0.3183099 + vec3(0.1,0.2,0.3));
+  p *= 17.0;
+  return fract(p.x*p.y*p.z*(p.x+p.y+p.z));
+}
+float noise(vec3 x){
+  vec3 i = floor(x); vec3 f = fract(x); f = f*f*(3.0-2.0*f);
+  return mix(mix(mix(hash(i+vec3(0.0,0.0,0.0)),hash(i+vec3(1.0,0.0,0.0)),f.x),
+                 mix(hash(i+vec3(0.0,1.0,0.0)),hash(i+vec3(1.0,1.0,0.0)),f.x),f.y),
+             mix(mix(hash(i+vec3(0.0,0.0,1.0)),hash(i+vec3(1.0,0.0,1.0)),f.x),
+                 mix(hash(i+vec3(0.0,1.0,1.0)),hash(i+vec3(1.0,1.0,1.0)),f.x),f.y),f.z);
+}
+float smin(float a, float b, float k){
+  float h = clamp(0.5+0.5*(b-a)/k, 0.0, 1.0);
+  return mix(b,a,h) - k*h*(1.0-h);
+}
+float sdCap(vec3 p, vec3 a, vec3 b, float ra, float rb){
+  vec3 pa = p-a, ba = b-a;
+  float h = clamp(dot(pa,ba)/dot(ba,ba), 0.0, 1.0);
+  return length(pa-ba*h) - mix(ra,rb,h);
+}
+float sdEll(vec3 p, vec3 r){
+  float k0 = length(p/r); float k1 = length(p/(r*r));
+  return k0*(k0-1.0)/k1;
+}
+float leg(vec3 p, vec3 hip, vec3 foot0, float ph){
+  vec3 foot = foot0 + vec3(0.30*sin(ph), 0.16*max(0.0, cos(ph)), 0.0);
+  vec3 knee = mix(hip, foot, 0.5) + vec3(0.06, 0.0, 0.0);
+  float d = sdCap(p, hip, knee, 0.42, 0.34);
+  return min(d, sdCap(p, knee, foot, 0.34, 0.30));
+}
+
+// x が前、y が上。単位はおおよそメートル（肩の高さ約3m）
+vec2 map(vec3 p, float fur){
+  float ph = uPh;
+  vec3 w = p;                       // 地面基準（脚の先）
+  p.y -= 0.035*sin(2.0*ph) + 0.2;   // 胴は0.2m持ち上げる（脚を長く）
+  vec3 q = vec3(p.x, p.y, abs(p.z));
+
+  // 胴：前が高く、後ろへ下がる
+  float d = sdEll(p-vec3(-0.2,1.95,0.0), vec3(1.55,0.95,0.95));
+  d = smin(d, sdEll(p-vec3(0.75,2.45,0.0), vec3(0.85,0.70,0.80)), 0.5);
+  d = smin(d, sdEll(p-vec3(-1.25,1.85,0.0), vec3(0.75,0.75,0.82)), 0.4);
+
+  // 頭：丸い頭頂と小さな耳
+  float h = sdEll(p-vec3(1.75,2.55,0.0), vec3(0.62,0.72,0.60));
+  h = smin(h, sdEll(p-vec3(1.62,3.12,0.0), vec3(0.42,0.40,0.36)), 0.3);
+  h = smin(h, sdEll(q-vec3(1.45,2.62,0.56), vec3(0.20,0.26,0.07)), 0.1);
+
+  // 鼻：ゆっくり揺れる
+  float sw = 0.10*sin(uTime*0.9);
+  vec3 t0 = vec3(2.22,2.45,0.0), t1 = vec3(2.52,1.85,0.0);
+  vec3 t2 = vec3(2.62+sw*0.5,1.20,sw*0.3), t3 = vec3(2.50+sw,0.62,sw*0.6), t4 = vec3(2.68+sw,0.36,sw*0.7);
+  float tr = sdCap(p,t0,t1,0.28,0.21);
+  tr = smin(tr, sdCap(p,t1,t2,0.21,0.16), 0.05);
+  tr = smin(tr, sdCap(p,t2,t3,0.16,0.12), 0.05);
+  tr = smin(tr, sdCap(p,t3,t4,0.12,0.10), 0.04);
+  h = smin(h, tr, 0.18);
+  d = smin(d, h, 0.45);
+
+  // 短い尾
+  d = smin(d, sdCap(p, vec3(-1.95,2.15,0.0), vec3(-2.2,1.55,0.0), 0.09, 0.05), 0.12);
+
+  // 脚：腰は胴に、足先は地面に付く。対角の2本ずつが同じ向きに動く
+  float lift = 0.2 + 0.035*sin(2.0*ph);
+  float lg = leg(w, vec3(0.95,1.65+lift, 0.50), vec3(0.95,0.30, 0.52), ph);
+  lg = min(lg, leg(w, vec3(0.95,1.65+lift,-0.50), vec3(0.95,0.30,-0.52), ph+3.14159));
+  lg = min(lg, leg(w, vec3(-1.25,1.55+lift, 0.50), vec3(-1.30,0.30, 0.52), ph+3.14159));
+  lg = min(lg, leg(w, vec3(-1.25,1.55+lift,-0.50), vec3(-1.30,0.30,-0.52), ph));
+  d = smin(d, lg, 0.3);
+
+  // 毛皮：縦に流れる揺らぎ。腹の下ほど長く垂れる
+  if(fur > 0.001 && d < 0.35){
+    vec3 fp = vec3(w.x*10.0, w.y*2.4, w.z*10.0);
+    float n = 0.6*noise(fp) + 0.4*noise(fp*2.3 + 7.1);
+    float skirt = smoothstep(2.2, 1.2, w.y) * smoothstep(0.45, 1.0, w.y);
+    d -= fur*(0.03 + 0.14*skirt)*n;
+  }
+
+  // 牙：下へ出て外へ張り出し、前で持ち上がって内へ巻く
+  vec3 k0 = vec3(2.05,2.20,0.28), k1 = vec3(2.30,1.72,0.40), k2 = vec3(2.65,1.38,0.56);
+  vec3 k3 = vec3(3.05,1.30,0.70), k4 = vec3(3.42,1.48,0.68), k5 = vec3(3.62,1.85,0.52), k6 = vec3(3.58,2.22,0.28);
+  float tk = sdCap(q,k0,k1,0.13,0.12);
+  tk = smin(tk, sdCap(q,k1,k2,0.12,0.11), 0.04);
+  tk = smin(tk, sdCap(q,k2,k3,0.11,0.095), 0.04);
+  tk = smin(tk, sdCap(q,k3,k4,0.095,0.08), 0.04);
+  tk = smin(tk, sdCap(q,k4,k5,0.08,0.06), 0.03);
+  tk = smin(tk, sdCap(q,k5,k6,0.06,0.03), 0.03);
+
+  return tk < d ? vec2(tk, 2.0) : vec2(d, 1.0);
+}
+
+vec3 calcN(vec3 p){
+  const vec2 k = vec2(1.0,-1.0); float e = 0.004;
+  return normalize(k.xyy*map(p+k.xyy*e,uFur).x + k.yyx*map(p+k.yyx*e,uFur).x +
+                   k.yxy*map(p+k.yxy*e,uFur).x + k.xxx*map(p+k.xxx*e,uFur).x);
+}
+float shadow(vec3 ro, vec3 rd){
+  float res = 1.0; float t = 0.05;
+  for(int i=0;i<32;i++){
+    float h = map(ro+rd*t, 0.0).x;
+    res = min(res, 10.0*h/t);
+    t += clamp(h, 0.05, 0.4);
+    if(res < 0.01 || t > 8.0) break;
+  }
+  return clamp(res, 0.0, 1.0);
+}
+float calcAO(vec3 p, vec3 n){
+  float o = 0.0; float s = 1.0;
+  for(int i=1;i<=4;i++){
+    float hh = 0.07*float(i);
+    o += (hh - map(p+n*hh, 0.0).x)*s; s *= 0.7;
+  }
+  return clamp(1.0-1.8*o, 0.0, 1.0);
+}
+vec2 sph(vec3 ro, vec3 rd, vec3 c, float r){
+  vec3 oc = ro-c; float b = dot(oc,rd); float cc = dot(oc,oc)-r*r; float hh = b*b-cc;
+  if(hh < 0.0) return vec2(-1.0);
+  hh = sqrt(hh); return vec2(-b-hh, -b+hh);
+}
+
+void main(){
+  vec2 uv = (2.0*gl_FragCoord.xy - uRes)/uRes.y;
+  vec3 ro = uRo;
+  vec3 fw = normalize(uTa-ro);
+  vec3 rt = normalize(cross(fw, vec3(0.0,1.0,0.0)));
+  vec3 up = cross(rt, fw);
+  vec3 rd = normalize(uv.x*rt + uv.y*up + 1.8*fw);
+  vec3 sun = normalize(vec3(0.55,0.75,0.37));
+  vec3 sunCol = vec3(1.0,0.90,0.76);
+  vec3 horizon = vec3(0.56,0.58,0.57);
+
+  vec3 col = mix(horizon, vec3(0.24,0.34,0.46), clamp(rd.y*1.7, 0.0, 1.0));
+  col += sunCol*pow(max(dot(rd,sun),0.0), 24.0)*0.3;
+
+  float tHit = 1e9; float mat = 0.0;
+  vec2 bs = sph(ro, rd, vec3(0.75,1.85,0.0), 3.6);
+  if(bs.y > 0.0){
+    float t = max(bs.x, 0.0);
+    for(int i=0;i<140;i++){
+      vec2 hh = map(ro+rd*t, uFur);
+      if(hh.x < 0.0015*t){ tHit = t; mat = hh.y; break; }
+      t += hh.x*0.7;
+      if(t > bs.y) break;
+    }
+  }
+
+  float tg = rd.y < 0.0 ? -ro.y/rd.y : 1e9;
+  if(tg < tHit && tg < 1e8){
+    // 氷期の草原：歩みに合わせて地面が後ろへ流れる
+    vec3 p = ro + rd*tg;
+    float gx = p.x + uScroll;
+    float n1 = noise(vec3(gx*0.8, 0.0, p.z*0.8));
+    float n2 = noise(vec3(gx*9.0, 3.0, p.z*9.0));
+    vec3 base = mix(vec3(0.20,0.18,0.10), vec3(0.34,0.31,0.19), n1);
+    base *= 0.85 + 0.3*n2;
+    float sh = 1.0;
+    if(length(p.xz - vec2(0.5,0.0)) < 8.0) sh = shadow(p+vec3(0.0,0.01,0.0), sun);
+    vec3 g = base*(sunCol*1.6*sun.y*sh + vec3(0.35,0.42,0.5)*0.55);
+    float fog = 1.0 - exp(-0.035*tg);
+    col = mix(g, horizon, fog);
+  } else if(tHit < 1e8){
+    vec3 p = ro + rd*tHit;
+    vec3 n = calcN(p);
+    float c = noise(vec3(p.x*10.0, p.y*2.4, p.z*10.0));
+    vec3 base;
+    if(mat < 1.5){
+      vec3 furC = mix(vec3(0.07,0.035,0.018), vec3(0.20,0.11,0.05), c);
+      furC *= mix(0.65, 1.0, smoothstep(0.5, 2.6, p.y));
+      vec3 skinC = vec3(0.16,0.13,0.11)*(0.85+0.3*c);
+      base = mix(skinC, furC, uFur);
+    } else {
+      base = vec3(0.52,0.45,0.32);
+    }
+    float dif = clamp(dot(n,sun), 0.0, 1.0);
+    if(dif > 0.0) dif *= shadow(p+n*0.02, sun);
+    float amb = 0.5 + 0.5*n.y;
+    float ao = calcAO(p, n);
+    col = base*(sunCol*2.0*dif + vec3(0.35,0.42,0.5)*amb*ao*0.95);
+    float rim = pow(1.0 - max(dot(n,-rd),0.0), 3.0);
+    col += base*rim*0.8*uFur*ao;
+    if(mat > 1.5) col += sunCol*pow(max(dot(reflect(rd,n),sun),0.0), 18.0)*0.25*dif;
+    col = mix(col, horizon, 1.0-exp(-0.012*tHit));
+  }
+  gl_FragColor = vec4(pow(max(col,0.0), vec3(0.4545)), 1.0);
+}
+</script>
+
+<script>
+(function(){
+  var canvas = document.getElementById('c');
+  var gl = null;
+  try { gl = canvas.getContext('webgl', {antialias:false, alpha:false, powerPreference:'high-performance'}); } catch(e){}
+  if(!gl){ document.getElementById('err').style.display = 'grid'; return; }
+
+  function sh(type, id){
+    var s = gl.createShader(type);
+    gl.shaderSource(s, document.getElementById(id).textContent);
+    gl.compileShader(s);
+    if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+    return s;
+  }
+  var prog;
+  try {
+    prog = gl.createProgram();
+    gl.attachShader(prog, sh(gl.VERTEX_SHADER, 'vs'));
+    gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, 'fs'));
+    gl.linkProgram(prog);
+    if(!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+  } catch(e){
+    var el = document.getElementById('err');
+    el.textContent = '描画の準備に失敗しました（' + e.message + '）。別のブラウザで開いてください。';
+    el.style.display = 'grid';
+    return;
+  }
+  gl.useProgram(prog);
+  var buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+  var aPos = gl.getAttribLocation(prog, 'aPos');
+  gl.enableVertexAttribArray(aPos);
+  gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+  var U = {};
+  ['uRes','uRo','uTa','uFur','uPh','uScroll','uTime'].forEach(function(n){ U[n] = gl.getUniformLocation(prog, n); });
+
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var HOME = {yaw:0.95, pitch:0.14, dist:8.6};
+  var cam = {yaw:HOME.yaw, pitch:HOME.pitch, dist:HOME.dist};
+  var target = [0.7, 1.75, 0.0];
+  var furTarget = 1, furCur = 1;
+  var walking = !reduce, ph = 0, time = 0;
+  var lastInput = -1e9;
+  var quality = 1, budget = 260000;
+
+  function resize(){
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var w = canvas.clientWidth, h = canvas.clientHeight;
+    var s = Math.min(1, Math.sqrt(budget / Math.max(1, w*h*dpr*dpr))) * quality;
+    s = Math.max(0.25, s);
+    canvas.width = Math.max(1, Math.round(w*dpr*s));
+    canvas.height = Math.max(1, Math.round(h*dpr*s));
+    gl.viewport(0, 0, canvas.width, canvas.height);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // 操作：1本指で回転、2本指で寄り引き
+  var pts = {}, pinch0 = 0, dist0 = cam.dist;
+  function count(){ return Object.keys(pts).length; }
+  function pinchLen(){
+    var k = Object.keys(pts); if(k.length < 2) return 0;
+    var a = pts[k[0]], b = pts[k[1]];
+    return Math.hypot(a.x-b.x, a.y-b.y);
+  }
+  canvas.addEventListener('pointerdown', function(e){
+    canvas.setPointerCapture(e.pointerId);
+    pts[e.pointerId] = {x:e.clientX, y:e.clientY};
+    if(count() === 2){ pinch0 = pinchLen(); dist0 = cam.dist; }
+    lastInput = time;
+  });
+  canvas.addEventListener('pointermove', function(e){
+    var p = pts[e.pointerId]; if(!p) return;
+    var dx = e.clientX - p.x, dy = e.clientY - p.y;
+    p.x = e.clientX; p.y = e.clientY;
+    if(count() === 1){
+      cam.yaw -= dx*0.008;
+      cam.pitch = Math.max(-0.02, Math.min(1.1, cam.pitch + dy*0.006));
+    } else if(count() === 2 && pinch0 > 0){
+      cam.dist = Math.max(5.5, Math.min(20, dist0 * pinch0 / Math.max(1, pinchLen())));
+    }
+    lastInput = time;
+  });
+  function up(e){ delete pts[e.pointerId]; if(count() < 2) pinch0 = 0; }
+  canvas.addEventListener('pointerup', up);
+  canvas.addEventListener('pointercancel', up);
+  canvas.addEventListener('wheel', function(e){
+    e.preventDefault();
+    cam.dist = Math.max(5.5, Math.min(20, cam.dist * (1 + e.deltaY*0.001)));
+    lastInput = time;
+  }, {passive:false});
+  canvas.addEventListener('keydown', function(e){
+    var used = true;
+    if(e.key === 'ArrowLeft') cam.yaw += 0.12;
+    else if(e.key === 'ArrowRight') cam.yaw -= 0.12;
+    else if(e.key === 'ArrowUp') cam.pitch = Math.min(1.1, cam.pitch + 0.08);
+    else if(e.key === 'ArrowDown') cam.pitch = Math.max(-0.02, cam.pitch - 0.08);
+    else if(e.key === '+' || e.key === '=') cam.dist = Math.max(5.5, cam.dist*0.9);
+    else if(e.key === '-') cam.dist = Math.min(20, cam.dist*1.1);
+    else used = false;
+    if(used){ e.preventDefault(); lastInput = time; }
+  });
+
+  var bFur = document.getElementById('bFur');
+  var bWalk = document.getElementById('bWalk');
+  bWalk.setAttribute('aria-pressed', walking ? 'true' : 'false');
+  bFur.addEventListener('click', function(){
+    furTarget = furTarget > 0.5 ? 0 : 1;
+    bFur.setAttribute('aria-pressed', furTarget > 0.5 ? 'true' : 'false');
+  });
+  bWalk.addEventListener('click', function(){
+    walking = !walking;
+    bWalk.setAttribute('aria-pressed', walking ? 'true' : 'false');
+  });
+  document.getElementById('bReset').addEventListener('click', function(){
+    cam.yaw = HOME.yaw; cam.pitch = HOME.pitch; cam.dist = HOME.dist;
+  });
+
+  // 重い端末では解像度を自動で下げる
+  var last = performance.now(), ema = 0.016, acc = 0;
+  function frame(now){
+    var dt = Math.min(0.1, (now - last)/1000); last = now;
+    time += dt;
+    ema = ema*0.9 + dt*0.1; acc += dt;
+    if(acc > 1.2){
+      acc = 0;
+      if(ema > 0.045 && quality > 0.4){ quality *= 0.82; resize(); }
+      else if(ema < 0.022 && quality < 1){ quality = Math.min(1, quality*1.1); resize(); }
+    }
+    if(walking) ph += dt*2.4;
+    furCur += (furTarget - furCur) * Math.min(1, dt*4);
+    if(!reduce && count() === 0 && time - lastInput > 4) cam.yaw += dt*0.07;
+
+    var cp = Math.cos(cam.pitch);
+    var ro = [target[0] + cam.dist*cp*Math.cos(cam.yaw),
+              target[1] + cam.dist*Math.sin(cam.pitch),
+              target[2] + cam.dist*cp*Math.sin(cam.yaw)];
+    gl.uniform2f(U.uRes, canvas.width, canvas.height);
+    gl.uniform3f(U.uRo, ro[0], Math.max(0.3, ro[1]), ro[2]);
+    gl.uniform3f(U.uTa, target[0], target[1], target[2]);
+    gl.uniform1f(U.uFur, furCur);
+    gl.uniform1f(U.uPh, ph);
+    gl.uniform1f(U.uScroll, ph*0.19);
+    gl.uniform1f(U.uTime, reduce ? 0 : time);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
