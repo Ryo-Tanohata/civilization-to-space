@@ -458,6 +458,11 @@ namespace CivilizationToSpace.View
             land.BuildingHeight = 5f;
             land.BuildingSpacing = 1.05f;
             land.Windows = false;
+
+            // Society 2.0（農耕）の初期。屋根から梯子で出入りし、家のあいだに
+            // 道が無い。壁に戸口は開かず、屋根に穴を開ける。
+            land.RoofOpening = true;
+
             land.Conifers = 24;
             land.Ferns = 34;
             land.Broadleaves = 26;
@@ -500,6 +505,10 @@ namespace CivilizationToSpace.View
             land.BuildingSpacing = 2.1f;
             land.Windows = true;
 
+            // Society 4.0（情報）。窓の格子と、屋上の設備。足もとに一段置く。
+            land.Plinth = true;
+            land.RoofCap = true;
+
             // 衛星が上がり始めた時代。地表からも打ち上げが見える。
             land.ShowsRocket = true;
             land.Conifers = 20;
@@ -526,11 +535,33 @@ namespace CivilizationToSpace.View
             land.Seed = 10;
             land.Building = Hex(0xC4CBD2);
             land.Window = Hex(0x74C8B4);
-            land.BuildingHeight = 78f;
-            land.BuildingSpacing = 2.0f;
+
+            // **Society 5.0 は、4.0 を大きくした姿ではない。**
+            // これまでは情報の都市を高く（52m→78m）、多く（150→210棟）して
+            // いただけで、画面では「同じ街の背が伸びた」以上のことが起きて
+            // いなかった。絵コンテでも9と10が見分けにくいと記録していた。
+            //
+            // 内閣府の定義は「サイバー空間とフィジカル空間を高度に融合させた
+            // システムにより、経済発展と社会的課題の解決を両立する人間中心の
+            // 社会」であり、建物の形式で定義された段階ではない。
+            // 地表に出せる違いは、建物そのものより**配置**にある。
+            //
+            // | 要点 | 画面での表し方 |
+            // | --- | --- |
+            // | 大きな中心が消える | 背を情報より低くする（78m→30m） |
+            // | 緑と建物が混ざる | 棟を減らし（210→110）、木を増やす（40→150） |
+            // | 足もとが空く | 間隔を広げる（2.0→3.1） |
+            // | 供給が分散する | 屋根いちめんを発電面の色でおおう |
+            land.BuildingHeight = 30f;
+            land.BuildingSpacing = 3.1f;
+            land.Buildings = 110;
+            land.Broadleaves = 150;
+            land.Conifers = 70;
+            land.GroundCover = 140;
+            land.RoofPanel = Hex(0x2E4A5E);
+            land.RoofCap = false;
+
             land.ShowsRocket = true;
-            land.Buildings = 210;
-            land.Broadleaves = 40;
             return land;
         }
 

@@ -340,6 +340,21 @@ namespace CivilizationToSpace.View
             /// <summary>水の色。空を映すのではなく、濁りの色として置く。</summary>
             public Color Water;
 
+            /// <summary>屋根に四角い穴を開けるか。屋根から出入りする集落に使う。</summary>
+            public bool RoofOpening;
+
+            /// <summary>足もとに一段置くか。地面と建物のあいだに境を作る。</summary>
+            public bool Plinth;
+
+            /// <summary>屋上に小さな箱を乗せるか。上の輪郭を揃わせないため。</summary>
+            public bool RoofCap;
+
+            /// <summary>
+            /// 屋根いちめんをおおう板の色。置かないなら空のまま。
+            /// Society 5.0 の「供給が中央から分散へ」を、屋根が発電面になる形で表す。
+            /// </summary>
+            public Color RoofPanel;
+
             /// <summary>置き方を決める種。同じ種なら同じ並びになる。</summary>
             public int Seed;
         }
@@ -2471,6 +2486,7 @@ namespace CivilizationToSpace.View
                 case "Rock": return current.Rock;
                 case "Building": return current.Building;
                 case "Window": return current.Window;
+                case "RoofPanel": return current.RoofPanel;
                 default: return current.Ground;
             }
         }
@@ -3563,6 +3579,21 @@ namespace CivilizationToSpace.View
         /// 高さを上げて数を増やせば都市になる。作り分けると、段階が増えるたびに
         /// 書き足すことになり、必ず破綻する。
         /// </summary>
+        /// <summary>
+        /// 建物。**形は時代ごとに書き分けず、データの旗で組み立てる。**
+        ///
+        /// 以前は「窓があるか」の1つで集落と都市を分けていた。段階を増やすたびに
+        /// 分岐が増えるので、部品ごとの旗に分けてある。時代の側で組み合わせを
+        /// 決めれば、ここへ手を入れずに新しい段階を出せる。
+        ///
+        /// | 旗 | 出るもの | どの段階に効くか |
+        /// | --- | --- | --- |
+        /// | `Windows` | 窓の横帯 | 情報・未来 |
+        /// | `RoofOpening` | 屋根の四角い穴 | 農耕（屋根から出入りする集落） |
+        /// | `Plinth` | 足もとの一段 | 情報・未来 |
+        /// | `RoofCap` | 屋上の小さな箱 | 情報 |
+        /// | `RoofPanel` | 屋根いちめんの板（色つき） | 未来（発電面） |
+        /// </summary>
         private GameObject BuildStructure(float height)
         {
             var root = Root("Structure");
@@ -3575,48 +3606,60 @@ namespace CivilizationToSpace.View
             // **屋根は平らにする。三角屋根にしない。**
             // 新石器時代のチャタルホユックは平らな屋根で、屋根から梯子で出入りし、
             // 家のあいだに道が無かった。三角屋根を載せると別の時代の姿になる。
-            if (!current.Windows || height < current.BuildingHeight * 0.85f)
-            {
-                Piece(root, PrimitiveType.Cube, "Building",
-                    new Vector3(0f, height * 1.02f, 0f),
-                    new Vector3(width * 1.06f, height * 0.05f, depth * 1.06f));
+            Piece(root, PrimitiveType.Cube, "Building",
+                new Vector3(0f, height * 1.02f, 0f),
+                new Vector3(width * 1.06f, height * 0.05f, depth * 1.06f));
 
-                // **屋根に出入り口を開ける。**
-                // チャタルホユックは屋根から梯子で出入りした。無地の平屋根が
-                // 46枚並ぶと、板を敷き詰めただけの野に見える。四角い穴が
-                // 一つずつあると、屋根が人の通り道だと分かる。
-                // 壁に戸口は付けない。道が無い作りなので、そこには開かない。
+            // 屋根の出入り口。壁に戸口は付けない。道が無い作りなので、そこには開かない。
+            if (current.RoofOpening)
+            {
                 Piece(root, PrimitiveType.Cube, "Window",
                     new Vector3(width * 0.16f, height * 1.05f, depth * 0.12f),
                     new Vector3(width * 0.26f, height * 0.02f, depth * 0.26f));
-                return root;
             }
 
-            // 高いものには窓の帯を入れる。のっぺりした箱に高さを感じさせるため。
-            var floors = Mathf.Clamp(Mathf.RoundToInt(height / (current.BuildingHeight * 0.16f)), 2, 9);
-            for (var i = 0; i < floors; i++)
+            // 窓の横帯。のっぺりした箱に高さを感じさせるため。
+            if (current.Windows && height >= current.BuildingHeight * 0.85f)
             {
-                var y = height * (0.16f + 0.78f * i / Mathf.Max(1, floors - 1));
-                Piece(root, PrimitiveType.Cube, "Window", new Vector3(0f, y, 0f),
-                    new Vector3(width * 1.02f, height * 0.035f, depth * 1.02f));
+                var floors = Mathf.Clamp(
+                    Mathf.RoundToInt(height / (current.BuildingHeight * 0.16f)), 2, 9);
+                for (var i = 0; i < floors; i++)
+                {
+                    var y = height * (0.16f + 0.78f * i / Mathf.Max(1, floors - 1));
+                    Piece(root, PrimitiveType.Cube, "Window", new Vector3(0f, y, 0f),
+                        new Vector3(width * 1.02f, height * 0.035f, depth * 1.02f));
+                }
             }
 
             // **足もとに一段置く。** 箱がそのまま草地から生えていると、
             // 建物というより地面に刺した板に見えた。少し広い台を敷くと、
             // 地面と建物のあいだに境ができる。
-            Piece(root, PrimitiveType.Cube, "Window",
-                new Vector3(0f, height * 0.035f, 0f),
-                new Vector3(width * 1.10f, height * 0.07f, depth * 1.10f));
+            if (current.Plinth)
+            {
+                Piece(root, PrimitiveType.Cube, "Window",
+                    new Vector3(0f, height * 0.035f, 0f),
+                    new Vector3(width * 1.10f, height * 0.07f, depth * 1.10f));
+            }
 
             // **屋上に小さな箱を乗せる（半分だけ）。**
             // すべてが平らな頭だと、高さの違う箱が並んでいるだけに見える。
-            // 屋上に出っ張りがあると、上の輪郭が揃わず街並みになる。
-            if (random.NextDouble() < 0.5)
+            if (current.RoofCap && random.NextDouble() < 0.5)
             {
                 var cap = width * (0.30f + (float)random.NextDouble() * 0.25f);
                 Piece(root, PrimitiveType.Cube, "Building",
                     new Vector3(width * 0.12f, height * 1.05f, depth * 0.10f),
                     new Vector3(cap, height * 0.10f, cap));
+            }
+
+            // **屋根いちめんを板でおおう。**
+            // Society 5.0 では供給が中央から分散へ移る。屋根と壁が発電面になる、
+            // というのがその見える形になる。屋上の出っ張りではなく、屋根の面そのもの
+            // が別の色になることで、4.0 の街並みと区別がつく。
+            if (current.RoofPanel.maxColorComponent > 0.001f)
+            {
+                Piece(root, PrimitiveType.Cube, "RoofPanel",
+                    new Vector3(0f, height * 1.06f, 0f),
+                    new Vector3(width * 0.92f, height * 0.015f, depth * 0.92f));
             }
 
             return root;
