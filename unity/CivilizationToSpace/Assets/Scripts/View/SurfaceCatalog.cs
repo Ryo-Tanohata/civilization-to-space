@@ -175,8 +175,20 @@ namespace CivilizationToSpace.View
             land.SkyLow = Hex(0xB8A188);
             land.Ground = Hex(0x4A443E);
             land.Rock = Hex(0x5E564E);
-            land.Rocks = 80;
-            land.GroundRubble = 90;
+
+            // **水を張る。** この時代に水が無く、地面と空の色だけで
+            // マグマの時代と区別していた。時代の名が示すものが画面に無かった。
+            //
+            // 水位を与えると、尾根が陸として残り谷が沈む。海岸線は勝手にできる。
+            // 1.2mにすると、目の前は浅い水で、遠くの尾根が島として残る。
+            // 濁った緑がかった色にする。初期の海は澄んでいなかったはずだが、
+            // 濁りは色で表し、透明度では表さない。
+            land.WaterLevel = 1.2f;
+            land.Water = Hex(0x33474A);
+
+            // 岩は減らす。多くは水に沈んで見えないので、置くだけ無駄になる。
+            land.Rocks = 34;
+            land.GroundRubble = 20;
             land.PlantHeight = 14f;
             land.Conifers = 0;
             land.Ferns = 0;

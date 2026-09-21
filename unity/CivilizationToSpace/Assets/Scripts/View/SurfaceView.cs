@@ -328,6 +328,18 @@ namespace CivilizationToSpace.View
             /// </summary>
             public Color GroundGlow;
 
+            /// <summary>
+            /// 水面の高さ（メートル）。0なら水を出さない。
+            ///
+            /// **地形に水位を与えると、海岸線が勝手にできる。**
+            /// 尾根が水より高ければ陸として残り、谷は沈む。海岸線を手で描く
+            /// 必要がない。水位を上げ下げすれば、陸の量がそのまま変わる。
+            /// </summary>
+            public float WaterLevel;
+
+            /// <summary>水の色。空を映すのではなく、濁りの色として置く。</summary>
+            public Color Water;
+
             /// <summary>置き方を決める種。同じ種なら同じ並びになる。</summary>
             public int Seed;
         }
@@ -1995,10 +2007,54 @@ namespace CivilizationToSpace.View
             if (land.Relief > 0.0001f)
             {
                 BuildTerrain(land);
+                BuildWater(land);
                 return;
             }
 
             BuildFlatGround(land);
+            BuildWater(land);
+        }
+
+        /// <summary>
+        /// 水面。**地面と同じく帯に分けて、遠い帯ほど空の色へ寄せる。**
+        ///
+        /// 1枚の板で張ると、手前も地平線も同じ色になって奥行きが消える。
+        /// 地面と同じ分け方にしておけば、陸と海の遠近が揃う。
+        ///
+        /// 水は不透明に塗る。透かすと、沈んだ岩がぼんやり見えて濁った板に
+        /// 見えた。初期の海は濁っていたはずだが、それは**色で表す**ことにして、
+        /// 透明度では表さない。
+        /// </summary>
+        private void BuildWater(Landscape land)
+        {
+            if (land.WaterLevel <= 0.0001f)
+            {
+                return;
+            }
+
+            const int bands = DepthSteps;
+            var end = land.FarZ * 1.3f;
+
+            for (var i = 0; i < bands; i++)
+            {
+                var from = Mathf.Lerp(-land.FarZ * 0.2f, end, i / (float)bands);
+                var to = Mathf.Lerp(-land.FarZ * 0.2f, end, (i + 1) / (float)bands);
+
+                var band = PrimitiveMeshes.Create(PrimitiveType.Cube, "WaterBand", createdFlags);
+                band.transform.SetParent(transform, false);
+                band.transform.localPosition =
+                    new Vector3(0f, land.WaterLevel - 1f, (from + to) * 0.5f);
+                band.transform.localScale = new Vector3(land.HalfWidth * 9f, 2f, to - from);
+
+                var material = Tinted("Water", land.Water, i);
+
+                // **水は光る面にする。** つや消しのままだと、濡れた土の板に見えた。
+                // 太陽が低いときに帯状の照り返しが出ることで、水だと分かる。
+                material.SetFloat("_Glossiness", 0.88f);
+                material.SetFloat("_Metallic", 0.05f);
+
+                band.GetComponent<Renderer>().sharedMaterial = material;
+            }
         }
 
         /// <summary>
@@ -3524,6 +3580,15 @@ namespace CivilizationToSpace.View
                 Piece(root, PrimitiveType.Cube, "Building",
                     new Vector3(0f, height * 1.02f, 0f),
                     new Vector3(width * 1.06f, height * 0.05f, depth * 1.06f));
+
+                // **屋根に出入り口を開ける。**
+                // チャタルホユックは屋根から梯子で出入りした。無地の平屋根が
+                // 46枚並ぶと、板を敷き詰めただけの野に見える。四角い穴が
+                // 一つずつあると、屋根が人の通り道だと分かる。
+                // 壁に戸口は付けない。道が無い作りなので、そこには開かない。
+                Piece(root, PrimitiveType.Cube, "Window",
+                    new Vector3(width * 0.16f, height * 1.05f, depth * 0.12f),
+                    new Vector3(width * 0.26f, height * 0.02f, depth * 0.26f));
                 return root;
             }
 
@@ -3534,6 +3599,24 @@ namespace CivilizationToSpace.View
                 var y = height * (0.16f + 0.78f * i / Mathf.Max(1, floors - 1));
                 Piece(root, PrimitiveType.Cube, "Window", new Vector3(0f, y, 0f),
                     new Vector3(width * 1.02f, height * 0.035f, depth * 1.02f));
+            }
+
+            // **足もとに一段置く。** 箱がそのまま草地から生えていると、
+            // 建物というより地面に刺した板に見えた。少し広い台を敷くと、
+            // 地面と建物のあいだに境ができる。
+            Piece(root, PrimitiveType.Cube, "Window",
+                new Vector3(0f, height * 0.035f, 0f),
+                new Vector3(width * 1.10f, height * 0.07f, depth * 1.10f));
+
+            // **屋上に小さな箱を乗せる（半分だけ）。**
+            // すべてが平らな頭だと、高さの違う箱が並んでいるだけに見える。
+            // 屋上に出っ張りがあると、上の輪郭が揃わず街並みになる。
+            if (random.NextDouble() < 0.5)
+            {
+                var cap = width * (0.30f + (float)random.NextDouble() * 0.25f);
+                Piece(root, PrimitiveType.Cube, "Building",
+                    new Vector3(width * 0.12f, height * 1.05f, depth * 0.10f),
+                    new Vector3(cap, height * 0.10f, cap));
             }
 
             return root;
