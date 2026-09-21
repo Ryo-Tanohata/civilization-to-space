@@ -3192,6 +3192,11 @@ namespace CivilizationToSpace.View
             TuskerChain(root, s, tusk, tuskRadii, 1f);
             TuskerChain(root, s, tusk, tuskRadii, -1f);
 
+            // **毛皮は足していない。** 試作は距離関数を毛の分だけ外へ押し出して
+            // 腹の下へ垂らしているが、球と円柱では押し出せない。短い骨を輪に
+            // 並べて裾にしてみたところ、1本ずつが瘤に見え、輪郭が寸胴になった。
+            // 裾なしのほうが、高い肩から下がる背の線がはっきり読める。
+
             // 脚。腰は胴の中まで入れ、足先は地面に付ける。
             TuskerLeg(root, s, new Vector3(0.95f, 1.85f, 0.50f), new Vector3(0.95f, 0.30f, 0.52f));
             TuskerLeg(root, s, new Vector3(0.95f, 1.85f, -0.50f), new Vector3(0.95f, 0.30f, -0.52f));
