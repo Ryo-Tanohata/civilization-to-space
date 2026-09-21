@@ -2670,7 +2670,32 @@ namespace CivilizationToSpace.View
         /// </summary>
         private const float ImpostorAlbedo = 0.60f;
 
+        /// <summary>
+        /// 立っているものの絵を、地面からどれだけ持ち上げるか（背丈に対する比）。
+        /// 焼いた絵の中で根元が下端より少し上にあるので、そのぶん下げてある。
+        /// </summary>
+        private const float StandingRise = 0.46f;
+
+        /// <summary>
+        /// 横たわっているものの絵を、地面からどれだけ持ち上げるか。
+        ///
+        /// **倒木は立たない。** `imp_dead_trunk` は横たわった幹を焼いた絵であり、
+        /// 立ち枯れた木ではない。立木と同じだけ持ち上げると、板が宙に浮いて
+        /// 横たわり、枯れ木にも倒木にも見えない。衝突の時代では、浮いた幹が
+        /// 地平線の上に帯をつくっていた。
+        ///
+        /// 絵の中で幹は上下の中ほどにあるので、ここをほぼ0にすると地面に寝る。
+        /// 板の下半分は透けているだけなので、地面へ埋まっても何も出ない。
+        /// </summary>
+        private const float LyingRise = 0.03f;
+
         private GameObject BuildImpostor(string name, float height)
+        {
+            // 横たわった幹だけは、立木と置き方を変える。
+            return BuildImpostor(name, height, name == "imp_dead_trunk" ? LyingRise : StandingRise);
+        }
+
+        private GameObject BuildImpostor(string name, float height, float rise)
         {
             var texture = Resources.Load<Texture2D>("Nature/" + name);
             if (texture == null)
@@ -2687,8 +2712,8 @@ namespace CivilizationToSpace.View
             quad.transform.SetParent(root.transform, false);
 
             // 焼いた絵は正方形で、木は中央に収まっている。
-            // 根元が絵の下端より少し上にあるので、そのぶん下げる。
-            quad.transform.localPosition = new Vector3(0f, height * 0.46f, 0f);
+            // どれだけ持ち上げるかは、立っているか横たわっているかで変わる。
+            quad.transform.localPosition = new Vector3(0f, height * rise, 0f);
             quad.transform.localScale = new Vector3(height, height, 1f);
 
             var id = "Impostor/" + name;
