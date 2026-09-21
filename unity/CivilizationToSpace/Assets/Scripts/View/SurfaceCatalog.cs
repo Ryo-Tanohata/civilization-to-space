@@ -349,7 +349,11 @@ namespace CivilizationToSpace.View
             land.Foliage = Hex(0x6E7748);
             land.Creature = Hex(0x6B5540);
             land.Rock = Hex(0x7E7868);
-            land.Rocks = 18;
+
+            // **手前をうめるのは石である。** 下の草木をすべて0にしたので、
+            // 石を増やさないと手前が雪の帯だけになり、起伏も光の向きも読めない。
+            // マグマ・最初の海・全球凍結と同じ理由で、同じくらいの数を置く。
+            land.Rocks = 70;
 
             // **野の広さは草木の背丈に合わせる。**
             // 260m先まで並べていたときは、9mの草木がすべて地平線上の粒になり、
@@ -359,10 +363,21 @@ namespace CivilizationToSpace.View
             land.FarZ = 130f;
             land.HalfWidth = 52f;
             land.PlantHeight = 9f;
-            land.Conifers = 22;
-            land.Ferns = 90;
+
+            // **雪の野に緑を置かない。**
+            // 針葉樹・シダ・下生えは、どれも写真計測の素材をそのまま貼るため、
+            // 時代ごとの色で塗り直せない（自前の絵を持っているので守られる）。
+            // 結果、雪の上に緑の葉が散り、針葉樹の役には乾燥地のアロエの木
+            // （quiver tree）が立っていた。どちらも氷期の野には合わない。
+            //
+            // **置き換える立木が無い。** 遠景の写真は「雪におおわれた平らな野と、
+            // まばらな裸の木」だが、手前に立てられる葉の無い木の素材が無い。
+            // 枯れた幹で代えようとしたが、あれは倒木の絵で立たない（下記）。
+            // いまは草木を置かず、石と獣だけにする。
+            land.Conifers = 0;
+            land.Ferns = 0;
             land.Broadleaves = 0;
-            land.GroundCover = 96;
+            land.GroundCover = 0;
             land.Quadrupeds = 5;
             land.Bipeds = 0;
 
@@ -377,6 +392,11 @@ namespace CivilizationToSpace.View
             land.CreatureNeck = 0.14f;
             land.CreatureTail = 0.16f;
             land.CreatureTusks = true;
+
+            // **枯れた幹は使えない。** 素材の `imp_dead_trunk` は
+            // 横たわった倒木を焼いた絵であり、立ち枯れた木ではない。
+            // 立てると板が宙に浮いて横たわり、枯れ木には見えなかった。
+            // 葉の落ちた立木の素材が要る。いまは置かない。
             land.DeadTrunks = 0;
             land.Buildings = 0;
 

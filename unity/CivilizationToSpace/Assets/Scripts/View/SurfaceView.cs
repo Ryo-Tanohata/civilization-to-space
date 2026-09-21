@@ -2664,6 +2664,12 @@ namespace CivilizationToSpace.View
         /// 板は根元を地面に合わせる。板そのものは中心が原点なので、
         /// 入れ物を作って高さの半分だけ持ち上げている。
         /// </summary>
+        /// <summary>
+        /// 焼いた木の絵に掛ける明るさ。1だと場面の照明と二重になって白へ飛ぶ。
+        /// 値は見え方で決めた。奥の遠景の写真と手前の木の明るさが逆転しない範囲である。
+        /// </summary>
+        private const float ImpostorAlbedo = 0.60f;
+
         private GameObject BuildImpostor(string name, float height)
         {
             var texture = Resources.Load<Texture2D>("Nature/" + name);
@@ -2691,7 +2697,22 @@ namespace CivilizationToSpace.View
             {
                 material = StandardMaterials.CreateFoliageCutout();
                 material.hideFlags = createdFlags;
-                material.color = Color.white;
+
+                // **焼いた絵には、もう照明が入っている。**
+                // 絵は Blender で正射影・カメラ側から弱く照明して焼いたものなので、
+                // 明暗はすでに絵の中にある。そこへ場面の日光と回り込みをそのまま
+                // 掛けると二重になり、明るいところが1を越えて白へ飽和する。
+                // 色の三つの成分がそろって頭打ちになるため、**色みまで抜ける。**
+                // 実際、森の時代の木が幹まで白い幽霊のようになり、
+                // 奥の遠景の写真より手前の木のほうが明るい、という逆転が出ていた。
+                //
+                // **板の法線は真上に向けてある**（UpFacingQuad）。
+                // 葉が上から光を受ける見え方にするための決めだが、そのぶん
+                // 日が高いときは常に最大の光量を受ける。二重掛けがそのまま出る。
+                //
+                // ここで絵の明るさを落としておく。場面の照明は掛かったままなので、
+                // 朝夕の赤みも夜の暗さも、これまでどおり効く。
+                material.color = Color.white * ImpostorAlbedo;
                 material.SetTexture("_MainTex", texture);
                 material.SetFloat("_Cutoff", 0.35f);
                 material.SetFloat("_Glossiness", 0f);
