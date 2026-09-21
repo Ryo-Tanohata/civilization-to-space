@@ -140,8 +140,11 @@ namespace CivilizationToSpace.View
             var land = Near(1);
             land.SkyHigh = Hex(0x2A1008);
             land.SkyLow = Hex(0x7A2A10);
-            land.Ground = Hex(0x1E1512);
-            land.GroundGlow = Hex(0x8A2A08);
+            // **地面は暗いままにし、光るほうで熱を出す。**
+            // 明るい色にすると、粒の絵と起伏の影が消えて平らな板に見える。
+            // 暗い岩に、割れ目から漏れる熱の色を重ねるほうが溶けて見える。
+            land.Ground = Hex(0x241611);
+            land.GroundGlow = Hex(0xA33A10);
             land.Rock = Hex(0x16100E);
             land.Rocks = 70;
             land.GroundRubble = 90;

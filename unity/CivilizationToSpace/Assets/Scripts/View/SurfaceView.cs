@@ -504,6 +504,9 @@ namespace CivilizationToSpace.View
         private static Mesh upQuadMesh;
         private Texture2D grainTexture;
         private Texture2D grainNormalTexture;
+
+        /// <summary>溶けた地面の割れ目。作るのは1度だけ。</summary>
+        private Texture2D crackTexture;
         private Texture2D backdrop;
 
         /// <summary>生きものが画面に収まる寄り方。背の高さを見るための位置。</summary>
@@ -2164,6 +2167,22 @@ namespace CivilizationToSpace.View
             material.SetFloat("_Glossiness", 0f);
             material.SetFloat("_Metallic", 0f);
 
+            // **溶けた地面は自ら光る。** 帯の地面（BuildFlatGround）では
+            // 入れてあったが、起伏のある地面では入れ忘れていた。マグマの時代は
+            // 起伏を持つのでこちらを通り、空だけが赤く、地面は暗い灰色のまま
+            // だった。測ったところ手前の地面は RGB(81,74,74) で、赤みも無い。
+            //
+            // **一面を光らせない。割れ目だけを光らせる。**
+            // 地面ぜんたいに同じ輝きを乗せたときは、粒の絵も起伏の影も飛んで、
+            // オレンジ一色の砂漠になった。冷えた黒い殻の割れ目から熱が漏れる、
+            // という見え方にするため、雑音の低いところだけを光らせる。
+            if (land.GroundGlow.maxColorComponent > 0.001f)
+            {
+                material.EnableKeyword("_EMISSION");
+                material.SetColor("_EmissionColor", land.GroundGlow);
+                material.SetTexture("_EmissionMap", CrackTexture(size));
+            }
+
             // 1枚を何メートルぶんに敷くか。
             // **敷く枚数に上限を置く。** 街の時代は野が2km近くあり、
             // 20mごとに敷くと100枚並んで、同じ模様の繰り返しが縞に見えた。
@@ -2171,6 +2190,14 @@ namespace CivilizationToSpace.View
             var scale = new Vector2(tiles, tiles * length / width);
             material.SetTextureScale("_MainTex", scale);
             material.SetTextureScale("_BumpMap", scale);
+
+            // **割れ目は粒より大きく、地面よりは小さく敷く。**
+            // 地面ぜんたいに1枚だけ敷いたときは、模様が数百メートルに引き伸ばされ、
+            // 割れ目ではなく光の溜まりに見えた。粒の6割の細かさにする。
+            if (land.GroundGlow.maxColorComponent > 0.001f)
+            {
+                material.SetTextureScale("_EmissionMap", scale * 0.6f);
+            }
 
             materials["Terrain"] = material;
             return material;
@@ -2269,6 +2296,40 @@ namespace CivilizationToSpace.View
 
                 band.GetComponent<Renderer>().sharedMaterial = material;
             }
+        }
+
+        /// <summary>
+        /// 割れ目の絵。**雑音の低いところだけを残す。**
+        ///
+        /// 溶けた地面は、冷えた殻の割れ目から熱が漏れて見える。
+        /// 一面に同じ輝きを乗せると、粒も起伏の影も飛んでオレンジの板になった。
+        /// 雑音を境目で切って、低いところだけを明るくする。
+        /// 境目を越えたところは、急に立ち上げず少しなだらかにする。
+        /// 切り立たせると割れ目が線ではなく斑に見えた。
+        /// </summary>
+        private Texture2D CrackTexture(int size)
+        {
+            if (crackTexture != null)
+            {
+                return crackTexture;
+            }
+
+            var field = TileableNoise(size, 37);
+            crackTexture = new Texture2D(size, size, TextureFormat.RGBA32, true);
+            crackTexture.hideFlags = createdFlags;
+            crackTexture.wrapMode = TextureWrapMode.Repeat;
+
+            var pixels = new Color32[size * size];
+            for (var i = 0; i < field.Length; i++)
+            {
+                var t = Mathf.InverseLerp(0.46f, 0.30f, field[i]);
+                var v = (byte)Mathf.Clamp(t * t * 255f, 0f, 255f);
+                pixels[i] = new Color32(v, v, v, 255);
+            }
+
+            crackTexture.SetPixels32(pixels);
+            crackTexture.Apply();
+            return crackTexture;
         }
 
         /// <summary>
