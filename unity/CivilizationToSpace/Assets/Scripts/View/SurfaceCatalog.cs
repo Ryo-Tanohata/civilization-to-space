@@ -30,7 +30,7 @@ namespace CivilizationToSpace.View
         /// <summary>時代の並び順（0が最初）から風景を返す。範囲外は端で止める。</summary>
         public static SurfaceView.Landscape ForEra(int eraIndex)
         {
-            switch (Mathf.Clamp(eraIndex, 0, 9))
+            switch (Mathf.Clamp(eraIndex, 0, 10))
             {
                 case 0: return Hadean();
                 case 1: return EarlyOcean();
@@ -40,7 +40,8 @@ namespace CivilizationToSpace.View
                 case 5: return Impact();
                 case 6: return IceAge();
                 case 7: return Humans();
-                case 8: return Information();
+                case 8: return Industrial();
+                case 9: return Information();
                 default: return Future();
             }
         }
@@ -61,14 +62,15 @@ namespace CivilizationToSpace.View
         /// </summary>
         public static bool DefaultsToSurface(int eraIndex)
         {
-            switch (Mathf.Clamp(eraIndex, 0, 9))
+            switch (Mathf.Clamp(eraIndex, 0, 10))
             {
                 case 3:  // 森林と陸上生態系
                 case 4:  // 巨大生物の時代
                 case 5:  // 衝突と暗い空
                 case 6:  // 氷期のくり返し
                 case 7:  // 人類の広がり
-                case 8:  // 情報と接続
+                case 8:  // 産業と機械
+                case 9:  // 情報と接続
                     // **打ち上げは地上の出来事である。**
                     // 宇宙を既定にしていたとき、ロケットは地表にしか出ないため
                     // 一度も見られなかった。街から機体が上がるところを既定にし、
@@ -83,7 +85,7 @@ namespace CivilizationToSpace.View
         /// <summary>その時代をどちらの寄りで見るか。</summary>
         public static Framing FramingForEra(int eraIndex)
         {
-            return Mathf.Clamp(eraIndex, 0, 9) >= 7 ? Framing.Settlement : Framing.Creatures;
+            return Mathf.Clamp(eraIndex, 0, 10) >= 7 ? Framing.Settlement : Framing.Creatures;
         }
 
         /// <summary>生きもの寄りの共通の置き場所。</summary>
@@ -493,6 +495,69 @@ namespace CivilizationToSpace.View
             // 遠景は写真。**これは現在の草地である。** アナトリアでもない。
             // 表しているのは「草地と、その向こうの林」だけ。
             land.Backdrop = "backdrop_meadow";
+            return land;
+        }
+
+        /// <summary>
+        /// 産業と機械（Society 3.0）。
+        ///
+        /// **煙突と、同じ形の反復。** この段階を他から分けるのはこの2つである。
+        /// 動力が人と家畜から機械へ移ったことは煙突で、働く人が都市へ集まった
+        /// ことは同じ形の住まいが並ぶ姿で表す。
+        ///
+        /// 集落（2.0）より大きく、情報の都市（4.0）より低い。窓は開けるが、
+        /// ガラスの格子ではないので帯は細く少なくする。
+        ///
+        /// **年代・地域・産業の種類は表していない。**
+        /// </summary>
+        private static SurfaceView.Landscape Industrial()
+        {
+            var land = Town(9);
+            land.SkyHigh = Hex(0x74808C);
+            land.SkyLow = Hex(0xC8C2B4);
+
+            // **空を濁らせる。** 煙が出る時代なので、青くは晴れない。
+            land.Ground = Hex(0x5E5A42);
+            land.Building = Hex(0x8E6F58);
+            land.Window = Hex(0x3E3A34);
+
+            land.NearZ = 40f;
+            land.FarZ = 340f;
+            land.HalfWidth = 150f;
+            land.PlantHeight = 12f;
+
+            land.BuildingHeight = 14f;
+            land.BuildingSpacing = 1.35f;
+            land.Windows = true;
+            land.Buildings = 96;
+
+            // 地面は均す。街は均した土地に建つ。
+            land.Relief = 0f;
+
+            // 煉瓦と石炭の煤。灰色の舗装にはまだならない。
+            land.Pavement = Hex(0x6E6459);
+            land.Plinth = true;
+            land.RoofCap = false;
+
+            // **煙突を立てる。** この時代の印になる。
+            land.Chimneys = 14;
+
+            land.Conifers = 10;
+            land.Ferns = 0;
+            land.Broadleaves = 14;
+            land.GroundCover = 260;
+            land.Quadrupeds = 0;
+
+            // 働く人。集落より多い。
+            land.Bipeds = 12;
+            land.People = true;
+            land.Creature = Hex(0x8E8874);
+
+            land.DeadTrunks = 0;
+            land.Rocks = 0;
+            land.GroundRubble = 40;
+            land.ShowsRocket = false;
+            land.Backdrop = "backdrop_wide_plain";
             return land;
         }
 

@@ -49,7 +49,8 @@ namespace CivilizationToSpace.EditorTools
         private static readonly string[] EraNames =
         {
             "01-Hadean", "02-EarlyOcean", "03-Snowball", "04-GreenEarth", "05-Dinosaurs",
-            "06-Impact", "07-IceAge", "08-Humans", "09-Information", "10-Future",
+            "06-Impact", "07-IceAge", "08-Humans", "09-Industrial", "10-Information",
+            "11-Future",
         };
 
         private static void CaptureAll(string directory)
@@ -66,7 +67,7 @@ namespace CivilizationToSpace.EditorTools
             }
 
             // 夜も何枚か撮る。星と灯りが出ることを確かめる。
-            foreach (var era in new[] { 4, 7, 8 })
+            foreach (var era in new[] { 4, 7, 9 })
             {
                 Vector3 eye;
                 float pitch;
@@ -78,12 +79,12 @@ namespace CivilizationToSpace.EditorTools
             {
                 Vector3 eye;
                 float pitch;
-                SurfaceCatalog.EyeForEra(8, out eye, out pitch);
+                SurfaceCatalog.EyeForEra(9, out eye, out pitch);
                 var phases = new[] { 0.05f, 0.22f, 0.36f, 0.52f, 0.70f };
                 for (var i = 0; i < phases.Length; i++)
                 {
-                    Capture(directory, "09-Information-rocket" + (i + 1),
-                        SurfaceCatalog.ForEra(8), eye, pitch, 0.5f, -1f, phases[i]);
+                    Capture(directory, "10-Information-rocket" + (i + 1),
+                        SurfaceCatalog.ForEra(9), eye, pitch, 0.5f, -1f, phases[i]);
                 }
             }
 

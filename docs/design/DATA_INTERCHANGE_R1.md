@@ -82,6 +82,20 @@ git rev-parse HEAD:unity/CivilizationToSpace/Assets/StreamingAssets/earth-eras.j
 
 [BROWSER_MOCK_SPEC.md](BROWSER_MOCK_SPEC.md) は編集しない。[IMPLEMENTATION_ORDER_R2.md](../planning/IMPLEMENTATION_ORDER_R2.md) と同じく、食い違いは本書に残す。
 
+### 2026年9月22日：R1データを改めた
+
+**「R1はハッシュ同一で無改変」という前提は、この日で終わった。**
+人類の広がりと情報のあいだに産業と機械を足し、時代が10から11になった。
+`eraOrder` と `eras` が変わり、`sortOrder` も振り直している。
+
+R2-P0 はこの前提を根拠に受け入れられていたので、受け入れの根拠は
+「無改変であること」ではなく「**改めた内容が記録されていること**」へ移る。
+既存の検証実績（実ブラウザ108件、状態機械117件）は時代数に依存する分だけ
+取り直しが要る。キー名は変えていないので、項目ごとの検証は生きている。
+
+`site/data/earth-eras.json` と `unity/.../StreamingAssets/earth-eras.json` は
+引き続き同一の内容にしてある。
+
 ### schemaVersion の運用方針
 
 | 規則 | 内容 |

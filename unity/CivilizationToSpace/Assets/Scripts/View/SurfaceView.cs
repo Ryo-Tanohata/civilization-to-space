@@ -368,6 +368,15 @@ namespace CivilizationToSpace.View
             /// </summary>
             public bool Palisade;
 
+            /// <summary>
+            /// 煙突の数。0なら立てない。
+            ///
+            /// **動力が機械へ移ったことは、煙突でしか表せない。**
+            /// 建物の形も、並びの密さも、他の段階と地続きで変えられる。
+            /// 煙突だけは、それ以前にも以後にも無い。
+            /// </summary>
+            public int Chimneys;
+
             /// <summary>屋根に四角い穴を開けるか。屋根から出入りする集落に使う。</summary>
             public bool RoofOpening;
 
@@ -2619,6 +2628,7 @@ namespace CivilizationToSpace.View
             PlacePavement(land, pitch, columns, rows, originX, originZ);
             PlacePalisade(land, pitch, columns, rows, originX, originZ);
             PlaceGranaries(land, pitch, columns, rows, originX, originZ);
+            PlaceChimneys(land, pitch, columns, rows, originX, originZ);
 
             var placed = 0;
             for (var row = 0; row < rows && placed < land.Buildings; row++)
@@ -2751,6 +2761,54 @@ namespace CivilizationToSpace.View
                 new Vector3(width * 1.10f, height * 0.05f, depth * 1.10f));
 
             return root;
+        }
+
+        /// <summary>
+        /// 煙突。**建屋より高く、細く、まっすぐ立てる。**
+        ///
+        /// 産業の段階を他から分ける唯一の形である。建物の高さや密さは前後の
+        /// 段階と地続きで変えられるが、煙突はそれ以前にも以後にも無い。
+        ///
+        /// 建屋の中に混ぜて立てる。離して立てると、煙突だけの野になって
+        /// 何のための煙突か分からなくなる。
+        /// </summary>
+        private void PlaceChimneys(Landscape land, float pitch, int columns, int rows,
+            float originX, float originZ)
+        {
+            if (land.Chimneys <= 0)
+            {
+                return;
+            }
+
+            for (var i = 0; i < land.Chimneys; i++)
+            {
+                var x = originX + (float)random.NextDouble() * (columns - 1) * pitch;
+                var z = originZ + (float)random.NextDouble() * (rows - 1) * pitch;
+
+                var height = land.BuildingHeight * (2.1f + (float)random.NextDouble() * 1.3f);
+                var root = Root("Chimney");
+
+                // 足もとを太く、上を細く。まっすぐな柱だと煙突に見えない。
+                var steps = 4;
+                for (var k = 0; k < steps; k++)
+                {
+                    var t = k / (float)steps;
+                    var t2 = (k + 1) / (float)steps;
+                    var r = Mathf.Lerp(height * 0.055f, height * 0.030f, t);
+                    Piece(root, PrimitiveType.Cylinder, "Building",
+                        new Vector3(0f, height * (t + t2) * 0.5f, 0f),
+                        new Vector3(r * 2f, height * 0.5f / steps, r * 2f));
+                }
+
+                // 口の縁。ここだけ濃くすると、煙の出るところだと分かる。
+                Piece(root, PrimitiveType.Cylinder, "Window",
+                    new Vector3(0f, height * 0.985f, 0f),
+                    new Vector3(height * 0.070f, height * 0.018f, height * 0.070f));
+
+                root.transform.SetParent(transform, false);
+                root.transform.localPosition = new Vector3(x, GroundHeight(x, z), z);
+                ApplyDepth(root, z);
+            }
         }
 
         /// <summary>蓄えの建物を、集落の縁へ置く。中に混ぜると家に紛れる。</summary>
