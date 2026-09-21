@@ -2195,6 +2195,34 @@ namespace CivilizationToSpace.View
         /// 端がつながる作り方（TileableNoise）で作る。
         /// 時代ごとの色は _Color で掛けるので、絵は時代によらず1枚でよい。
         /// </summary>
+        /// <summary>
+        /// 地面の粒の絵を、まだ無ければ作る。
+        /// 起伏のある地面と帯の地面の両方から呼ぶので、材質作りから切り出してある。
+        /// </summary>
+        private void EnsureGrain()
+        {
+            const int size = 256;
+            if (grainTexture != null)
+            {
+                return;
+            }
+
+            var field = TileableNoise(size, 91);
+            grainTexture = new Texture2D(size, size, TextureFormat.RGBA32, true);
+            grainTexture.hideFlags = createdFlags;
+            grainTexture.wrapMode = TextureWrapMode.Repeat;
+
+            var grain = new Color32[size * size];
+            for (var i = 0; i < field.Length; i++)
+            {
+                var v = (byte)Mathf.Clamp(Mathf.Lerp(0.70f, 1f, field[i]) * 255f, 0f, 255f);
+                grain[i] = new Color32(v, v, v, 255);
+            }
+
+            grainTexture.SetPixels32(grain);
+            grainTexture.Apply();
+        }
+
         private Material GroundMaterial(Landscape land, float width, float length)
         {
             const int size = 256;
@@ -2386,6 +2414,26 @@ namespace CivilizationToSpace.View
                 band.transform.localPosition = new Vector3(0f, -1f, (from + to) * 0.5f);
                 band.transform.localScale = new Vector3(land.HalfWidth * 9f, 2f, to - from);
                 var material = Tinted("Ground", land.Ground, i);
+
+                // **粒を貼る。** 帯は1枚の大きな板なので、無地だと目の高さから
+                // 見たときに色の付いた一様な面にしかならない。起伏のある地面が
+                // 粒を持っているのに、平らな地面だけのっぺりしていると、
+                // そこだけ描き割りに見えた。
+                EnsureGrain();
+                if (grainTexture != null)
+                {
+                    material.SetTexture("_MainTex", grainTexture);
+
+                    // **1枚を4メートルぶんに敷く。**
+                    // 板の大きさに対する割合で決めていたとき、1枚が50m四方に
+                    // 引き伸ばされ、目の高さから見た手前の地面はのっぺりした
+                    // ままだった。実寸で決める。
+                    const float metresPerTile = 4f;
+                    material.SetTextureScale("_MainTex", new Vector2(
+                        land.HalfWidth * 9f / metresPerTile,
+                        Mathf.Max(1f, (to - from) / metresPerTile)));
+                }
+
                 if (land.GroundGlow.maxColorComponent > 0.001f)
                 {
                     // 溶けた地面は自ら光る。遠いぶんは弱める。
@@ -2614,10 +2662,13 @@ namespace CivilizationToSpace.View
                 return;
             }
 
-            // 街の縁で舗装が切れると板の端が見える。2升ぶん外まで広げる。
-            for (var row = -2; row <= rows + 1; row++)
+            // **外へ広げるのは1升まで。**
+            // 2升ぶん広げたときは、都市の升が1枚164mもあるため、目の高さから
+            // 見ると手前いちめんが舗装の板になり、画面の下半分が白く潰れた。
+            // 立っている場所は舗装の外（草地）にする。
+            for (var row = -1; row <= rows; row++)
             {
-                for (var column = -2; column <= columns + 1; column++)
+                for (var column = -1; column <= columns; column++)
                 {
                     var x = originX + column * pitch;
                     var z = originZ + row * pitch;
@@ -2632,16 +2683,30 @@ namespace CivilizationToSpace.View
                     // 隣どうしで地面の高さが違うぶんだけ段が付き、一枚ずつの板が
                     // 草地に浮いているように見えた。1.5倍に広げて重ねると、
                     // 段が隠れて一続きの面になる。厚みも薄くする。
+                    // **厚みは升の大きさに比例させない。**
+                    // 比例させていたとき、都市の升は1枚109mあるので厚みが2.2mに
+                    // なり、舗装の縁が高さ2mの崖になった。街が台地の上に乗って
+                    // いるように見え、また模型の絵に戻ってしまった。
+                    // 縁石ほどの厚みに固定する。
                     slab.transform.localPosition =
-                        new Vector3(x, GroundHeight(x, z) + pitch * 0.004f, z);
-                    slab.transform.localScale =
-                        new Vector3(pitch * 1.5f, pitch * 0.02f, pitch * 1.5f);
+                        new Vector3(x, GroundHeight(x, z) + 0.06f, z);
+                    slab.transform.localScale = new Vector3(pitch * 1.5f, 0.22f, pitch * 1.5f);
 
                     var shade = 0.88f + (float)random.NextDouble() * 0.24f;
                     var tone = new Color(
                         land.Pavement.r * shade, land.Pavement.g * shade, land.Pavement.b * shade, 1f);
 
                     var material = Tinted("Pavement" + (column + row * 7) % 5, tone, StepFor(z));
+
+                    // **粒を貼る。** 無地のままだと、近くで見たときに真っ白な
+                    // 板にしか見えなかった。地面と同じ粒を敷けば、荒さが出る。
+                    if (grainTexture != null)
+                    {
+                        material.SetTexture("_MainTex", grainTexture);
+                        var tiles = Mathf.Clamp(pitch / 6f, 2f, 24f);
+                        material.SetTextureScale("_MainTex", new Vector2(tiles, tiles));
+                    }
+
                     slab.GetComponent<Renderer>().sharedMaterial = material;
                 }
             }

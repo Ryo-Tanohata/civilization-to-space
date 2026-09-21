@@ -508,6 +508,12 @@ namespace CivilizationToSpace.View
             land.NearZ = 110f;
             land.FarZ = 900f;
             land.HalfWidth = 330f;
+
+            // **都市の地面は平らにする。**
+            // 起伏のある地面に舗装を敷くと、1枚109mの板が地形をまたいで
+            // 段差を作った。街は均した土地に建つものなので、起伏を外す。
+            // 集落（升5m）は起伏のままでよい。板が小さいので段が出ない。
+            land.Relief = 0f;
             land.PlantHeight = 16f;
             land.BuildingHeight = 52f;
             land.BuildingSpacing = 2.1f;
@@ -525,7 +531,9 @@ namespace CivilizationToSpace.View
             land.Conifers = 20;
             land.Ferns = 0;
             land.Broadleaves = 32;
-            land.GroundCover = 60;
+            // 目の高さから見るので、手前の草を増やす。少ないと地面が
+            // 一様な面に見える。
+            land.GroundCover = 520;
             land.Quadrupeds = 0;
             land.Bipeds = 0;
             land.DeadTrunks = 0;
@@ -608,16 +616,44 @@ namespace CivilizationToSpace.View
                 return;
             }
 
-            // 建物が高いほど、離れて高いところから見ないと並びが入らない。
+            // **目の高さは人の高さにする。**
+            //
+            // 集落を目の高さ8m・20m手前から2度見下ろし、都市を58m・200m手前から
+            // 4度見下ろしていた。どちらも建物より高いところから見下ろす構図で、
+            // **机の上の模型を眺めている絵**になっていた。街を見ているのに
+            // 現実味が出ないのは、置いてあるものではなく視点のせいだった。
+            //
+            // 人の目の高さから見ると、5mの家は見上げる高さになり、52mの塔は
+            // 遠くにそびえる。同じものを置いていても、そこに立っている絵になる。
+            //
+            // **並びを画面に収めるのは距離で行う。** 高さで稼ぐと見下ろしになる。
+            //
+            // **建物の位置から逆算する。** 固定の座標に置いていたとき、集落は
+            // 75m手前から眺めることになり、画面の6割が空の草地になった。
+            // 建物は NearZ から3割4分のところに並ぶので、そこを基準に寄る。
+            var frontZ = Mathf.Lerp(land.NearZ, land.FarZ, 0.34f);
+
+            // 並びの幅。画角のおよそ半分（40度）に収まる距離を求める。
+            var columns = Mathf.Max(1, Mathf.CeilToInt(Mathf.Sqrt(land.Buildings * 1.6f)));
+            var step = Mathf.Max(1f, land.BuildingHeight * Mathf.Max(0.4f, land.BuildingSpacing));
+            var spread = (columns - 1) * step * 0.5f;
+
+            // **近すぎても遠すぎてもいけない。**
+            // 近いと手前の1棟しか見えず、遠いと地平線の粒になる。
+            // 都市は並びが1km を越えるので、全部を入れようとせず途中で止める。
+            var approach = Mathf.Clamp(spread * 1.19f, 26f, 260f);
+
             if (land.BuildingHeight < 20f)
             {
-                position = new Vector3(0f, 8f, -20f);
-                pitch = 2f;
+                position = new Vector3(0f, 1.8f, frontZ - approach);
+                pitch = 0f;
                 return;
             }
 
-            position = new Vector3(0f, 58f, -200f);
-            pitch = 4f;
+            // 都市は遠い。高さは変えず、距離で並びを入れる。
+            // わずかに見上げることで、塔の高さが出る。
+            position = new Vector3(0f, 2.0f, frontZ - approach);
+            pitch = -1f;
         }
 
         private static Color Hex(uint value)
