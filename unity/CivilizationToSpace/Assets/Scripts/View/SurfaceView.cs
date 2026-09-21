@@ -340,6 +340,34 @@ namespace CivilizationToSpace.View
             /// <summary>水の色。空を映すのではなく、濁りの色として置く。</summary>
             public Color Water;
 
+            /// <summary>
+            /// 街の地面を舗装する色。置かないなら空のまま。
+            ///
+            /// **街に道も広場も無かった。** 建物を格子に並べているだけで、
+            /// 足もとは草のままだった。草地に箱が刺さっているようにしか見えない。
+            /// 建てた範囲を一枚の面でおおうと、建物のあいだの隙間が道になり、
+            /// 広いところが広場になる。道を1本ずつ引くより、面で敷くほうが早い。
+            /// </summary>
+            public Color Pavement;
+
+            /// <summary>
+            /// 高床倉庫の数。0なら置かない。
+            ///
+            /// **蓄えることが農耕の要点である。** 狩猟との最大の違いは、
+            /// 収穫を溜めて次の季節まで持たせることにある。床を柱で持ち上げた
+            /// 箱は、その行為がそのまま形になったものになる。
+            /// </summary>
+            public int Granaries;
+
+            /// <summary>
+            /// 集落を囲む柵を立てるか。
+            ///
+            /// **蓄えができると、守る必要が生まれる。** 囲いは、集落の内と外を
+            /// 分ける最初の線である。溝ではなく柵にしたのは、起伏のある地面に
+            /// 溝を掘ると地形そのものを変えることになるためである。
+            /// </summary>
+            public bool Palisade;
+
             /// <summary>屋根に四角い穴を開けるか。屋根から出入りする集落に使う。</summary>
             public bool RoofOpening;
 
@@ -2540,6 +2568,10 @@ namespace CivilizationToSpace.View
             var originX = -(columns - 1) * pitch * 0.5f;
             var originZ = Mathf.Lerp(land.NearZ, land.FarZ, 0.34f);
 
+            PlacePavement(land, pitch, columns, rows, originX, originZ);
+            PlacePalisade(land, pitch, columns, rows, originX, originZ);
+            PlaceGranaries(land, pitch, columns, rows, originX, originZ);
+
             var placed = 0;
             for (var row = 0; row < rows && placed < land.Buildings; row++)
             {
@@ -2561,6 +2593,169 @@ namespace CivilizationToSpace.View
                         (float)(random.NextDouble() * 2.0 - 1.0) * 8f, 0f);
                     ApplyDepth(item, z);
                 }
+            }
+        }
+
+        /// <summary>
+        /// 街の地面。**建てた範囲を升目でおおう。**
+        ///
+        /// 1枚の大きな板で敷くと、起伏のある地面から浮くか沈むかしてしまう。
+        /// 建物の升目と同じ刻みで分け、升ごとにその場所の高さへ置く。
+        /// 建物のあいだの隙間がそのまま道になり、建物の無い升が広場になる。
+        ///
+        /// **升ごとに色をわずかに散らす。** 一様に塗ると、巨大な板を1枚
+        /// 敷いただけに見えた。散らすと、敷石や区画の違いとして読める。
+        /// </summary>
+        private void PlacePavement(Landscape land, float pitch, int columns, int rows,
+            float originX, float originZ)
+        {
+            if (land.Pavement.maxColorComponent <= 0.001f)
+            {
+                return;
+            }
+
+            // 街の縁で舗装が切れると板の端が見える。2升ぶん外まで広げる。
+            for (var row = -2; row <= rows + 1; row++)
+            {
+                for (var column = -2; column <= columns + 1; column++)
+                {
+                    var x = originX + column * pitch;
+                    var z = originZ + row * pitch;
+
+                    var slab = PrimitiveMeshes.Create(PrimitiveType.Cube, "Pavement", createdFlags);
+                    slab.transform.SetParent(transform, false);
+                    // **地面より上へ出す。** 板の上面をちょうど地面の高さに
+                    // 置いたときは、起伏のある地面と同じ面になって完全に埋もれ、
+                    // 舗装が一枚も見えなかった。少し浮かせて段差を作る。
+                    //
+                    // **升より大きく重ねる。** 升とぴったり同じ大きさで敷くと、
+                    // 隣どうしで地面の高さが違うぶんだけ段が付き、一枚ずつの板が
+                    // 草地に浮いているように見えた。1.5倍に広げて重ねると、
+                    // 段が隠れて一続きの面になる。厚みも薄くする。
+                    slab.transform.localPosition =
+                        new Vector3(x, GroundHeight(x, z) + pitch * 0.004f, z);
+                    slab.transform.localScale =
+                        new Vector3(pitch * 1.5f, pitch * 0.02f, pitch * 1.5f);
+
+                    var shade = 0.88f + (float)random.NextDouble() * 0.24f;
+                    var tone = new Color(
+                        land.Pavement.r * shade, land.Pavement.g * shade, land.Pavement.b * shade, 1f);
+
+                    var material = Tinted("Pavement" + (column + row * 7) % 5, tone, StepFor(z));
+                    slab.GetComponent<Renderer>().sharedMaterial = material;
+                }
+            }
+        }
+
+        /// <summary>
+        /// 高床倉庫。**床を柱で持ち上げた箱。**
+        ///
+        /// 家より小さく、床が浮いていることで見分けがつく。屋根は家と同じく
+        /// 平らにする。ここだけ三角屋根を載せると、別の時代の建物に見える。
+        /// </summary>
+        private GameObject BuildGranary(float height)
+        {
+            var root = Root("Granary");
+            var width = height * 0.62f;
+            var depth = width * 0.78f;
+
+            // 柱。床を持ち上げるためのもので、4本立てる。
+            var legs = height * 0.38f;
+            for (var i = 0; i < 4; i++)
+            {
+                var sx = (i % 2 == 0) ? 1f : -1f;
+                var sz = (i < 2) ? 1f : -1f;
+                Piece(root, PrimitiveType.Cube, "Building",
+                    new Vector3(sx * width * 0.36f, legs * 0.5f, sz * depth * 0.36f),
+                    new Vector3(width * 0.10f, legs, depth * 0.10f));
+            }
+
+            // 床。柱より広く張り出す。ねずみ返しにあたる。
+            Piece(root, PrimitiveType.Cube, "Building",
+                new Vector3(0f, legs, 0f),
+                new Vector3(width * 1.14f, height * 0.07f, depth * 1.14f));
+
+            // 身。
+            Piece(root, PrimitiveType.Cube, "Building",
+                new Vector3(0f, legs + height * 0.31f, 0f),
+                new Vector3(width, height * 0.55f, depth));
+
+            // 屋根。
+            Piece(root, PrimitiveType.Cube, "Building",
+                new Vector3(0f, legs + height * 0.60f, 0f),
+                new Vector3(width * 1.10f, height * 0.05f, depth * 1.10f));
+
+            return root;
+        }
+
+        /// <summary>蓄えの建物を、集落の縁へ置く。中に混ぜると家に紛れる。</summary>
+        private void PlaceGranaries(Landscape land, float pitch, int columns, int rows,
+            float originX, float originZ)
+        {
+            if (land.Granaries <= 0)
+            {
+                return;
+            }
+
+            for (var i = 0; i < land.Granaries; i++)
+            {
+                var side = i % 2 == 0 ? -1.15f : columns - 0.15f;
+                var x = originX + side * pitch + (float)(random.NextDouble() * 0.5 - 0.25) * pitch;
+                var z = originZ + (rows * (float)random.NextDouble()) * pitch;
+
+                var item = BuildGranary(land.BuildingHeight * 0.78f);
+                item.transform.SetParent(transform, false);
+                item.transform.localPosition = new Vector3(x, GroundHeight(x, z), z);
+                item.transform.localRotation = Quaternion.Euler(0f,
+                    (float)(random.NextDouble() * 2.0 - 1.0) * 14f, 0f);
+                ApplyDepth(item, z);
+            }
+        }
+
+        /// <summary>
+        /// 集落を囲む柵。**杭を等間隔に立てるだけにする。**
+        ///
+        /// 板で塀にすると、内側が見えなくなって集落そのものが隠れる。
+        /// 隙間のある杭なら、囲いがあることと中の家の両方が読める。
+        /// </summary>
+        private void PlacePalisade(Landscape land, float pitch, int columns, int rows,
+            float originX, float originZ)
+        {
+            if (!land.Palisade)
+            {
+                return;
+            }
+
+            var left = originX - pitch * 1.6f;
+            var right = originX + (columns - 1) * pitch + pitch * 1.6f;
+            var near = originZ - pitch * 1.6f;
+            var far = originZ + (rows - 1) * pitch + pitch * 1.6f;
+            var step = pitch * 0.34f;
+            var height = land.BuildingHeight * 0.52f;
+
+            void Post(float x, float z)
+            {
+                var post = PrimitiveMeshes.Create(PrimitiveType.Cube, "Palisade", createdFlags);
+                post.transform.SetParent(transform, false);
+                post.transform.localPosition =
+                    new Vector3(x, GroundHeight(x, z) + height * 0.5f, z);
+                post.transform.localScale =
+                    new Vector3(step * 0.30f, height * (0.86f + (float)random.NextDouble() * 0.28f),
+                        step * 0.30f);
+                post.GetComponent<Renderer>().sharedMaterial =
+                    Tinted("Palisade", land.Trunk, StepFor(z));
+            }
+
+            for (var x = left; x <= right; x += step)
+            {
+                Post(x, near);
+                Post(x, far);
+            }
+
+            for (var z = near + step; z < far; z += step)
+            {
+                Post(left, z);
+                Post(right, z);
             }
         }
 

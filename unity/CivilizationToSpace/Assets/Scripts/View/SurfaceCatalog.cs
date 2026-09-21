@@ -463,6 +463,14 @@ namespace CivilizationToSpace.View
             // 道が無い。壁に戸口は開かず、屋根に穴を開ける。
             land.RoofOpening = true;
 
+            // 踏み固めた土。石畳ではない。農耕の集落なので舗装はまだ無い。
+            land.Pavement = Hex(0x8A7A5C);
+
+            // **蓄えと囲い。** 農耕を狩猟から分けるのはこの2つである。
+            // 高床倉庫は集落の縁に置く。中に混ぜると家に紛れる。
+            land.Granaries = 6;
+            land.Palisade = true;
+
             land.Conifers = 24;
             land.Ferns = 34;
             land.Broadleaves = 26;
@@ -508,6 +516,9 @@ namespace CivilizationToSpace.View
             // Society 4.0（情報）。窓の格子と、屋上の設備。足もとに一段置く。
             land.Plinth = true;
             land.RoofCap = true;
+
+            // 灰色の舗装。道と広場がここで出る。
+            land.Pavement = Hex(0x8E9094);
 
             // 衛星が上がり始めた時代。地表からも打ち上げが見える。
             land.ShowsRocket = true;
@@ -559,6 +570,11 @@ namespace CivilizationToSpace.View
             land.Conifers = 70;
             land.GroundCover = 140;
             land.RoofPanel = Hex(0x2E4A5E);
+
+            // **舗装を明るく、緑を残す。** 5.0 は道が細く足もとが空く。
+            // 一面を灰色にすると4.0と同じ街になるので、明るい色にして
+            // 草地との差を小さくする。
+            land.Pavement = Hex(0xA8A9A0);
             land.RoofCap = false;
 
             land.ShowsRocket = true;
