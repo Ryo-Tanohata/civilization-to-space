@@ -65,10 +65,15 @@ Blender は 5.2 を使いました。
 | `sdf_sauropod.obj` + `.mtl` | 首と尾の長い四つ足 | 格子3.5cmで網目にし、面を減らした | 4,500 | 0.25 MB |
 | `sdf_ceratopsian.obj` + `.mtl` | 角と襟飾りのある四つ足 | 格子2.2cmで網目にし、面を減らした | 4,500 | 0.25 MB |
 | `sdf_theropod.obj` + `.mtl` | 二本足の大型 | 格子2.4cmで網目にし、面を減らした | 4,500 | 0.25 MB |
+| `sdf_person.obj` + `.mtl` | 立っている人 | 格子1.0cmで網目にし、面を減らした | 2,500 | 0.14 MB |
 
 焼き方は [bake_creatures.py](../../../../../docs/prototypes/bake_creatures.py)。
 `python3 bake_creatures.py 出力先` で5つとも作り直せる（scikit-image と
 fast-simplification が要る）。
+
+**人には顔も服も髪もない。** 目・鼻・口を置けば必ずどこかの顔立ちに寄るので、
+作っていない。肌の色はその時代の地面の色から作る。色を選ぶこと自体が、
+どの集団かの表明になるためである（[地表の描き方](../../../../../docs/design/SURFACE_SCENE_SPEC.md)の決めごと9）。
 
 **中生代の3種は毛皮を持たない。** 表面の揺らぎを引かないので、
 氷期の2種より面が少なくて足りる。角を持たない竜脚類と獣脚類は、

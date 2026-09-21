@@ -101,6 +101,15 @@ namespace CivilizationToSpace.View
             public bool HornedBeasts;
 
             /// <summary>
+            /// 人を立てるか。
+            ///
+            /// **背丈は場面から出さない。** 草木や建物から比で出すと、
+            /// 時代ごとに人の大きさが変わってしまう。人は1.7m前後で固定する。
+            /// 大人と子どもも描き分けない（地表の仕様の決めごと9）。
+            /// </summary>
+            public bool People;
+
+            /// <summary>
             /// 遠景に貼る写真の名前（Resources/Sky/ の中）。空なら描いた空を使う。
             ///
             /// **作った空には限界がある。** 色の帯と、手で作った雲と、
@@ -3353,6 +3362,18 @@ namespace CivilizationToSpace.View
         /// <summary>二本足の生きもの。胴を立て、尾で釣り合わせる。</summary>
         private GameObject BuildBiped(float height)
         {
+            // **人は背丈を固定する。** 渡される値は草木から出たもので、
+            // そのまま使うと人類の時代の人が3mを超える。
+            // 1.7mを基準に、1割だけ散らす。大人と子どもは描き分けない。
+            if (current.People)
+            {
+                var person = TryModel("sdf_person", 1.7f + (float)(random.NextDouble() * 0.2 - 0.1));
+                if (person != null)
+                {
+                    return person;
+                }
+            }
+
             // 二足の大型。胴を水平に構え、尾で釣り合わせた形を焼いてある。
             // 渡される背丈は草木から出た値で、そのままでは高すぎる。
             // 0.55倍（約5.7m）にすると、竜脚類より低く角竜より高い並びになる。

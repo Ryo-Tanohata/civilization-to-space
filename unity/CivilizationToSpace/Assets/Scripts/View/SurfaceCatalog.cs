@@ -437,7 +437,17 @@ namespace CivilizationToSpace.View
             land.Broadleaves = 26;
             land.GroundCover = 84;
             land.Quadrupeds = 0;
-            land.Bipeds = 0;
+
+            // **人類の広がりに人がいなかった。** 家だけが並ぶ野になっていた。
+            // 集落のまわりに立たせる。顔も服も作らない（仕様の決めごと9）。
+            land.Bipeds = 7;
+            land.People = true;
+
+            // **肌の色は地面の色から作る。** 色を選ぶこと自体が、どの集団かの
+            // 表明になってしまう。地面（0x6A6B3C）を白へ35%寄せた値にしてある。
+            // 既定の暗い色のままでは、草地の上で黒い影にしか見えなかった。
+            land.Creature = Hex(0x9E9F80);
+
             land.DeadTrunks = 0;
             land.Buildings = 46;
 
