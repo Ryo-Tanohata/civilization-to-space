@@ -257,11 +257,17 @@ namespace CivilizationToSpace.View
             land.Backdrop = "backdrop_dry_scrub";
             land.Quadrupeds = 3;
             land.Bipeds = 4;
+
+            // 生きものは素材から採る。ここだけで立てる旗である。
+            land.HornedBeasts = true;
             land.DeadTrunks = 0;
             land.Buildings = 0;
 
             // 首と尾の長い大きな四つ足。全長25mほど、肩の高さ4.5mほど。
-            land.CreatureHeight = 15f;
+            // **素材に合わせて下げた。** 15は、首の長い獣を手組みしていたころの
+            // 値である。素材の角のあるものと背板のあるものは背が低く長いので、
+            // 同じ値を求めると全長30メートルを超えた。
+            land.CreatureHeight = 6.5f;
             land.CreatureBody = 0.72f;
             land.CreatureLegs = 0.30f;
             land.CreatureNeck = 1f;

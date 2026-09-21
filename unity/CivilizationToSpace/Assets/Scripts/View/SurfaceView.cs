@@ -91,6 +91,16 @@ namespace CivilizationToSpace.View
             public int GroundRubble;
 
             /// <summary>
+            /// 中生代の大きな生きものを、素材から採って置くか。
+            ///
+            /// **この旗が立つのは巨大生物の時代だけである。**
+            /// 素材は角のあるもの・背板のあるもの・二足の3体で、どれも
+            /// 白亜紀の終わりまでの姿にならっている。あとの時代に立てると、
+            /// 隕石のあとに恐竜がいる画になる。
+            /// </summary>
+            public bool HornedBeasts;
+
+            /// <summary>
             /// 遠景に貼る写真の名前（Resources/Sky/ の中）。空なら描いた空を使う。
             ///
             /// **作った空には限界がある。** 色の帯と、手で作った雲と、
@@ -2596,11 +2606,11 @@ namespace CivilizationToSpace.View
                 return null;
             }
 
-            // **写真から起こした形は、絵をそのまま貼る。**
-            // 名前が ph_ で始まるものは Poly Haven の素材で、
-            // 幹にも葉にも写真の絵が付いている。時代の色で塗りつぶすと、
-            // 写実であることの意味が無くなる。
-            if (name.StartsWith("ph_"))
+            // **自前の絵を持つ素材は、そのまま貼る。**
+            // ph_ は Poly Haven の写真計測で、幹にも葉にも写真の絵が付いている。
+            // gob_ は Gobkit の生きもので、色見本の絵を1枚持っている。
+            // どちらも時代の色で塗りつぶすと、素材を採った意味が無くなる。
+            if (name.StartsWith("ph_") || name.StartsWith("gob_"))
             {
                 return TexturedModel(prefab, name, height);
             }
@@ -2816,7 +2826,15 @@ namespace CivilizationToSpace.View
                 // **拡大率を上書きしない。掛ける。**
                 // Blender から書き出した形は、根に100倍の拡大率を持って入る。
                 // 上書きすると、その100倍が消えて100分の1の大きさになる。
-                item.transform.localScale *= height / Reference(bounds.size);
+                //
+                // **生きものは背の高さで測る。**
+                // Reference は「縦か、いちばん長い辺の6割の大きいほう」を返す。
+                // 平たい岩が縦に潰れないための決めだが、長くて低い生きものでは
+                // 長さのほうが効いてしまう。背板のあるものは全長9.8に対して
+                // 背が4.4しかなく、基準が5.9になって、背丈15を求めたときに
+                // 全長32メートルの獣が出ていた。立つものは縦で測ればよい。
+                var reference = name.StartsWith("gob_") ? bounds.size.y : Reference(bounds.size);
+                item.transform.localScale *= height / reference;
             }
 
             return item;
@@ -3066,6 +3084,21 @@ namespace CivilizationToSpace.View
         /// </summary>
         private GameObject BuildQuadruped(float height)
         {
+            // **恐竜は素材から採る。**
+            // 球を連ねた形では、首も胴も尾も同じ大きさの玉の列にしかならず、
+            // 体色も地面と同じ砂色で輪郭が溶けていた。
+            // 角のあるものと背板のあるものを交互に置く。1種だけ並べると
+            // 同じ形の繰り返しになり、群れではなく複製に見える。
+            if (current.HornedBeasts)
+            {
+                var model = TryModel(
+                    random.NextDouble() < 0.5 ? "gob_triceratops" : "gob_stegosaurus", height);
+                if (model != null)
+                {
+                    return model;
+                }
+            }
+
             // **牙のある獣は、ふつうの比では読み取れない。**
             // 胴に脚を付けて牙を足すだけでは、丸い塊に棒が刺さった姿になる。
             // 別の組み立てへ回す。
@@ -3276,6 +3309,15 @@ namespace CivilizationToSpace.View
         /// <summary>二本足の生きもの。胴を立て、尾で釣り合わせる。</summary>
         private GameObject BuildBiped(float height)
         {
+            if (current.HornedBeasts)
+            {
+                var model = TryModel("gob_trex", height);
+                if (model != null)
+                {
+                    return model;
+                }
+            }
+
             var root = Root("Biped");
             var legs = height * 0.45f;
             var body = height * 0.5f;
