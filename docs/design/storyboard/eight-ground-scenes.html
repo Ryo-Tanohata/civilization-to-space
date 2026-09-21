@@ -1,0 +1,591 @@
+<title>地表の八景</title>
+<style>
+  :root{
+    --paper:#EDEEE9; --panel:#F6F7F3; --ink:#1A1E17; --muted:#575F52;
+    --rule:#C9CEC2; --rule-soft:#DEE2D8; --accent:#4C6B3E; --accent-ink:#35502A;
+    --warn:#8C5A22;
+    --disp:"Shippori Mincho",'Hiragino Mincho ProN',serif;
+    --body:"Zen Kaku Gothic New",'Hiragino Sans','Noto Sans JP',system-ui,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,'SF Mono',Menlo,monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --paper:#0F120D; --panel:#171B14; --ink:#E0E5DA; --muted:#8E998A;
+      --rule:#293024; --rule-soft:#1F251B; --accent:#8CB570; --accent-ink:#A3C98A;
+      --warn:#D79A55;
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#0F120D; --panel:#171B14; --ink:#E0E5DA; --muted:#8E998A;
+    --rule:#293024; --rule-soft:#1F251B; --accent:#8CB570; --accent-ink:#A3C98A;
+    --warn:#D79A55;
+  }
+  *{box-sizing:border-box}
+  body{background:var(--paper);color:var(--ink);font-family:var(--body);line-height:1.75;
+       -webkit-font-smoothing:antialiased}
+  .wrap{max-width:860px;margin:0 auto;padding-inline:20px;padding-block:32px 64px}
+  .era{font-family:var(--mono);font-size:11px;letter-spacing:.16em;color:var(--muted)}
+  h1{font-family:var(--disp);font-weight:700;font-size:clamp(28px,7vw,44px);line-height:1.22;
+     margin:.28em 0 .24em;text-wrap:balance}
+  .standfirst{color:var(--muted);font-size:15px;max-width:62ch;margin:0}
+  .rule{height:1px;background:var(--rule);margin:22px 0 4px}
+  p{margin:.5em 0;max-width:62ch}
+  .note{font-size:13.5px;color:var(--muted)}
+
+  .cut{margin-top:40px;padding-top:26px;border-top:1px solid var(--rule-soft)}
+  .cut:first-of-type{border-top:0}
+  .cuthead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+  .num{font-family:var(--mono);font-size:26px;font-weight:400;color:var(--accent);
+       line-height:1;font-variant-numeric:tabular-nums}
+  .cuthead h2{font-family:var(--disp);font-size:22px;font-weight:600;margin:0}
+  .badge{font-family:var(--mono);font-size:10.5px;letter-spacing:.09em;color:var(--muted);
+      border:1px solid var(--rule);border-radius:2px;padding:2px 7px}
+  .plate{border:1px solid var(--rule);border-radius:2px;overflow:hidden;line-height:0;
+      background:#0b0f0a}
+  .plate canvas{display:block;width:100%;height:auto}
+  .cap{font-size:14.5px;margin:10px 0 0;max-width:62ch}
+  .facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+      gap:2px 18px;margin-top:12px;font-size:12.5px}
+  .facts div{display:flex;justify-content:space-between;gap:10px;
+      border-bottom:1px solid var(--rule-soft);padding:4px 0}
+  .facts span:last-child{font-family:var(--mono);color:var(--accent-ink);
+      font-variant-numeric:tabular-nums;white-space:nowrap}
+  .why{font-size:13.5px;color:var(--muted);margin-top:10px;
+      border-left:2px solid var(--rule);padding-left:14px}
+  .flag{border-left:2px solid var(--warn);padding-left:14px;margin:12px 0;font-size:13.5px}
+  .flag strong{color:var(--warn)}
+  .sw{display:inline-block;width:10px;height:10px;border:1px solid var(--rule);
+      vertical-align:-1px;margin-right:5px;border-radius:1px}
+  footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--rule);
+      font-size:12.5px;color:var(--muted)}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="era">SURFACE / 地表から見た8つの時代</div>
+    <h1>地表の八景</h1>
+    <p class="standfirst">宇宙から見ても、色が変わるだけで何が起きたか分からない。森ができたこと、巨大な生きものがいたこと、空が塵で暗くなったこと、家が寄り集まったこと。それらは地表に降りないと読めない。1時代に1枚、いま何が置かれているかを示す。</p>
+  </header>
+
+  <div class="rule"></div>
+  <p class="note">色と数はすべて <code>SurfaceCatalog.cs</code> の実装値。絵はその数値をブラウザで描き直したもので、Unity の描画そのものではない。遠景の写真・地面の粒・木の素材は再現していない。</p>
+
+  <div id="cuts"></div>
+
+  <footer>
+    出どころは <code>Assets/Scripts/View/SurfaceCatalog.cs</code>、視点の決まりは同ファイルの <code>DefaultsToSurface</code>、構成は <code>docs/design/STORYBOARD.md</code> と <code>docs/design/SURFACE_SCENE_SPEC.md</code>（いずれもコミット 6d28388）。<br><br>
+    11時代のうち、冥王代・最初の海・全球凍結の3つはここに含めていない。地表の場面は持つが、遠景の写真を当てておらず、描いた空のままである。
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* 実装値。SurfaceCatalog.cs から読み取ったものをそのまま持つ */
+  var CUTS=[
+    {n:4,id:"GreenEarth",name:"森林と陸上生態系",frame:"生きもの寄り",
+     sky:["#5C8FC8","#CBDCE6"],ground:"#55552F",foliage:"#3E6E34",trunk:"#5B4632",
+     creature:"#8A7A55",plantH:30,conifers:48,broad:14,ferns:56,cover:120,
+     quad:16,quadKind:"tetrapod",backdrop:"misty_pines（霧の針葉樹林）",
+     cap:"霧の森。高さ30mの木が立ち並び、足もとをシダと下草が埋める。低く這う四肢動物が16匹いる。",
+     why:"森ができたことは、宇宙から見れば緑が増えるだけになる。木の高さと林床の暗さは、下から見上げないと出ない。",
+     flag:"獣が粒にしかならない。木が30mあるためカメラが34m下がり、0.7mの四肢動物は画面の高さの1%ほどにしかならない。"},
+
+    {n:5,id:"Dinosaurs",name:"巨大生物の時代",frame:"生きもの寄り",
+     sky:["#5C8FC8","#CBDCE6"],ground:"#6E5C3E",foliage:"#4C7A3A",trunk:"#5B4632",
+     creature:"#5C6146",plantH:26,conifers:42,broad:28,ferns:58,cover:110,
+     quad:3,biped:4,quadKind:"sauropod",backdrop:"goegap（乾いた低木の野）",
+     cap:"乾いた野。首の長い竜脚類が3頭、角竜と獣脚類が4頭。地面は土の色へ寄せ、草を減らす。",
+     why:"中生代に草原は無い。被子植物の草は白亜紀の終わりごろに現れるため、イネ科の草地を描くと年代が合わない。",
+     facts:[["竜脚類の背丈","4.7 m"],["角竜","2.5 m"],["獣脚類","2.9 m"]]},
+
+    {n:6,id:"Impact",name:"衝突と暗い空",frame:"生きもの寄り",
+     sky:["#2A2620","#6A5B4A"],ground:"#6E5C3E",foliage:"#4C7A3A",trunk:"#5B4632",
+     creature:"#5C6146",plantH:26,conifers:10,broad:6,ferns:8,cover:20,
+     dead:46,dust:0.7,backdrop:"goegap（同じ野。塵で沈める）",
+     cap:"同じ野が暗くなる。立木は倒れ、46本の幹が地面に横たわる。空は塵で色を失う。",
+     why:"巨大生物の時代と同じ場所を使い、空と植生だけを変える。別の場所にすると、同じ土地に起きた出来事だと読めなくなる。",
+     flag:"塵でふさぐときは写真ごと沈める。色を掛けるだけでは青空の青が残るため、描いた空を次の絵として持たせ、塵の濃さで混ぜている。"},
+
+    {n:7,id:"IceAge",name:"氷期のくり返し",frame:"生きもの寄り",
+     sky:["#6E93B6","#D4DFE6"],ground:"#B2AE99",foliage:"#6E7748",trunk:"#7A6A55",
+     creature:"#6B5540",plantH:9,conifers:0,broad:0,ferns:0,cover:0,
+     quad:5,quadKind:"mammoth",backdrop:"snowy_field（雪の原）",
+     cap:"木が1本も無い。雪と枯れ草の原に、マンモスとケサイが5頭いるだけ。",
+     why:"草木の数をすべて0にしてある。氷期の原に大きな木が無いことを、数で表している。背の高さの基準（PlantHeight）も9mまで下げてある。",
+     facts:[["マンモスの背丈","3.7 m"],["ケサイ","2.0 m"],["草木の数","0"]]},
+
+    {n:8,id:"Humans",name:"人類の広がり",frame:"街寄り",
+     sky:["#6796C6","#D8E4EA"],ground:"#6A6B3C",foliage:"#4C7A3A",trunk:"#5B4632",
+     creature:"#9E9F80",building:"#C2A882",pave:"#8A7A5C",bh:5,bsp:1.05,
+     buildings:46,windows:false,plantH:24,conifers:24,broad:26,ferns:34,cover:84,
+     biped:7,granaries:6,palisade:true,backdrop:"meadow_2（草地）",
+     cap:"日干しレンガの家46棟が背中合わせに詰まる。道が無い。壁に戸口も窓も開けず、屋根の穴から梯子で降りる。縁に高床倉庫6つと囲い。",
+     why:"チャタルホユック（紀元前7100年ごろ）に基づく。蓄える建物と囲いが現れることが、狩猟から農耕へ移ったことの印になる。",
+     facts:[["建物の高さ","5 m"],["間隔","1.05"],["窓","無し"],["人","7人"]]},
+
+    {n:9,id:"Industrial",name:"産業と機械",frame:"街寄り",
+     sky:["#74808C","#C8C2B4"],ground:"#5E5A42",foliage:"#4C7A3A",trunk:"#5B4632",
+     creature:"#8E8874",building:"#8E6F58",window:"#3E3A34",pave:"#6E6459",
+     bh:14,bsp:1.35,buildings:96,windows:true,chimneys:14,plantH:12,
+     conifers:10,broad:14,ferns:0,cover:260,biped:12,backdrop:"wide_plain（広い平野）",
+     cap:"煙突が14本立ち、煉瓦色の建屋が96棟。同じ形が反復する。空は灰へ寄り、働く人が12人いる。",
+     why:"この段階を他から分けるのは煙突と反復の2つ。動力が人と家畜から機械へ移ったことは煙突で、人が都市へ集まったことは同じ形の住まいの反復で表す。",
+     facts:[["建物の高さ","14 m"],["間隔","1.35"],["煙突","14本"],["棟数","96"]]},
+
+    {n:10,id:"Information",name:"情報・地球規模接続",frame:"街寄り",
+     sky:["#6F9AC8","#DDE7EC"],ground:"#515C46",foliage:"#4C7A3A",trunk:"#5B4632",
+     building:"#B6BABF",window:"#5F87A6",pave:"#8E9094",bh:52,bsp:2.1,
+     buildings:150,windows:true,plantH:16,conifers:20,broad:32,ferns:0,cover:520,
+     rocket:true,backdrop:"rustig_koppie（開けた丘）",
+     cap:"ガラスの高層が150棟、高さ52m。道を挟んで並ぶ。街の手前から機体が上がる。",
+     why:"打ち上げは地上の出来事である。宇宙を既定にしていたときは、ロケットが地表にしか出ないため一度も見られなかった。",
+     facts:[["建物の高さ","52 m"],["間隔","2.1"],["棟数","150"],["下草","520"]]},
+
+    {n:11,id:"Future",name:"未来の分岐",frame:"街寄り",
+     sky:["#6F9AC8","#DDE7EC"],ground:"#515C46",foliage:"#5E8C48",trunk:"#5B4632",
+     building:"#C4CBD2",window:"#74C8B4",pave:"#A8A9A0",roofPanel:"#2E4A5E",
+     bh:30,bsp:3.1,buildings:110,windows:true,plantH:16,conifers:70,broad:150,
+     ferns:0,cover:140,rocket:true,backdrop:"rustig_koppie（同じ丘）",
+     cap:"背が52mから30mへ下がり、棟が150から110へ減り、間隔が2.1から3.1へ広がる。屋根いちめんが発電面の色。木が街に混ざる。",
+     why:"Society 5.0 は建物の形式で定義された段階ではない。情報の街を高く大きくしても「同じ街の背が伸びた」にしかならない。地表に出せる違いは配置にある。",
+     facts:[["建物の高さ","30 m"],["間隔","3.1"],["棟数","110"],["広葉樹","150"]]}
+  ];
+
+  function rg(s){s=(s*9301+49297)%233280;return function(){s=(s*9301+49297)%233280;return s/233280;};}
+  function mix(a,b,t){
+    function h(c){var n=parseInt(c.slice(1),16);return [n>>16,(n>>8)&255,n&255];}
+    var A=h(a),B=h(b);
+    return "rgb("+Math.round(A[0]+(B[0]-A[0])*t)+","+Math.round(A[1]+(B[1]-A[1])*t)+","+
+           Math.round(A[2]+(B[2]-A[2])*t)+")";
+  }
+  function dark(c,f){
+    var n=parseInt(c.slice(1),16);
+    return "rgb("+Math.round((n>>16)*f)+","+Math.round(((n>>8)&255)*f)+","+Math.round((n&255)*f)+")";
+  }
+
+  function draw(cv,s){
+    var ctx=cv.getContext("2d"), W=cv.width, H=cv.height;
+    var town = s.buildings>0;
+    var eye=1.7, look=town?(s.bh*0.45+4):8, lookZ=town?(s.bh*4.2+70):90;
+    var f=(W/2)/Math.tan(0.50), pit=Math.atan2(eye-look,lookZ);
+    var cx=W/2, cy=H*0.58, sp=Math.sin(pit), cp=Math.cos(pit);
+    function pr(X,Y,Z){
+      var dy=Y-eye, dz=Z;
+      var y2=dy*cp+dz*sp, z2=-dy*sp+dz*cp;
+      if(z2<1.0) return null;
+      return {x:cx+f*X/z2, y:cy-f*y2/z2, z:z2};
+    }
+    var hz=Math.max(0,Math.min(H,cy+f*(sp/cp)));
+    ctx.clearRect(0,0,W,H);
+
+    /* 空 */
+    var sky=ctx.createLinearGradient(0,0,0,Math.max(2,hz));
+    sky.addColorStop(0,s.sky[0]); sky.addColorStop(1,s.sky[1]);
+    ctx.fillStyle=sky; ctx.fillRect(0,0,W,hz);
+
+    /* 遠景の丘（写真の代わり） */
+    ctx.fillStyle=dark(s.sky[1],0.72);
+    ctx.beginPath(); ctx.moveTo(0,hz);
+    for(var q=0;q<=50;q++){var t=q/50;
+      ctx.lineTo(t*W,hz-9-Math.abs(Math.sin(t*4.3))*16-Math.cos(t*9)*4);}
+    ctx.lineTo(W,hz); ctx.closePath(); ctx.fill();
+    if(s.conifers+s.broad>20){
+      ctx.fillStyle=dark(s.foliage,0.68); ctx.fillRect(0,hz-6,W,8);
+    }
+
+    /* 地面 */
+    var gr=ctx.createLinearGradient(0,hz,0,H);
+    gr.addColorStop(0,mix(s.ground,s.sky[1],0.45)); gr.addColorStop(0.18,mix(s.ground,s.sky[1],0.18));
+    gr.addColorStop(1,dark(s.ground,0.86));
+    ctx.fillStyle=gr; ctx.fillRect(0,hz,W,H-hz);
+
+    var P=[], rnd=rg(s.n*131+7);
+    function push(z,fn){P.push([z,fn]);}
+
+    /* 地面のむら。色の濃淡だけを置く。草木の数は増やさない */
+    (function(){
+      var tr=rg(s.n*57+13);
+      for(var k=0;k<70;k++){
+        (function(gx,gz,rw,lit){
+          push(gz+0.2,function(){
+            var c1=pr(gx,0,gz); if(!c1)return;
+            var rpx=f*rw/c1.z; if(rpx<3||rpx>W*0.16)return;
+            ctx.fillStyle=lit?mix(s.ground,"#FFFFFF",0.10):dark(s.ground,0.90);
+            ctx.globalAlpha=0.38;
+            ctx.beginPath();ctx.ellipse(c1.x,c1.y,rpx,rpx*0.26,0,0,Math.PI*2);ctx.fill();
+            ctx.globalAlpha=1;
+          });
+        })((tr()-0.5)*300, 7+Math.pow(tr(),1.5)*245, 1.2+tr()*4.4, tr()<0.5);
+      }
+    })();
+
+    /* 舗装 */
+    if(town){
+      push(1e9,function(){
+        var w=s.bh*3.4+30, z0=6, z1=s.bh*6+90;
+        var a=pr(-w,0,z0),b=pr(w,0,z0),c=pr(w,0,z1),d=pr(-w,0,z1);
+        if(!a||!b||!c||!d)return;
+        ctx.fillStyle=s.pave; ctx.globalAlpha=0.55;
+        ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.lineTo(c.x,c.y);
+        ctx.lineTo(d.x,d.y);ctx.closePath();ctx.fill(); ctx.globalAlpha=1;
+      });
+    }
+
+    /* 下草 */
+    var nc=Math.min(150,Math.round((s.cover||0)/3));
+    for(var i=0;i<nc;i++){
+      (function(gx,gz){
+        if(gz<4)return;
+        push(gz,function(){
+          var p=pr(gx,0,gz); if(!p)return;
+          var h=Math.max(1,f*0.35/p.z);
+          ctx.strokeStyle=dark(s.foliage,0.9); ctx.lineWidth=Math.max(0.7,h*0.2);
+          ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x+h*0.25,p.y-h);ctx.stroke();
+        });
+      })((rnd()-0.5)*240,5+Math.pow(rnd(),1.7)*185);
+    }
+
+    /* 木 */
+    function tree(tx,tz,hh,pine){
+      push(tz,function(){
+        var b=pr(tx,0,tz), tp=pr(tx,hh,tz); if(!b||!tp)return;
+        var hp=Math.abs(b.y-tp.y); if(hp<3||hp>H*0.8)return;
+        ctx.strokeStyle=s.trunk; ctx.lineWidth=Math.max(1,hp*0.055);
+        ctx.beginPath();ctx.moveTo(b.x,b.y);ctx.lineTo(tp.x,tp.y+hp*0.3);ctx.stroke();
+        ctx.fillStyle=s.foliage;
+        if(pine){
+          for(var k=0;k<3;k++){
+            var yy=tp.y+hp*(0.16+k*0.25), ww=hp*(0.17+k*0.1);
+            ctx.beginPath();ctx.moveTo(tp.x,yy-hp*0.2);
+            ctx.lineTo(tp.x-ww,yy+hp*0.09);ctx.lineTo(tp.x+ww,yy+hp*0.09);
+            ctx.closePath();ctx.fill();
+          }
+        }else{
+          ctx.beginPath();ctx.arc(tp.x,tp.y+hp*0.16,hp*0.3,0,Math.PI*2);ctx.fill();
+        }
+      });
+    }
+    var nt=Math.min(46,Math.round((s.conifers+s.broad)/2.4));
+    for(i=0;i<nt;i++){
+      var tx=(rnd()-0.5)*270, tz=(town?s.bh*1.6+36:48)+rnd()*175;
+      /* 間隔の詰まった街では木を外へ逃がす。間隔が広い未来の街では逃がさず、
+         建物のあいだに残す（「木が街に混ざる」を絵で示すため） */
+      if(town && s.bsp<2.0 && Math.abs(tx)<s.bh*1.6+12 && tz<s.bh*5+50)
+        tx += (tx<0?-1:1)*(s.bh*1.8+16);
+      tree(tx,tz,s.plantH*(0.6+rnd()*0.6), rnd()<s.conifers/Math.max(1,s.conifers+s.broad));
+    }
+    /* シダ */
+    var nf2=Math.min(40,Math.round((s.ferns||0)/2));
+    for(i=0;i<nf2;i++){
+      (function(fx,fz){
+        if(fz<5)return;
+        push(fz,function(){
+          var p=pr(fx,0,fz),t=pr(fx,s.plantH*0.11,fz); if(!p||!t)return;
+          var hp=Math.abs(p.y-t.y); if(hp<2||hp>H*0.60)return;
+          ctx.strokeStyle=dark(s.foliage,1.1); ctx.lineWidth=Math.max(0.8,hp*0.1);
+          for(var k=0;k<5;k++){
+            var a=-1+k*0.5;
+            ctx.beginPath();ctx.moveTo(p.x,p.y);
+            ctx.quadraticCurveTo(p.x+Math.sin(a)*hp*0.5,p.y-hp*0.8,
+                                 p.x+Math.sin(a)*hp*1.0,p.y-hp*0.5);ctx.stroke();
+          }
+        });
+      })((rnd()-0.5)*190,7+Math.pow(rnd(),1.6)*130);
+    }
+    /* 倒木 */
+    for(i=0;i<Math.min(46,s.dead||0);i++){
+      (function(dx,dz,a){
+        push(dz,function(){
+          var p=pr(dx,0.5,dz),q=pr(dx+Math.cos(a)*s.plantH*0.7,0.5,dz+Math.sin(a)*s.plantH*0.7);
+          if(!p||!q)return;
+          ctx.strokeStyle="rgba(20,20,14,.22)"; ctx.lineWidth=Math.max(2,f*1.0/p.z);
+          ctx.beginPath();ctx.moveTo(p.x,p.y+Math.max(1,f*0.35/p.z));
+          ctx.lineTo(q.x,q.y+Math.max(1,f*0.35/p.z));ctx.stroke();
+          ctx.strokeStyle=mix(s.trunk,"#FFFFFF",0.24); ctx.lineWidth=Math.max(2,f*0.8/p.z);
+          ctx.lineCap="round";
+          ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(q.x,q.y);ctx.stroke();
+          ctx.lineCap="butt";
+        });
+      })((rnd()-0.5)*220,16+Math.pow(rnd(),1.4)*150,rnd()*Math.PI*2);
+    }
+
+    /* 建物 */
+    if(town){
+      var foot=s.bh*0.5, pitch=foot*s.bsp;
+      var cols=Math.min(13,Math.round(Math.sqrt(s.buildings*1.3)));
+      var rows=Math.ceil(Math.min(s.buildings,cols*9)/cols);
+      for(var r=0;r<rows;r++)for(var c=0;c<cols;c++){
+        (function(bx,bz,hh,lit){
+          push(bz,function(){
+            var hw=foot/2;
+            var A=pr(bx-hw,hh,bz-hw),B=pr(bx+hw,hh,bz-hw),
+                a2=pr(bx-hw,0,bz-hw),b2=pr(bx+hw,0,bz-hw);
+            if(!A||!B||!a2||!b2)return;
+            if(Math.abs(a2.y-A.y)>H*0.95)return;
+            /* 側面：箱に見せるため、外側へ回る面を1枚描く */
+            var side=(bx<0)?-1:1;
+            var S1=pr(bx+side*hw,hh,bz+hw),S2=pr(bx+side*hw,0,bz+hw);
+            if(S1&&S2){
+              var F1=(side<0)?A:B, F2=(side<0)?a2:b2;
+              ctx.fillStyle=mix(dark(s.building,0.78),s.sky[1],Math.min(0.4,Math.max(0,(bz-40)/420)));
+              ctx.beginPath();ctx.moveTo(F1.x,F1.y);ctx.lineTo(S1.x,S1.y);
+              ctx.lineTo(S2.x,S2.y);ctx.lineTo(F2.x,F2.y);ctx.closePath();ctx.fill();
+            }
+            /* 正面。遠いほど空の色へ寄せる */
+            var haze=Math.min(0.45,Math.max(0,(bz-40)/420));
+            ctx.fillStyle=mix(s.building,s.sky[1],haze);
+            ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(B.x,B.y);
+            ctx.lineTo(b2.x,b2.y);ctx.lineTo(a2.x,a2.y);ctx.closePath();ctx.fill();
+            ctx.strokeStyle="rgba(0,0,0,.20)";ctx.lineWidth=1;ctx.stroke();
+            if(s.roofPanel){
+              var q1=pr(bx-hw,hh,bz-hw),q2=pr(bx+hw,hh-1.6,bz-hw);
+              if(q1&&q2&&q2.y-q1.y>0.6){
+                ctx.fillStyle=s.roofPanel;
+                ctx.fillRect(q1.x,q1.y,q2.x-q1.x,q2.y-q1.y);
+              }
+            }
+            /* 屋根：発電面のある時代は色を変える */
+            var T=pr(bx-hw,hh,bz+hw),U=pr(bx+hw,hh,bz+hw);
+            if(T&&U&&T.y<A.y){
+              ctx.fillStyle=s.roofPanel?s.roofPanel:mix(s.building,"#FFFFFF",0.16);
+              ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(B.x,B.y);
+              ctx.lineTo(U.x,U.y);ctx.lineTo(T.x,T.y);ctx.closePath();ctx.fill();
+              ctx.strokeStyle="rgba(0,0,0,.20)";ctx.lineWidth=1;ctx.stroke();
+            }
+            if(s.windows){
+              var fl=3.2, wh=1.7;
+              var rr=Math.max(1,Math.floor((hh-2.2)/fl)), cc=Math.max(2,Math.round(foot/3.4));
+              var gap=foot/cc, ww=gap*0.52;
+              for(var wy=0;wy<rr;wy++)for(var wx=0;wx<cc;wx++){
+                var yy=1.4+wy*fl, xx=bx-hw+gap*(wx+0.5);
+                var p1=pr(xx-ww/2,yy+wh,bz-hw),p2=pr(xx+ww/2,yy,bz-hw);
+                if(!p1||!p2)continue;
+                if(p2.y-p1.y<0.8||p2.x-p1.x<0.8)continue;
+                ctx.fillStyle=s.window||"#3E3A34";
+                ctx.fillRect(p1.x,p1.y,p2.x-p1.x,p2.y-p1.y);
+              }
+            }
+            if(!s.windows&&s.bh<=6){
+              var d1=pr(bx-foot*0.14,hh*0.42,bz-hw),d2=pr(bx+foot*0.14,0,bz-hw);
+              if(d1&&d2){ctx.fillStyle="rgba(0,0,0,.0)";}
+            }
+          });
+        })((c-(cols-1)/2)*pitch, s.bh*1.8+26+r*pitch,
+           s.bh*(0.6+((r*7+c*3)%10)/10*0.8), true);
+      }
+      /* 煙突 */
+      for(i=0;i<Math.min(14,s.chimneys||0);i++){
+        (function(px,pz,hh){
+          push(pz-0.1,function(){
+            var A=pr(px-0.7,hh,pz),B=pr(px+0.7,hh,pz),a2=pr(px-0.7,0,pz),b2=pr(px+0.7,0,pz);
+            if(!A||!B||!a2||!b2)return;
+            ctx.fillStyle=dark(s.building,0.82);
+            ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(B.x,B.y);
+            ctx.lineTo(b2.x,b2.y);ctx.lineTo(a2.x,a2.y);ctx.closePath();ctx.fill();
+            for(var k=0;k<4;k++){
+              ctx.fillStyle="rgba(190,188,182,"+(0.30-k*0.06).toFixed(2)+")";
+              ctx.beginPath();
+              ctx.arc(A.x+(B.x-A.x)/2+k*3,A.y-(6+k*11),4+k*4,0,Math.PI*2);ctx.fill();
+            }
+          });
+        })((rnd()-0.5)*s.bh*2.6, s.bh*1.8+28+rnd()*s.bh*3.4, s.bh*(1.25+rnd()*0.5));
+      }
+      /* 囲い。集落の左右に沿って奥へ走らせ、正面をふさがない */
+      if(s.palisade){
+        (function(){
+          var z0=s.bh*1.4+14, z1=s.bh*1.8+26+Math.ceil(s.buildings/8)*s.bh*0.5*s.bsp+8;
+          var half=s.bh*2.6+9;
+          for(var side=-1;side<=1;side+=2){
+            for(var k=0;k<16;k++){
+              (function(px2,pz2){
+                push(pz2,function(){
+                  var a3=pr(px2,0,pz2), b3=pr(px2,2.1,pz2);
+                  if(!a3||!b3)return;
+                  var ph=a3.y-b3.y; if(ph<2||ph>H*0.5)return;
+                  ctx.strokeStyle=dark(s.trunk,1.05); ctx.lineWidth=Math.max(1,ph*0.12);
+                  ctx.beginPath();ctx.moveTo(a3.x,a3.y);ctx.lineTo(b3.x,b3.y);ctx.stroke();
+                });
+              })(side*half, z0+k*(z1-z0)/15);
+            }
+          }
+        })();
+      }
+      /* 高床倉庫。脚・箱・屋根の3つで、蓄える建物だと分かる形にする */
+      if(s.granaries){
+        for(i=0;i<s.granaries;i++){
+          (function(px,pz){
+            push(pz,function(){
+              var g0=pr(px,0,pz), g1=pr(px,1.6,pz), g2=pr(px,3.2,pz), g3=pr(px,4.4,pz);
+              if(!g0||!g1||!g2||!g3)return;
+              var ph=g0.y-g2.y; if(ph<6||ph>H*0.7)return;
+              var w=ph*0.42;
+              ctx.strokeStyle=dark(s.trunk,1.0); ctx.lineWidth=Math.max(1,ph*0.05);
+              for(var k=-1;k<=1;k+=2){
+                ctx.beginPath();ctx.moveTo(g0.x+k*w*0.4,g0.y);
+                ctx.lineTo(g1.x+k*w*0.4,g1.y);ctx.stroke();
+              }
+              ctx.fillStyle=mix(s.building,"#000000",0.10);
+              ctx.fillRect(g1.x-w/2,g2.y,w,g1.y-g2.y);
+              ctx.fillStyle=dark(s.trunk,1.1);
+              ctx.beginPath();ctx.moveTo(g1.x-w*0.62,g2.y);ctx.lineTo(g1.x,g3.y);
+              ctx.lineTo(g1.x+w*0.62,g2.y);ctx.closePath();ctx.fill();
+            });
+          })((i%2?1:-1)*(s.bh*2.0+6), s.bh*1.2+12+Math.floor(i/2)*7);
+        }
+      }
+    }
+
+    /* 獣。輪郭は影の色で締め、地面から浮かないよう影を敷く */
+    function limb(x,y,w,h2,col){ctx.fillStyle=col;ctx.fillRect(x-w/2,y-h2,w,h2);}
+    function blob(x,y,rx,ry,col){ctx.fillStyle=col;ctx.beginPath();
+      ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2);ctx.fill();}
+    function taper(x0,y0,x1,y1,r0,r1,col){
+      ctx.fillStyle=col;
+      for(var k=0;k<=12;k++){var t=k/12;
+        ctx.beginPath();
+        ctx.arc(x0+(x1-x0)*t, y0+(y1-y0)*t, Math.max(0.6,r0+(r1-r0)*t),0,Math.PI*2);
+        ctx.fill();}
+    }
+    function shadow(x,y,r){
+      ctx.fillStyle="rgba(20,22,16,.20)";
+      ctx.beginPath();ctx.ellipse(x,y,r,r*0.24,0,0,Math.PI*2);ctx.fill();
+    }
+    function beast(bx,bz,hh,kind){
+      push(bz,function(){
+        var b=pr(bx,0,bz), t=pr(bx,hh,bz); if(!b||!t)return;
+        var hp=Math.abs(b.y-t.y); if(hp<3||hp>H*0.72)return;
+        var C=s.creature, D=dark(s.creature,0.74);
+        if(kind==="sauropod"){
+          shadow(b.x,b.y,hp*0.55);
+          for(var k=0;k<4;k++)
+            limb(b.x-hp*0.26+k*hp*0.18, b.y, hp*0.11, hp*0.40, k<2?D:C);
+          blob(b.x,b.y-hp*0.56,hp*0.40,hp*0.20,C);
+          /* 尾：後ろへ長く引く */
+          taper(b.x+hp*0.34,b.y-hp*0.60,b.x+hp*1.05,b.y-hp*0.16,hp*0.10,hp*0.015,C);
+          /* 首：前へ持ち上げる */
+          taper(b.x-hp*0.30,b.y-hp*0.64,b.x-hp*0.60,b.y-hp*0.95,hp*0.11,hp*0.045,C);
+          blob(b.x-hp*0.64,b.y-hp*0.97,hp*0.07,hp*0.05,C);
+        }else if(kind==="mammoth"){
+          shadow(b.x,b.y,hp*0.50);
+          for(k=0;k<4;k++)
+            limb(b.x-hp*0.28+k*hp*0.19, b.y, hp*0.13, hp*0.36, k<2?D:C);
+          blob(b.x+hp*0.04,b.y-hp*0.56,hp*0.42,hp*0.26,C);
+          blob(b.x-hp*0.20,b.y-hp*0.74,hp*0.24,hp*0.18,C);      /* 肩のこぶ */
+          blob(b.x-hp*0.46,b.y-hp*0.66,hp*0.19,hp*0.17,C);      /* 頭 */
+          blob(b.x-hp*0.36,b.y-hp*0.60,hp*0.10,hp*0.12,D);      /* 耳 */
+          taper(b.x-hp*0.58,b.y-hp*0.58,b.x-hp*0.66,b.y-hp*0.04,hp*0.055,hp*0.022,
+                dark(s.creature,0.88)); /* 鼻 */
+          ctx.strokeStyle="rgba(232,226,208,.95)";ctx.lineWidth=Math.max(1,hp*0.045);
+          ctx.beginPath();ctx.moveTo(b.x-hp*0.54,b.y-hp*0.58);
+          ctx.quadraticCurveTo(b.x-hp*0.86,b.y-hp*0.34,b.x-hp*0.66,b.y-hp*0.12);
+          ctx.stroke();                                         /* 牙 */
+        }else if(kind==="theropod"){
+          shadow(b.x,b.y,hp*0.34);
+          limb(b.x-hp*0.04,b.y,hp*0.12,hp*0.46,D);
+          limb(b.x+hp*0.10,b.y,hp*0.12,hp*0.46,C);
+          blob(b.x,b.y-hp*0.58,hp*0.26,hp*0.15,C);
+          taper(b.x+hp*0.22,b.y-hp*0.58,b.x+hp*0.80,b.y-hp*0.74,hp*0.09,hp*0.012,C);
+          taper(b.x-hp*0.18,b.y-hp*0.64,b.x-hp*0.30,b.y-hp*0.88,hp*0.07,hp*0.05,C);
+          blob(b.x-hp*0.36,b.y-hp*0.90,hp*0.13,hp*0.06,C);
+        }else{ /* 低く這う四肢動物 */
+          shadow(b.x,b.y,hp*0.62);
+          blob(b.x,b.y-hp*0.42,hp*0.58,hp*0.22,C);
+          blob(b.x-hp*0.62,b.y-hp*0.46,hp*0.16,hp*0.13,C);
+          taper(b.x+hp*0.52,b.y-hp*0.44,b.x+hp*1.15,b.y-hp*0.18,hp*0.08,hp*0.01,C);
+          for(k=0;k<4;k++)limb(b.x-hp*0.36+k*hp*0.26,b.y,hp*0.10,hp*0.22,k<2?D:C);
+        }
+      });
+    }
+    var kinds={tetrapod:0.7,sauropod:4.7,mammoth:3.7};
+    for(i=0;i<(s.quad||0);i++)
+      beast((rnd()-0.5)*110, 30+rnd()*95, kinds[s.quadKind]||1, s.quadKind);
+
+    /* 二足：恐竜の時代だけは獣脚類、ほかは人 */
+    var bipedKind = (s.id==="Dinosaurs")?"theropod":"human";
+    for(i=0;i<(s.biped||0);i++){
+      (function(px,pz,tall){
+        if(bipedKind==="theropod"){ beast(px,pz,tall,"theropod"); return; }
+        push(pz,function(){
+          var b=pr(px,0,pz), t=pr(px,tall,pz); if(!b||!t)return;
+          var hp=Math.abs(b.y-t.y); if(hp<2.5||hp>H*0.6)return;
+          shadow(b.x,b.y,hp*0.20);
+          ctx.fillStyle=s.creature;
+          ctx.fillRect(b.x-hp*0.055,b.y-hp*0.40,hp*0.045,hp*0.40);
+          ctx.fillRect(b.x+hp*0.012,b.y-hp*0.40,hp*0.045,hp*0.40);
+          ctx.fillRect(b.x-hp*0.075,b.y-hp*0.74,hp*0.15,hp*0.36);
+          ctx.fillStyle=dark(s.creature,0.82);
+          ctx.fillRect(b.x-hp*0.115,b.y-hp*0.72,hp*0.04,hp*0.30);
+          ctx.fillRect(b.x+hp*0.075,b.y-hp*0.72,hp*0.04,hp*0.30);
+          ctx.fillStyle=s.creature;
+          ctx.beginPath();ctx.arc(b.x,b.y-hp*0.84,hp*0.085,0,Math.PI*2);ctx.fill();
+        });
+      })((rnd()-0.5)*(town?s.bh*2.4:70),(town?s.bh*1.2+12:24)+rnd()*(town?s.bh*2.6:60),
+         s.id==="Dinosaurs"?2.9:1.7);
+    }
+
+    /* 打ち上げ。目の高さから街ごしに見上げる絵なので、
+       機体だけは画面の座標で置く。街の数値とは無関係の演出である。 */
+    if(s.rocket){
+      push(-1,function(){
+        var bw=H*0.048, bh2=H*0.31, rxp=W*0.71, top=H*0.12, bot=top+bh2;
+        for(var k=0;k<10;k++){
+          var tt=k/9, yy=bot+tt*(H-bot)*1.05;
+          ctx.fillStyle="rgba(228,226,220,"+(0.30-tt*0.27).toFixed(2)+")";
+          ctx.beginPath();
+          ctx.ellipse(rxp+(k%2?1:-1)*k*bw*0.16,yy,bw*(0.75+k*0.30),bw*(0.6+k*0.22),
+                      0,0,Math.PI*2);ctx.fill();
+        }
+        ctx.fillStyle="rgba(255,228,176,.95)";
+        ctx.beginPath();ctx.ellipse(rxp,bot+bw*0.9,bw*0.40,bw*1.5,0,0,Math.PI*2);ctx.fill();
+        ctx.fillStyle="#EDEFF1"; ctx.fillRect(rxp-bw/2,top,bw,bh2);
+        ctx.beginPath();ctx.moveTo(rxp-bw/2,top);ctx.lineTo(rxp,top-bw*1.6);
+        ctx.lineTo(rxp+bw/2,top);ctx.closePath();ctx.fill();
+        ctx.fillStyle="#C4C9CE"; ctx.fillRect(rxp-bw/2,top+bh2*0.58,bw,bh2*0.05);
+        ctx.fillStyle="#9BA3AA";
+        ctx.beginPath();ctx.moveTo(rxp-bw/2,bot);ctx.lineTo(rxp-bw*1.05,bot);
+        ctx.lineTo(rxp-bw/2,bot-bh2*0.13);ctx.closePath();ctx.fill();
+        ctx.beginPath();ctx.moveTo(rxp+bw/2,bot);ctx.lineTo(rxp+bw*1.05,bot);
+        ctx.lineTo(rxp+bw/2,bot-bh2*0.13);ctx.closePath();ctx.fill();
+      });
+    }
+
+    P.sort(function(a,b){return b[0]-a[0];});
+    P.forEach(function(e){e[1]();});
+
+    /* 画面のいちばん手前を少し落とす。近景の影として枠を閉じる */
+    var vg=ctx.createLinearGradient(0,H*0.74,0,H);
+    vg.addColorStop(0,"rgba(0,0,0,0)"); vg.addColorStop(1,"rgba(18,20,14,.22)");
+    ctx.fillStyle=vg; ctx.fillRect(0,Math.floor(H*0.74),W,H-Math.floor(H*0.74));
+
+    /* 塵 */
+    if(s.dust){
+      ctx.fillStyle="rgba(46,40,32,"+s.dust*0.5+")";
+      ctx.fillRect(0,0,W,H);
+    }
+  }
+
+  /* 組み立て */
+  var host=document.getElementById("cuts");
+  CUTS.forEach(function(s){
+    var d=document.createElement("div"); d.className="cut";
+    var facts=(s.facts||[]).map(function(p){
+      return "<div><span>"+p[0]+"</span><span>"+p[1]+"</span></div>";}).join("");
+    facts+="<div><span>空</span><span><i class='sw' style='background:"+s.sky[0]+"'></i>"+s.sky[0]+"</span></div>";
+    facts+="<div><span>地面</span><span><i class='sw' style='background:"+s.ground+"'></i>"+s.ground+"</span></div>";
+    facts+="<div><span>遠景</span><span style='font-size:11px'>"+s.backdrop+"</span></div>";
+    d.innerHTML=
+      '<div class="cuthead"><span class="num">'+String(s.n).padStart(2,"0")+'</span>'+
+      '<h2>'+s.name+'</h2><span class="badge">'+s.frame+'</span>'+
+      '<span class="badge">'+s.id+'</span></div>'+
+      '<div class="plate"><canvas width="900" height="460"></canvas></div>'+
+      '<p class="cap">'+s.cap+'</p>'+
+      '<div class="facts">'+facts+'</div>'+
+      '<p class="why">'+s.why+'</p>'+
+      (s.flag?'<div class="flag"><p>'+s.flag+'</p></div>':'');
+    host.appendChild(d);
+    draw(d.querySelector("canvas"),s);
+  });
+})();
+</script>
