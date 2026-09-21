@@ -3066,6 +3066,14 @@ namespace CivilizationToSpace.View
         /// </summary>
         private GameObject BuildQuadruped(float height)
         {
+            // **牙のある獣は、ふつうの比では読み取れない。**
+            // 胴に脚を付けて牙を足すだけでは、丸い塊に棒が刺さった姿になる。
+            // 別の組み立てへ回す。
+            if (current.CreatureTusks)
+            {
+                return BuildTusker(height);
+            }
+
             var root = Root("Quadruped");
 
             // **比は時代ごとに違う。同じ姿を使い回さない。**
@@ -3100,27 +3108,6 @@ namespace CivilizationToSpace.View
                 new Vector3(0f, headY, headZ),
                 new Vector3(body * 0.12f, body * 0.11f, body * 0.22f));
 
-            // 牙。まっすぐ1本では棒に見えるので、2節つないで前へ反らせる。
-            if (current.CreatureTusks)
-            {
-                for (var i = 0; i < 2; i++)
-                {
-                    var side = i == 0 ? 1f : -1f;
-                    var root0 = new Vector3(
-                        side * body * 0.10f, headY - body * 0.04f, headZ + body * 0.10f);
-
-                    var lower = Piece(root, PrimitiveType.Cylinder, "Creature",
-                        root0 + new Vector3(side * body * 0.02f, -body * 0.07f, body * 0.13f),
-                        new Vector3(body * 0.055f, body * 0.16f, body * 0.055f));
-                    lower.transform.localRotation = Quaternion.Euler(72f, 0f, side * 10f);
-
-                    var upper = Piece(root, PrimitiveType.Cylinder, "Creature",
-                        root0 + new Vector3(side * body * 0.05f, -body * 0.05f, body * 0.34f),
-                        new Vector3(body * 0.045f, body * 0.14f, body * 0.045f));
-                    upper.transform.localRotation = Quaternion.Euler(112f, 0f, side * 10f);
-                }
-            }
-
             for (var i = 0; i < 10; i++)
             {
                 var t = i / 9f;
@@ -3144,6 +3131,141 @@ namespace CivilizationToSpace.View
             }
 
             return root;
+        }
+
+        /// <summary>
+        /// 牙のある四つ足（マンモスにならう）。
+        ///
+        /// **形は試作から移している。** `docs/prototypes/mammoth.html` は
+        /// 距離関数を光線でたどって描いており、ここは球の組み立てなので、
+        /// 描き方はまったく違う。**移しているのは各部の位置と太さの比だけである。**
+        /// 試作の座標は「前・上・横」で、頭の上までがおよそ3.52ある。
+        /// その高さで割って、与えられた背丈へ合わせる。
+        ///
+        /// **マンモスらしさは4つから来る。** 高い肩から後ろへ下がる背、
+        /// 丸く盛り上がった頭頂、垂れる鼻、外へ張り出してから前で持ち上がり
+        /// 内へ巻く牙である。耳は小さい。寒いところの獣は耳が小さく、
+        /// そこが象との違いになる。
+        ///
+        /// **特定の種を写したものではない。** 毛の色も長さも分かっていない。
+        /// </summary>
+        private GameObject BuildTusker(float height)
+        {
+            var root = Root("Quadruped");
+            var s = height / 3.52f;
+
+            // 胴。前が高く、後ろへ下がる。
+            TuskerBall(root, s, new Vector3(-0.20f, 1.95f, 0f), new Vector3(1.55f, 0.95f, 0.95f));
+            TuskerBall(root, s, new Vector3(0.75f, 2.45f, 0f), new Vector3(0.85f, 0.70f, 0.80f));
+            TuskerBall(root, s, new Vector3(-1.25f, 1.85f, 0f), new Vector3(0.75f, 0.75f, 0.82f));
+
+            // 頭。丸い頭頂と、小さな耳。
+            TuskerBall(root, s, new Vector3(1.75f, 2.55f, 0f), new Vector3(0.62f, 0.72f, 0.60f));
+            TuskerBall(root, s, new Vector3(1.62f, 3.12f, 0f), new Vector3(0.42f, 0.40f, 0.36f));
+            TuskerBall(root, s, new Vector3(1.45f, 2.62f, 0.56f), new Vector3(0.20f, 0.26f, 0.07f));
+            TuskerBall(root, s, new Vector3(1.45f, 2.62f, -0.56f), new Vector3(0.20f, 0.26f, 0.07f));
+
+            // 鼻。太いところから細いところへ垂らす。
+            TuskerChain(root, s,
+                new[]
+                {
+                    new Vector3(2.22f, 2.45f, 0f), new Vector3(2.52f, 1.85f, 0f),
+                    new Vector3(2.62f, 1.20f, 0f), new Vector3(2.50f, 0.62f, 0f),
+                    new Vector3(2.68f, 0.36f, 0f),
+                },
+                new[] { 0.28f, 0.21f, 0.16f, 0.12f, 0.10f }, 1f);
+
+            // 尾。短い。長いと別の獣に見える。
+            TuskerChain(root, s,
+                new[] { new Vector3(-1.95f, 2.15f, 0f), new Vector3(-2.20f, 1.55f, 0f) },
+                new[] { 0.09f, 0.05f }, 1f);
+
+            // 牙。下へ出て外へ張り出し、前で持ち上がって内へ巻く。
+            var tusk = new[]
+            {
+                new Vector3(2.05f, 2.20f, 0.28f), new Vector3(2.30f, 1.72f, 0.40f),
+                new Vector3(2.65f, 1.38f, 0.56f), new Vector3(3.05f, 1.30f, 0.70f),
+                new Vector3(3.42f, 1.48f, 0.68f), new Vector3(3.62f, 1.85f, 0.52f),
+                new Vector3(3.58f, 2.22f, 0.28f),
+            };
+            var tuskRadii = new[] { 0.13f, 0.12f, 0.11f, 0.095f, 0.08f, 0.06f, 0.03f };
+            TuskerChain(root, s, tusk, tuskRadii, 1f);
+            TuskerChain(root, s, tusk, tuskRadii, -1f);
+
+            // 脚。腰は胴の中まで入れ、足先は地面に付ける。
+            TuskerLeg(root, s, new Vector3(0.95f, 1.85f, 0.50f), new Vector3(0.95f, 0.30f, 0.52f));
+            TuskerLeg(root, s, new Vector3(0.95f, 1.85f, -0.50f), new Vector3(0.95f, 0.30f, -0.52f));
+            TuskerLeg(root, s, new Vector3(-1.25f, 1.75f, 0.50f), new Vector3(-1.30f, 0.30f, 0.52f));
+            TuskerLeg(root, s, new Vector3(-1.25f, 1.75f, -0.50f), new Vector3(-1.30f, 0.30f, -0.52f));
+
+            return root;
+        }
+
+        /// <summary>
+        /// 試作の「前・上・横」の座標へ球を1つ置く。
+        /// Unity では前がZ、横がXなので、入れ替えて渡す。
+        /// 半径で受け取り、置くときに直径へ直す。
+        /// </summary>
+        private void TuskerBall(GameObject root, float s, Vector3 at, Vector3 radii)
+        {
+            Piece(root, PrimitiveType.Sphere, "Creature",
+                new Vector3(at.z * s, at.y * s, at.x * s),
+                new Vector3(radii.z * 2f * s, radii.y * 2f * s, radii.x * 2f * s));
+        }
+
+        /// <summary>
+        /// 折れ線に沿って球を並べる。離すと数珠に見えるので区間ごとに刻む。
+        /// side に -1 を渡すと左右を返す。牙のもう一方に使う。
+        /// </summary>
+        private void TuskerChain(GameObject root, float s, Vector3[] path, float[] radii, float side)
+        {
+            for (var i = 0; i < path.Length - 1; i++)
+            {
+                var a = path[i];
+                var b = path[i + 1];
+                TuskerBone(root, s,
+                    new Vector3(a.x, a.y, a.z * side),
+                    new Vector3(b.x, b.y, b.z * side),
+                    radii[i], radii[i + 1]);
+            }
+        }
+
+        /// <summary>
+        /// 試作の座標で、2点のあいだに1本の骨（カプセル）を渡す。
+        ///
+        /// **球を並べると数珠に見える。** 試作は距離関数どうしを滑らかにつないで
+        /// いるので、脚も鼻も牙も一続きに見える。球の列で真似ると、粒の輪郭が
+        /// そのまま出て、つながって見えない。実際そうなった。
+        /// カプセルなら両端が丸いので、節どうしの継ぎ目も埋まる。
+        /// </summary>
+        private void TuskerBone(GameObject root, float s, Vector3 a, Vector3 b, float ra, float rb)
+        {
+            var p0 = new Vector3(a.z * s, a.y * s, a.x * s);
+            var p1 = new Vector3(b.z * s, b.y * s, b.x * s);
+            var dir = p1 - p0;
+            var length = dir.magnitude;
+            if (length < 0.0001f)
+            {
+                return;
+            }
+
+            // 太さは両端の平均で取る。半径2つぶんが直径にあたる。
+            var thickness = (ra + rb) * s;
+
+            // カプセルは丸い端を含めて高さ2なので、縦の拡大率は長さの半分。
+            // 太いものが短いと端の丸みで潰れるので、下限を太さに合わせる。
+            var piece = Piece(root, PrimitiveType.Capsule, "Creature", (p0 + p1) * 0.5f,
+                new Vector3(thickness, Mathf.Max(length * 0.5f, thickness * 0.5f), thickness));
+            piece.transform.localRotation = Quaternion.FromToRotation(Vector3.up, dir.normalized);
+        }
+
+        /// <summary>腰から足先まで、太さの変わる脚を1本通す。</summary>
+        private void TuskerLeg(GameObject root, float s, Vector3 hip, Vector3 foot)
+        {
+            // 膝で一度折る。まっすぐ通すと柱にしか見えない。
+            var knee = Vector3.Lerp(hip, foot, 0.5f) + new Vector3(0.06f, 0f, 0f);
+            TuskerBone(root, s, hip, knee, 0.42f, 0.34f);
+            TuskerBone(root, s, knee, foot, 0.34f, 0.30f);
         }
 
         /// <summary>二本足の生きもの。胴を立て、尾で釣り合わせる。</summary>
