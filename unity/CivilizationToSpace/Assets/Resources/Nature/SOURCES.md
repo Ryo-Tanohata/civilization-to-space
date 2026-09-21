@@ -66,6 +66,7 @@ Blender は 5.2 を使いました。
 | `sdf_ceratopsian.obj` + `.mtl` | 角と襟飾りのある四つ足 | 格子2.2cmで網目にし、面を減らした | 4,500 | 0.25 MB |
 | `sdf_theropod.obj` + `.mtl` | 二本足の大型 | 格子2.4cmで網目にし、面を減らした | 4,500 | 0.25 MB |
 | `sdf_person.obj` + `.mtl` | 立っている人 | 格子1.0cmで網目にし、面を減らした | 2,500 | 0.14 MB |
+| `sdf_tetrapod.obj` + `.mtl` | 低く這う四肢動物 | 格子1.0cmで網目にし、面を減らした | 3,000 | 0.16 MB |
 
 焼き方は [bake_creatures.py](../../../../../docs/prototypes/bake_creatures.py)。
 `python3 bake_creatures.py 出力先` で5つとも作り直せる（scikit-image と

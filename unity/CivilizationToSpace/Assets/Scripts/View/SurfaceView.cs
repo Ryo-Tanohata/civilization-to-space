@@ -110,6 +110,12 @@ namespace CivilizationToSpace.View
             public bool People;
 
             /// <summary>
+            /// 陸に上がったころの四肢動物を置くか。森林と陸上生態系の時代だけで立てる。
+            /// 脚を体の横へ張り出した姿なので、あとの時代の獣とは見間違えない。
+            /// </summary>
+            public bool EarlyTetrapods;
+
+            /// <summary>
             /// 遠景に貼る写真の名前（Resources/Sky/ の中）。空なら描いた空を使う。
             ///
             /// **作った空には限界がある。** 色の帯と、手で作った雲と、
@@ -3116,6 +3122,24 @@ namespace CivilizationToSpace.View
 
         private GameObject BuildQuadruped(float height)
         {
+            // **陸に上がったころの四肢動物。人と同じく背丈を固定する。**
+            //
+            // `CreatureHeight` を立てると、カメラが「主役が草木よりずっと低い
+            // 時代」の分岐に入り、原点から2.6mまで寄ってしまう。あれは氷期
+            // （草木9m・獣3.6m・置き場所は5mから）のための決めで、30mの木が
+            // 立つ森では、カメラだけが手前へ来て獣は遠くに残る。実際そうなった。
+            //
+            // 背丈は2.0mを基準に1割半だけ散らす。低くて長いので全長は10mほど
+            // になる。30mの木の下では、これより小さいと地面の模様に紛れる。
+            if (current.EarlyTetrapods)
+            {
+                var early = TryModel("sdf_tetrapod", 2.0f + (float)(random.NextDouble() * 0.6 - 0.3));
+                if (early != null)
+                {
+                    return early;
+                }
+            }
+
             // **恐竜も距離関数から焼いた網目で置く。**
             // 球を連ねた形では、首も胴も尾も同じ大きさの玉の列にしかならなかった。
             // 焼いた網目なら、首の付け根から頭までが一続きに細っていく。

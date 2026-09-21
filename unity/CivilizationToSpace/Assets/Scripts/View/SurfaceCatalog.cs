@@ -227,7 +227,18 @@ namespace CivilizationToSpace.View
             // 遠景は写真。**これは現在の針葉樹林である。** 石炭紀の森でも
             // 白亜紀の森でもない。表しているのは「木が密に立ち並ぶ奥行き」だけ。
             land.Backdrop = "backdrop_forest";
-            land.Quadrupeds = 0;
+
+            // **陸上生態系の時代に、生きものが1匹もいなかった。**
+            // 木と下生えだけの森で、時代の名が示すものが画面に無かった。
+            // 低く這う四肢動物を木の下へ撒く。脚を体の横へ張り出した姿なので、
+            // あとの時代の獣とは見間違えない。
+            //
+            // **数を多くする。** 5匹では、奥行き260m・幅190mの野に散ってしまい、
+            // 画面に1匹も入らないことが実際に起きた。撒く範囲は変えず数で埋める。
+            // 背丈は場面から出さず、人と同じく固定する（理由は SurfaceView 側）。
+            land.Quadrupeds = 16;
+            land.EarlyTetrapods = true;
+
             land.Bipeds = 0;
             land.DeadTrunks = 0;
             land.Buildings = 0;
