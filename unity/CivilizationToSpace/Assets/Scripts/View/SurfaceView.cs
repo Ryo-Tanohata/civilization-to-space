@@ -28,6 +28,21 @@ namespace CivilizationToSpace.View
             public Color SkyHigh;
             public Color SkyLow;
 
+            /// <summary>
+            /// 煙霧の濃さ。0なら掛けない。
+            ///
+            /// **写真の青空を、この時代の空の色へ寄せるための値である。**
+            /// 遠景に写真を敷くと、上の2色から作った縦の帯は使われない。
+            /// そのため産業の時代は、灰色の空（SkyHigh・SkyLow）を持っているのに
+            /// 画面には写真の青空が出ていた。指定した色が一度も見えていなかった。
+            ///
+            /// 塵が同じ問題をすでに解いている。写真から縦の帯へ混ぜる道
+            /// （シェーダーの _Blend）があるので、そこへ定数として与える。
+            /// 1にすると写真が消えて遠くの丘も失われるので、途中で止める。
+            /// 丘が霞んで残ることが、煙で見通しが利かないことになる。
+            /// </summary>
+            public float Smog;
+
             /// <summary>地面の色。</summary>
             public Color Ground;
 
@@ -1675,7 +1690,10 @@ namespace CivilizationToSpace.View
             // 色を掛けるだけでは青空の青が残る。塵が日を遮った空は
             // 色を失うので、写真から縦の帯（塵で平らに塗ってある）へ
             // 混ぜていく。遠くの丘も一緒に沈み、見通しが利かなくなる。
-            skyMaterial.SetFloat("_Blend", dustCover);
+            // **煙霧も同じ道を通す。** 産業の時代は灰色の空を持っているが、
+            // 写真があるとその色は使われない。濃いほうを採れば、
+            // ふだんは煙霧の分だけ寄り、衝突では塵が上書きする。
+            skyMaterial.SetFloat("_Blend", Mathf.Max(current.Smog, dustCover));
         }
 
         /// <summary>地面の帯を今の色で塗り直す。遠いぶんは空の色へ寄せる。</summary>
