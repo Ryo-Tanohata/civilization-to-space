@@ -528,7 +528,13 @@ namespace CivilizationToSpace.View
         private static SurfaceView.Landscape Industrial()
         {
             var land = Town(9);
-            land.SkyHigh = Hex(0x74808C);
+
+            // **空から青を抜く。** 以前は #74808C を置いていたが、これは青が赤より
+            // 24高い「青みを帯びた灰」である。遠景写真の青空（青が赤より63高い）へ
+            // 煙霧で寄せても、青と青みがかった灰を混ぜることになり、測ると+49で
+            // 青が残った。煙で濁った空は色味を失うので、色相を抜いた灰にする。
+            // 明度は125のまま変えない。暗くするのではなく、色を抜くのが煙である。
+            land.SkyHigh = Hex(0x7C7C78);
             land.SkyLow = Hex(0xC8C2B4);
 
             // **空を濁らせる。** 煙が出る時代なので、青くは晴れない。

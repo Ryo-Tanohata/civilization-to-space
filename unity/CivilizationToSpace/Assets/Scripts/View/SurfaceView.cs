@@ -43,6 +43,14 @@ namespace CivilizationToSpace.View
             /// </summary>
             public float Smog;
 
+            /// <summary>
+            /// 煙突から出る煙の色。既定（黒）なら空の色から作る。
+            ///
+            /// **役として持たせる。** 自前の材質で置くと、置いたあとの
+            /// 塗り直しと霞から外れ、奥の煙突の煙だけが霞まずに浮く。
+            /// </summary>
+            public Color Smoke;
+
             /// <summary>地面の色。</summary>
             public Color Ground;
 
@@ -508,6 +516,7 @@ namespace CivilizationToSpace.View
         /// 地面から噴煙が出ていれば、いま地面を離れたことが読める。
         /// </summary>
         private Transform padSmoke;
+
         private Material rocketMaterial;
         private Material flameMaterial;
         private Material bandMaterial;
@@ -2587,6 +2596,14 @@ namespace CivilizationToSpace.View
                 case "Tusk":
                     return Color.Lerp(current.Creature, new Color(0.86f, 0.82f, 0.70f), 0.55f);
                 case "Rock": return current.Rock;
+                case "Smoke":
+                    // **空よりわずかに沈める。** 空の色を黒へ25%寄せたときは、
+                    // 淡い空に黒い玉が並ぶ絵になった。煤の煙が暗いのは確かだが、
+                    // 日を受けた煙は空とほぼ同じ明るさで、輪郭でしか分からない。
+                    // ここは色の差ではなく、形が見えるぶんだけ沈めば足りる。
+                    return current.Smoke.maxColorComponent > 0.001f
+                        ? current.Smoke
+                        : Color.Lerp(current.SkyHigh, Color.white, 0.10f);
                 case "Building": return current.Building;
                 case "Window": return current.Window;
                 case "RoofPanel": return current.RoofPanel;
@@ -2782,6 +2799,53 @@ namespace CivilizationToSpace.View
         }
 
         /// <summary>
+        /// 煙突の口から立ちのぼる煙。球を重ねて作る。
+        ///
+        /// **形の語彙は増やさない。** 打ち上げの噴煙と同じく球である。
+        ///
+        /// **加算で光らせない。** はじめ噴煙と同じ AdditiveGlow へ淡い色を
+        /// 置いたところ、明るい空に淡い色を足しても何も変わらず、煙が
+        /// まるごと消えた。煤の煙は空より暗いので、不透明で置いて沈ませる。
+        ///
+        /// **役として置く。** 置いたあとの塗り直しと霞に乗るので、
+        /// 奥の煙突の煙も遠さの分だけ空へ溶ける。
+        /// </summary>
+        private void BuildChimneySmoke(GameObject root, float height)
+        {
+            // **口の太さを基準にする。** 煙突の口は height*0.030 しかない。
+            // はじめ height*0.20 まで太らせたところ、口の7倍・直径15mになり、
+            // 煙ではなく煙突に生えたきのこに見えた。
+            const float mouth = 0.030f;
+
+            // **隣と重ねる。** 次に口の1.2〜2.4倍まで絞ったが、今度は球の
+            // 直径より間隔のほうが広くなり、黒い玉が弧を描いて並ぶ数珠になった。
+            // 玉の列ではなく一続きの煙に見せるには、間隔を直径より狭くする。
+            const int puffs = 9;
+            var rise = height * (0.42f + (float)random.NextDouble() * 0.14f);
+            var drift = height * (0.20f + (float)random.NextDouble() * 0.10f);
+
+            for (var i = 0; i < puffs; i++)
+            {
+                var t = (i + 1) / (float)puffs;
+
+                // 立ちのぼるほど広がってほどける。
+                var r = height * Mathf.Lerp(mouth * 1.1f, mouth * 3.2f, t);
+
+                // **並びを崩す。** 同じ式で並べると、きれいな放物線になって
+                // 煙に見えない。上へ行くほど散らばりを大きくする。
+                var jitter = r * 0.55f;
+                var wobble = new Vector3(
+                    (float)(random.NextDouble() * 2.0 - 1.0) * jitter,
+                    (float)(random.NextDouble() * 2.0 - 1.0) * jitter * 0.6f,
+                    (float)(random.NextDouble() * 2.0 - 1.0) * jitter);
+
+                Piece(root, PrimitiveType.Sphere, "Smoke",
+                    new Vector3(drift * t * t, height + rise * t, drift * t * t * 0.45f) + wobble,
+                    new Vector3(r, r * (0.72f + (float)random.NextDouble() * 0.3f), r));
+            }
+        }
+
+        /// <summary>
         /// 煙突。**建屋より高く、細く、まっすぐ立てる。**
         ///
         /// 産業の段階を他から分ける唯一の形である。建物の高さや密さは前後の
@@ -2822,6 +2886,18 @@ namespace CivilizationToSpace.View
                 Piece(root, PrimitiveType.Cylinder, "Window",
                     new Vector3(0f, height * 0.985f, 0f),
                     new Vector3(height * 0.070f, height * 0.018f, height * 0.070f));
+
+                // **口から煙を出す。** 縁を濃くしただけでは「出るところ」しか
+                // 表せず、出ているかどうかは読めない。煙突を立てた意味は
+                // 動力が機械へ移ったことにあるので、動いていることが要る。
+                //
+                // **形の語彙は増やさない。** 打ち上げの噴煙と同じく、球を重ねて
+                // 作る。上へ行くほど大きく、薄く、横へ流す。まっすぐ上へ
+                // 同じ太さで伸ばすと、煙ではなく白い柱になった。
+                //
+                // 風向きは煙突ごとに変えない。同じ土地の風なので、
+                // ばらばらに流すと煙に見えず、湯気の集まりになる。
+                BuildChimneySmoke(root, height);
 
                 root.transform.SetParent(transform, false);
                 root.transform.localPosition = new Vector3(x, GroundHeight(x, z), z);
