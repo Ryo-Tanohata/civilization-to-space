@@ -13,7 +13,13 @@ namespace CivilizationToSpace.Core
     public static class CatalogNormalizer
     {
         private static readonly string[] SupportedSchemaVersions = { "1.0.0" };
-        private const int RequiredEraCount = 10;
+        // **時代を足したらここも直す。** 産業と機械を足して11時代にしたとき、
+        // データ（earth-eras.json）と site/app.js の REQUIRED_ERA_COUNT は
+        // 11へ直されたが、ここが10のまま残った。件数が合わないので
+        // 読み込みが丸ごと失敗し、アプリは縮退した状態で起動していた。
+        // エディタの書き出し（SurfaceProbe）は SurfaceCatalog を直に読むため、
+        // この経路を通らず、症状が出なかった。
+        private const int RequiredEraCount = 11;
 
         private static readonly string[] RatioKeys =
         {
