@@ -12,6 +12,7 @@
     "Impact",
     "IceAge",
     "Humans",
+    "Industrial",
     "Information",
     "Future"
   ],
@@ -200,7 +201,8 @@
           "雲と塵：最大",
           "植生：激減",
           "空：暗い",
-          "続いた長さ：数年〜数十年", "冷えかた：氷点下の年が数年"
+          "続いた長さ：数年〜数十年",
+          "冷えかた：氷点下の年が数年"
         ]
       },
       "events": [
@@ -275,10 +277,43 @@
       "status": "象徴表現案・年代は出典あり"
     },
     {
+      "id": "Industrial",
+      "displayName": "産業と機械",
+      "rangeLabel": "動力が機械へ移った時代（象徴）",
+      "sortOrder": 9,
+      "summary": "人と家畜の力で動いていた仕事が、機械の力へ移ります。画面では、煙突のある建屋と、同じ形の住まいが並ぶ姿として表しています。年代・地域・産業の種類は表していません。",
+      "visual": {
+        "cityLights": 0.34,
+        "cloudDensity": 0.46,
+        "earthColor": "#1b3f57",
+        "emissionColor": "#7a6a4a",
+        "iceCoverage": 0.1,
+        "oceanLevel": 0.9,
+        "satelliteCount": 0,
+        "vegetation": 0.62,
+        "volcanicActivity": 0.04
+      },
+      "presentation": {
+        "caption": "煙突が立ち、同じ形の住まいが並ぶ地球",
+        "storyboardCut": "カット9 産業",
+        "tags": [
+          "煙：立つ",
+          "灯り：増える",
+          "植生：減る",
+          "衛星：なし"
+        ]
+      },
+      "events": [
+        "動力が人と家畜から機械へ移る",
+        "働く人が都市へ集まる"
+      ],
+      "status": "象徴表現案・出典未検証"
+    },
+    {
       "id": "Information",
       "displayName": "情報・地球規模接続",
       "rangeLabel": "人類の活動から情報化へ（象徴）",
-      "sortOrder": 9,
+      "sortOrder": 10,
       "summary": "人類の活動と文明の登場を入口に、地球規模の接続へ視点を移します。光点と線は通信網の実データではなく、つながりの象徴表現です。",
       "visual": {
         "earthColor": "#173d5c",
@@ -293,7 +328,7 @@
       },
       "presentation": {
         "caption": "青緑の地球に光点と接続線が並び、周回する衛星が見える象徴的な地球",
-        "storyboardCut": "カット5・6 人類と情報化",
+        "storyboardCut": "カット10 人類と情報化",
         "tags": [
           "接続表現：高",
           "都市光：高",
@@ -311,7 +346,7 @@
       "id": "Future",
       "displayName": "未来の分岐",
       "rangeLabel": "未確定の未来（仮想）",
-      "sortOrder": 10,
+      "sortOrder": 11,
       "summary": "未来は一つに決まった結末ではありません。ここでは条件の異なる複数の姿を比べるための入口として、同じ地球を仮想的に表しています。",
       "visual": {
         "earthColor": "#14415a",
@@ -326,7 +361,7 @@
       },
       "presentation": {
         "caption": "同じ地球に、案ごとに異なる緑と光を重ねた仮想的な地球",
-        "storyboardCut": "カット7 未来分岐",
+        "storyboardCut": "カット11 未来分岐",
         "tags": [
           "仮想シナリオ",
           "案別の植生・接続・光",
