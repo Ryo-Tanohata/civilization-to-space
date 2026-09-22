@@ -9,7 +9,7 @@ CC0 なので、商用利用・改変・再配布が自由で、クレジット�
 | --- | --- | --- |
 | `backdrop_forest.jpg` | [misty_pines](https://polyhaven.com/a/misty_pines) | 3 森林と陸上生態系 |
 | `backdrop_dry_scrub.jpg` | [goegap](https://polyhaven.com/a/goegap) | 4 巨大生物の時代 / 5 衝突 |
-| `backdrop_snow_steppe.jpg` | [snowy_field](https://polyhaven.com/a/snowy_field) | 6 氷期 |
+| `backdrop_snow_plain.jpg` | [snow_field_2](https://polyhaven.com/a/snow_field_2) | 7 氷期 |
 | `backdrop_meadow.jpg` | [meadow_2](https://polyhaven.com/a/meadow_2) | 7 人類の広がり |
 | `backdrop_wide_plain.jpg` | [rustig_koppie](https://polyhaven.com/a/rustig_koppie) | 8 情報と接続 / 9 未来の分岐 |
 
@@ -26,6 +26,23 @@ CC0 なので、商用利用・改変・再配布が自由で、クレジット�
 | 雪におおわれた野と、まばらな裸の木 | 氷期の景観 |
 | 草地と、その向こうの林 | アナトリアの新石器時代の風景 |
 | 高いところから見下ろす広い野 | 実在の都市とその地形 |
+
+## 氷期の写真を入れ替えたこと
+
+はじめは [snowy_field](https://polyhaven.com/a/snowy_field) を使っていた。
+しかしこの写真は地平線が裸の木で埋まっており、**3D側の草木をすべて0にして
+「氷期の原に大きな木が無い」と表しているそばから、背景がそれを否定していた。**
+
+Poly Haven の全天球997件からタグを引き、`tree` を持たない雪の写真を探した。
+候補は snow_field と snow_field_2 の2件。**snow_field には電線と電柱が写る。**
+氷期の場面に送電線は、樹列より明確な時代錯誤なので避けた。
+
+snow_field_2 にしたことで、木は地平線の細い帯まで下がった。曇天なので
+空が平らになるが、氷期としてはそのほうが読める。地平線をまたぐ明度の段差は
+103 → 10 になり、完全に飽和する画素は 6.8% → 0.5% へ下がった。
+
+右手の遠くに小さな家が写っている。**これも現在の写真であることの印であり、
+消していない。** 消すと、写真であることを隠したことになる。
 
 **写真の光は動きません。** 時刻が移ると、絵の上から色を掛けて夜や朝夕にしていますが、
 **影の向きは写真に焼き付いたままです。** そこは表せていません。

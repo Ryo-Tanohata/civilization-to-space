@@ -457,7 +457,12 @@ namespace CivilizationToSpace.View
 
             // 遠景は写真。**これは現在の雪の野である。** 氷期の景観ではない。
             // 表しているのは「雪におおわれた平らな野と、まばらな裸の木」だけ。
-            land.Backdrop = "backdrop_snow_steppe";
+            // **木の無い雪原へ替える。** これまでの snowy_field は地平線が
+            // 裸の木で埋まっており、3D側の草木をすべて0にして「氷期の原に
+            // 大きな木が無い」と表しているそばから、背景がそれを否定していた。
+            // Poly Haven の snow_field_2（CC0）は開けた雪原で、木は地平線の
+            // 細い帯に下がる。電線の写る snow_field は避けた。
+            land.Backdrop = "backdrop_snow_plain";
             return land;
         }
 
