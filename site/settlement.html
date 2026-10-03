@@ -1,0 +1,1304 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>集落の暮らし — Civilization to Space</title>
+<meta name="description" content="焚き火や井戸、市場が「ここで何ができるか」を知らせ、人が席を予約して集まり、しばらくして立ち去る。狩猟採集・農耕・都市の3つの時代で比べる。">
+<style>
+:root{
+  --bg:#17141b; --ink:#ece5d6; --muted:#a59c88; --line:#a08e6b;
+  --ed:#211c27; --grid:rgba(255,255,255,.035); --node:#2b2531; --nodeLine:#b9a24a;
+  --pre:#2f4fa8; --preText:#e6efff; --act:#a8502a; --actText:#fff1e6;
+  --glow:#4aa3ff; --link:#9a6ad8; --on:#e6dcc4; --onText:#2a2016;
+  color-scheme:dark; box-sizing:border-box;
+}
+html{background:var(--bg);}
+body{margin:0; background:var(--bg); color:var(--ink);
+  font-family:"Hiragino Sans","Noto Sans JP","Yu Gothic",system-ui,sans-serif;}
+*,*::before,*::after{box-sizing:inherit;}
+.stage{display:grid; gap:8px; padding:calc(8px + env(safe-area-inset-top,0px)) 8px 0;
+  grid-template-areas:"head" "view" "editor" "ctrl";}
+.head{grid-area:head; display:flex; justify-content:space-between; align-items:baseline; gap:8px; padding:2px 4px;}
+.head h1{font-size:.95rem; margin:0; font-weight:700;}
+.head p{margin:2px 0 0; font-size:.72rem; color:var(--muted);}
+.back{font-size:.72rem; color:var(--ink); white-space:nowrap;}
+.win{background:var(--ed); border:1px solid #3a3242; border-radius:6px; overflow:hidden; display:flex; flex-direction:column;}
+.win > .bar{font-size:.7rem; color:var(--muted); padding:4px 9px; background:#2a2330; border-bottom:1px solid #3a3242;
+  display:flex; justify-content:space-between; align-items:center; gap:8px;}
+.win > .bar b{color:var(--ink); font-weight:600;}
+.viewWin{grid-area:view; height:44vh; min-height:260px;}
+.view{position:relative; flex:1; min-height:0;}
+canvas{position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:manipulation;}
+.editor{grid-area:editor;}
+.canvasBg{background-color:var(--ed);
+  background-image:linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size:22px 22px; padding:10px; display:flex; flex-direction:column; gap:12px;}
+.sec{font-size:.68rem; color:var(--muted); margin:0 0 5px; letter-spacing:.04em;}
+.fsm{display:flex; flex-wrap:wrap; gap:4px; align-items:center;}
+.pill{font-size:.72rem; padding:3px 9px; border-radius:999px; border:1px solid #4a4152; color:var(--muted);}
+.pill.on{border-color:var(--glow); color:#fff; box-shadow:0 0 0 1px var(--glow), 0 0 10px rgba(74,163,255,.55); background:#1d3350;}
+.fsm .sep{color:#5a5162; font-size:.7rem;}
+.goal{display:inline-flex; gap:8px; align-items:center; background:var(--node); border:1px solid var(--nodeLine);
+  border-radius:5px; padding:6px 10px; font-size:.8rem;}
+.goal small{color:var(--muted); font-size:.7rem;}
+.chain{display:flex; flex-wrap:wrap; align-items:stretch; gap:6px;}
+.card{background:var(--node); border:1px solid var(--nodeLine); border-radius:6px; padding:6px; width:9.6em;
+  display:flex; flex-direction:column; gap:4px; position:relative;}
+.card.done{opacity:.45;}
+.card.now{border-color:var(--glow); box-shadow:0 0 0 2px var(--glow), 0 0 16px rgba(74,163,255,.6);}
+.card .tag{position:absolute; top:-9px; left:8px; font-size:.6rem; background:var(--glow); color:#06121f; padding:0 5px; border-radius:3px;}
+.chip{font-size:.68rem; line-height:1.35; padding:3px 6px; border-radius:3px; background:var(--pre); color:var(--preText);}
+.chip.none{background:#3a3442; color:var(--muted);}
+.act{font-size:.78rem; line-height:1.35; padding:5px 6px; border-radius:3px; background:var(--act); color:var(--actText); font-weight:600;}
+.act small{display:block; font-weight:400; font-size:.64rem; opacity:.85;}
+.prog{height:3px; background:#3a3442; border-radius:2px; overflow:hidden;}
+.prog i{display:block; height:100%; background:var(--glow);}
+.link{align-self:center; color:var(--link); font-size:.9rem; padding:0 1px;}
+.bb{display:grid; grid-template-columns:auto 1fr auto; gap:3px 8px; font-size:.72rem; align-items:center; max-width:22em;}
+.meter{height:6px; background:#3a3442; border-radius:3px; overflow:hidden;}
+.meter i{display:block; height:100%;}
+.items{display:flex; gap:4px; flex-wrap:wrap; font-size:.7rem;}
+.item{padding:1px 7px; border-radius:999px; color:#1b1610; font-weight:600;}
+.cands{display:flex; flex-direction:column; gap:3px; font-size:.7rem;}
+.cand{display:grid; grid-template-columns:1.2em 1fr 4.5em; gap:6px; align-items:center; color:var(--muted);}
+.cand.pick{color:var(--ink);}
+.cand .cost{height:5px; background:#3a3442; border-radius:3px; overflow:hidden;}
+.cand .cost i{display:block; height:100%; background:#8a7a4a;}
+.cand.pick .cost i{background:var(--glow);}
+.log{font-size:.68rem; color:var(--muted); margin:0; padding-left:1.2em;}
+.log li{margin:0 0 2px;}
+.log b{color:var(--ink); font-weight:600;}
+.empty{font-size:.74rem; color:var(--muted);}
+.ctrl{grid-area:ctrl; position:sticky; bottom:0; background:#211c27; border-top:1px solid #3a3242;
+  margin:0 -8px; padding:8px 10px calc(8px + env(safe-area-inset-bottom,0px));
+  display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; font-size:.76rem;}
+.seg{display:flex; gap:4px; flex-wrap:wrap;}
+button{font:inherit; color:var(--ink); background:transparent; border:1px solid var(--line);
+  border-radius:4px; padding:3px 9px; min-height:32px; cursor:pointer;}
+button[aria-pressed="true"]{background:var(--on); color:var(--onText); border-color:var(--on);}
+button:focus-visible,input:focus-visible{outline:2px solid var(--glow); outline-offset:2px;}
+.bar button{min-height:24px; padding:0 7px; font-size:.68rem;}
+.cam{display:flex; gap:4px;}
+.cam button{min-width:26px;}
+#view{touch-action:none; cursor:grab;}
+canvas.view3d{touch-action:none; cursor:grab;}
+.clock{position:absolute; left:8px; top:6px; font-size:.72rem; color:rgba(241,233,218,.85); text-shadow:0 1px 2px #000; pointer-events:none;}
+label{display:flex; gap:6px; align-items:center;}
+input[type=range]{width:88px;}
+@media (min-width:900px){
+  html,body{height:100%;}
+  body{overflow:hidden;}
+  .stage{height:100%; padding-bottom:0; grid-template-columns:minmax(0,1fr) minmax(0,44%);
+    grid-template-rows:auto minmax(0,1fr) auto; grid-template-areas:"head head" "editor view" "ctrl ctrl";}
+  .viewWin{height:auto; min-height:0;}
+  .editor .canvasBg{flex:1; overflow:auto;}
+  .ctrl{position:static; margin:0 -8px;}
+}
+</style>
+</head>
+<body>
+<div class="stage">
+  <header class="head">
+    <div>
+      <h1>集落の暮らし</h1>
+      <p id="info">人は欲しいものから逆算して手順を組みます。左（スマホでは下）が、その人の頭の中です。</p>
+    </div>
+    <a class="back" href="index.html">← 地球の時代へ</a>
+  </header>
+
+  <section class="win editor" aria-label="AI Graph">
+    <div class="bar"><span><b>AI Graph</b>　<span id="who">観察する人を探しています</span></span>
+      <button id="follow" aria-pressed="true">自動で追う</button></div>
+    <div class="canvasBg">
+      <div>
+        <p class="sec">身体の状態（ステートマシン）</p>
+        <div class="fsm" id="fsm"></div>
+      </div>
+      <div>
+        <p class="sec">目標と計画（連鎖プランニング：前提 → 行動 → 結果）</p>
+        <div id="goal"></div>
+        <div class="chain" id="chain" style="margin-top:8px"></div>
+      </div>
+      <div>
+        <p class="sec">黒板（欲求と持ち物）</p>
+        <div class="bb" id="bb"></div>
+        <div class="items" id="items" style="margin-top:6px"></div>
+      </div>
+      <div>
+        <p class="sec">検討した手順（費用が小さいほど良い）</p>
+        <div class="cands" id="cands"></div>
+      </div>
+      <div>
+        <p class="sec">実行ログ（集落全体）</p>
+        <ol class="log" id="log" aria-live="polite"></ol>
+      </div>
+    </div>
+  </section>
+
+  <section class="win viewWin" aria-label="集落">
+    <div class="bar"><span><b>集落</b>　<span id="eraName"></span></span><span class="cam"><button id="zoomOut" aria-label="縮小">−</button><button id="zoomIn" aria-label="拡大">＋</button><button id="camAll">全体</button><button id="camFollow" aria-pressed="false">カメラで追う</button><button id="mode3d" aria-pressed="false">3D</button></span></div>
+    <div class="view">
+      <div class="clock" id="clock" hidden></div>
+      <canvas id="view" tabindex="0" aria-label="上から見た集落。ドラッグで移動、ホイールやピンチで拡大、人をタップすると観察できる"></canvas>
+    </div>
+  </section>
+
+  <div class="ctrl">
+    <div class="seg" role="group" aria-label="時代">
+      <button data-era="0" aria-pressed="true">狩猟採集</button>
+      <button data-era="1" aria-pressed="false">農耕</button>
+      <button data-era="2" aria-pressed="false">都市</button>
+    </div>
+    <label>人数 <input id="count" type="range" min="6" max="40" value="18"><span id="countOut">18</span></label>
+    <button id="pause" aria-pressed="false">一時停止</button>
+    <button id="speed" aria-pressed="false">3倍速</button>
+    <button id="debug" aria-pressed="false">席と欲求</button>
+    <button id="night" aria-pressed="true">昼と夜</button>
+  </div>
+</div>
+<script src="vendor/three.min.js"></script>
+<script src="settlement3d.js"></script>
+<script>
+'use strict';
+
+/* ---------- 世界のデータ（時代ごとの場所と、前提→行動→結果の札） ---------- */
+// 欲求は4つ：食・水・休・語。
+// 場所（スマートロケーション）は席を持つ。行動の札は、どの場所で行うか・前提の持ち物・
+// 結果として増える持ち物・減る持ち物・満たす欲求・かかる時間を持つ。
+// プランナーは札の「結果」と次の札の「前提」が合うようにつないで手順を組む。
+const NEEDS = ['食', '水', '休', '語'];
+const W = 100, H = 70;
+
+const ERAS = [
+  { name: '狩猟採集', ground: ['#cfc39f', '#3a3526'],
+    locations: [
+      { id: 'fire', label: '焚き火', kind: 'fire', x: 52, y: 36, r: 8, seats: 8, social: true },
+      { id: 'river', label: '川辺', kind: 'water', x: 12, y: 30, r: 6, seats: 3 },
+      { id: 'bush', label: '木の実の茂み', kind: 'bush', x: 82, y: 18, r: 6, seats: 3 },
+      { id: 'hunt', label: '獲物の解体場', kind: 'camp', x: 78, y: 56, r: 6, seats: 4, social: true }
+    ],
+    actions: [
+      { name: '実を採る', at: 'bush', add: ['木の実'], stay: [3, 5], work: true },
+      { name: '肉を切り分ける', at: 'hunt', add: ['生肉'], stay: [5, 8], work: true },
+      { name: '肉を焼く', at: 'fire', pre: ['生肉'], del: ['生肉'], add: ['焼いた肉'], stay: [4, 6], work: true },
+      { name: '焼いた肉を食べる', at: 'fire', pre: ['焼いた肉'], del: ['焼いた肉'], meet: { 食: 1.5, 語: 0.3 }, stay: [5, 8] },
+      { name: '木の実を食べる', at: 'fire', pre: ['木の実'], del: ['木の実'], meet: { 食: 1.0 }, stay: [4, 6] },
+      { name: '水を飲む', at: 'river', meet: { 水: 1.3 }, stay: [3, 5] },
+      { name: '火を囲んで語る', at: 'fire', meet: { 休: 1.0, 語: 0.9 }, stay: [9, 15] }
+    ] },
+  { name: '農耕', ground: ['#c9bf8e', '#363322'],
+    locations: [
+      { id: 'field', label: '畑', kind: 'field', x: 74, y: 20, r: 9, seats: 5 },
+      { id: 'mill', label: '石臼', kind: 'mill', x: 82, y: 52, r: 5, seats: 2 },
+      { id: 'oven', label: 'かまど', kind: 'oven', x: 56, y: 46, r: 5, seats: 2 },
+      { id: 'well', label: '井戸', kind: 'well', x: 36, y: 20, r: 5, seats: 3, social: true },
+      { id: 'bench', label: '家の前の縁台', kind: 'bench', x: 22, y: 52, r: 7, seats: 7, social: true }
+    ],
+    actions: [
+      { name: '麦を刈る', at: 'field', add: ['麦'], stay: [6, 10], work: true },
+      { name: '粉にひく', at: 'mill', pre: ['麦'], del: ['麦'], add: ['粉'], stay: [3, 5], work: true },
+      { name: 'パンを焼く', at: 'oven', pre: ['粉'], del: ['粉'], add: ['パン'], stay: [4, 6], work: true },
+      { name: 'パンを食べる', at: 'bench', pre: ['パン'], del: ['パン'], meet: { 食: 1.5, 語: 0.3 }, stay: [5, 8] },
+      { name: '水をくむ', at: 'well', add: ['水がめ'], stay: [2, 4], work: true },
+      { name: '水がめから飲む', at: 'bench', pre: ['水がめ'], del: ['水がめ'], meet: { 水: 1.4 }, stay: [3, 4] },
+      { name: '井戸でそのまま飲む', at: 'well', meet: { 水: 1.0 }, stay: [2, 4] },
+      { name: '井戸端で話す', at: 'well', meet: { 語: 0.9 }, stay: [4, 6] },
+      { name: '縁台で休む', at: 'bench', meet: { 休: 1.0, 語: 0.7 }, stay: [8, 12] }
+    ] },
+  { name: '都市', ground: ['#cbc4b3', '#33302b'],
+    locations: [
+      { id: 'workshop', label: '工房', kind: 'house', x: 84, y: 54, r: 6, seats: 4 },
+      { id: 'market', label: '市場', kind: 'market', x: 70, y: 24, r: 8, seats: 6, social: true },
+      { id: 'fountain', label: '噴水', kind: 'water', x: 34, y: 22, r: 5, seats: 4 },
+      { id: 'temple', label: '神殿の階段', kind: 'temple', x: 50, y: 54, r: 8, seats: 6, social: true },
+      { id: 'tavern', label: '酒場', kind: 'house', x: 16, y: 50, r: 6, seats: 5, social: true }
+    ],
+    actions: [
+      { name: '工房で働く', at: 'workshop', add: ['銀貨'], stay: [7, 11], work: true },
+      { name: '料理を買う', at: 'market', pre: ['銀貨'], del: ['銀貨'], add: ['料理'], stay: [3, 5] },
+      { name: '酒場で食べる', at: 'tavern', pre: ['料理'], del: ['料理'], meet: { 食: 1.5, 語: 0.4 }, stay: [6, 9] },
+      { name: '酒をおごって語る', at: 'tavern', pre: ['銀貨'], del: ['銀貨'], meet: { 語: 1.3 }, stay: [7, 10] },
+      { name: '噴水で飲む', at: 'fountain', meet: { 水: 1.3 }, stay: [3, 5] },
+      { name: '階段で休む', at: 'temple', meet: { 休: 1.0, 語: 0.6 }, stay: [9, 14] }
+    ] }
+];
+
+// 持ち物の色（人の横に小さな粒で描く）
+const ITEM_COLORS = { 木の実: '#7a3a6a', 生肉: '#c0504a', 焼いた肉: '#8a4a22', 麦: '#d9b84a', 粉: '#efe6cf',
+  パン: '#c08a3a', 水がめ: '#5a8fb0', 銀貨: '#c9c9c9', 料理: '#d07a3a' };
+
+/* ---------- 乱数（再現できるように種を持つ） ---------- */
+function makeRng(seed) {
+  let s = seed >>> 0 || 1;
+  return () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return (s >>> 0) / 4294967296; };
+}
+
+/* ---------- 手順を組む（記号による連鎖プランニング） ---------- */
+// 持ち物の組（state）から出発し、札を最大4手までつないで、
+// 最後の札が目当ての欲求を満たす手順をすべて探す。費用は移動距離と所要時間の和。
+function planFor(need, state, from, actions, locById) {
+  const plans = [];
+  const has = (inv, xs) => (xs || []).every(x => inv.includes(x));
+  // 寄り道を除く：途中で手に入れた物は、あとの手の前提でかならず使う
+  const useful = chain => chain.every((a, i) =>
+    !(a.add || []).length || i === chain.length - 1 ||
+    (a.add || []).every(x => chain.slice(i + 1).some(b => (b.pre || []).includes(x))));
+  function walk(inv, pos, steps, cost) {
+    for (const a of actions) {
+      if (!has(inv, a.pre)) continue;                       // 前提が満たされない札は使えない
+      if (steps.includes(a)) continue;
+      // すでに持っている物は取りに行かない。持てるのは3つまで
+      if ((a.add || []).some(x => inv.includes(x))) continue;
+      if ((a.add || []).length && inv.length - (a.del || []).length >= 3) continue;
+      const l = locById[a.at];
+      const c = cost + Math.hypot(l.x - pos.x, l.y - pos.y) / 4 + (a.stay[0] + a.stay[1]) / 2;
+      const next = inv.filter(x => !(a.del || []).includes(x)).concat(a.add || []);
+      const chain = steps.concat(a);
+      // 最後の一手は、目標の欲求を十分に（0.5以上）満たす札に限る
+      if (a.meet && a.meet[need] >= 0.5 && useful(chain)) plans.push({ steps: chain, cost: c / a.meet[need] });
+      else if (chain.length < 4 && (a.add || []).length) walk(next, l, chain, c);
+    }
+  }
+  walk(state, from, [], 0);
+  return plans.sort((p, q) => p.cost - q.cost);
+}
+
+/* ---------- シミュレーション本体（画面とは独立） ---------- */
+function createSim(eraIndex, count, seed, portrait) {
+  // 縦長の画面では世界ごと縦向きにする（x と y を入れ替えるだけ）
+  const w = portrait ? H : W, h = portrait ? W : H;
+  const rnd = makeRng(seed || 7);
+  const era = ERAS[eraIndex];
+  const log = [];
+  const stats = { plans: 0, chains: 0, steps: 0, replans: 0 };
+  let t = 0;
+
+  const locs = era.locations.map(l => {
+    if (portrait) l = Object.assign({}, l, { x: l.y, y: l.x });
+    const seats = [];
+    for (let i = 0; i < l.seats; i++) {
+      const a = (i / l.seats) * Math.PI * 2 + 0.3;
+      seats.push({ x: l.x + Math.cos(a) * l.r * 0.72, y: l.y + Math.sin(a) * l.r * 0.55, by: null });
+    }
+    return Object.assign({}, l, { seatList: seats, speaker: null, nextTurn: 0 });
+  });
+  const locById = Object.fromEntries(locs.map(l => [l.id, l]));
+  const actions = era.actions;
+
+  const npcs = [];
+  for (let i = 0; i < count; i++) {
+    const needs = {};
+    NEEDS.forEach(k => { needs[k] = rnd() * 0.5; });
+    npcs.push({
+      id: i, x: 6 + rnd() * (w - 12), y: 6 + rnd() * (h - 12), vx: 0, vy: 0,
+      needs, rate: NEEDS.reduce((o, k) => (o[k] = 0.012 + rnd() * 0.02, o), {}),
+      items: [], plan: null, stepIdx: 0, need: null,
+      state: 'wander', goal: null, loc: null, seat: null, leaveAt: 0, waitUntil: 0, cooldown: rnd() * 3,
+      hue: Math.floor(rnd() * 5)
+    });
+    pickWander(npcs[i]);
+  }
+
+  function say(pre, act, post) {
+    log.unshift({ t, pre, act, post });
+    if (log.length > 8) log.pop();
+  }
+  function pickWander(n) { n.goal = { x: 6 + rnd() * (w - 12), y: 6 + rnd() * (h - 12) }; }
+  function freeSeat(l) { return l.seatList.find(s => s.by === null); }
+  const step = n => n.plan && n.plan[n.stepIdx];
+
+  // 欲求の高い順に、手順が組めるか試す。最初の一手の場所に空席がある手順だけを採る
+  function decide(n) {
+    const order = NEEDS.slice().sort((a, b) => n.needs[b] - n.needs[a]).filter(k => n.needs[k] >= 0.45);
+    for (const need of order) {
+      const all = planFor(need, n.items, n, actions, locById);
+      if (!all.length) continue;
+      // 空いている手順を優先する。ただし本命より5割以上遠回りなら、本命の席が空くのを近くで待つ
+      const open = all.filter(p => freeSeat(locById[p.steps[0].at]));
+      // 待てるのは、本命の場所の近くで待つ人が席の3分の1未満のときだけ。一度待ちきれなかった人は妥協する
+      const best = locById[all[0].steps[0].at];
+      const waiters = npcs.filter(m => m.state === 'wait' && m.loc === best).length;
+      const canWait = !n.impatient && waiters < Math.max(1, Math.floor(best.seats / 3));
+      let plans;
+      if (open.length && (!canWait || open[0].cost <= all[0].cost * 1.5)) plans = open;
+      else if (canWait) plans = [all[0]];
+      else continue;
+      n.impatient = false;
+      const pick = plans[Math.min(plans.length - 1, Math.floor(rnd() * rnd() * 3))];  // ほとんど最安、ときどき次点
+      n.plan = pick.steps; n.stepIdx = 0; n.need = need;
+      n.candidates = all.slice(0, 4).map(p => ({ steps: p.steps, cost: p.cost, pick: p === pick }));
+      if (!n.candidates.some(c => c.pick)) n.candidates.push({ steps: pick.steps, cost: pick.cost, pick: true });
+      stats.plans++;
+      if (pick.steps.length > 1) stats.chains++;
+      say(`${need}が欲しい・持ち物：${n.items.join('、') || 'なし'}`,
+        `計画「${pick.steps.map(s => s.name).join(' → ')}」`, `${pick.steps.length}手`);
+      beginStep(n);
+      return;
+    }
+  }
+
+  // 一手ずつ席を予約する。空いていなければ少し待ち、それでもだめなら組み直す
+  function beginStep(n) {
+    const a = step(n), l = locById[a.at], seat = freeSeat(l);
+    if (!seat) { n.state = 'wait'; n.loc = l; n.waitUntil = t + 7; n.goal = { x: l.x + (rnd() - 0.5) * l.r * 3, y: l.y + l.r * 1.6 }; return; }
+    seat.by = n.id;
+    n.state = 'go'; n.loc = l; n.seat = seat; n.goal = { x: seat.x, y: seat.y };
+  }
+
+  function finishPlan(n) {
+    n.plan = null; n.need = null; n.loc = null; n.seat = null;
+    n.state = 'wander'; n.cooldown = 1.5 + rnd() * 2.5; pickWander(n);
+  }
+
+  function release(n) {
+    const a = step(n);
+    if (n.seat) n.seat.by = null;
+    n.seat = null;
+    // 結果：持ち物を入れ替える
+    n.items = n.items.filter(x => !(a.del || []).includes(x)).concat(a.add || []);
+    stats.steps++;
+    const got = (a.add || []).length ? `${a.add.join('、')}を手に入れた` : '席を返す';
+    say(`前提：${(a.pre || []).join('、') || 'なし'}`, a.name, got);
+    n.stepIdx++;
+    if (n.stepIdx >= n.plan.length) { finishPlan(n); return; }
+    beginStep(n);
+  }
+
+  // 社交の進行役：同じ場所に2人以上いれば、話し手を順番に決めて全員をそろえる
+  function socialControl(l) {
+    if (!l.social) return;
+    const users = npcs.filter(n => n.loc === l && n.state === 'use');
+    if (users.length < 2) { l.speaker = null; return; }
+    if (t >= l.nextTurn || !users.some(u => u.id === l.speaker)) {
+      const cand = users.filter(u => u.id !== l.speaker);
+      l.speaker = cand[Math.floor(rnd() * cand.length)].id;
+      l.nextTurn = t + 1.4 + rnd() * 1.2;
+    }
+  }
+
+  function steer(n, dt, speed) {
+    const dx = n.goal.x - n.x, dy = n.goal.y - n.y;
+    const d = Math.hypot(dx, dy);
+    let ax = 0, ay = 0;
+    if (d > 0.01) { ax = dx / d; ay = dy / d; }
+    // 近すぎる相手を避ける（座っている人は避けない）
+    if (n.state !== 'use') {
+      for (const m of npcs) {
+        if (m === n) continue;
+        const ex = n.x - m.x, ey = n.y - m.y, e = Math.hypot(ex, ey);
+        if (e > 0 && e < 2.2) { ax += ex / e * (2.2 - e) * 0.6; ay += ey / e * (2.2 - e) * 0.6; }
+      }
+    }
+    const k = Math.hypot(ax, ay) || 1;
+    const v = Math.min(speed, d / dt);
+    n.vx = ax / k * v; n.vy = ay / k * v;
+    n.x = Math.min(w - 2, Math.max(2, n.x + n.vx * dt));
+    n.y = Math.min(h - 2, Math.max(2, n.y + n.vy * dt));
+    return d;
+  }
+
+  function stepSim(dt) {
+    t += dt;
+    for (const n of npcs) {
+      NEEDS.forEach(k => { n.needs[k] = Math.min(1, n.needs[k] + n.rate[k] * dt); });
+      if (n.state === 'wander') {
+        if (steer(n, dt, 3.2) < 1) pickWander(n);
+        n.cooldown -= dt;
+        if (n.cooldown <= 0) { decide(n); n.cooldown = 0.6 + rnd() * 0.6; }
+      } else if (n.state === 'wait') {
+        steer(n, dt, 2.5);
+        if (freeSeat(n.loc)) beginStep(n);
+        else if (t >= n.waitUntil) {                   // 待ちきれない：持ち物はそのままで組み直す
+          stats.replans++;
+          say(`${n.loc.label}が満席`, '計画を組み直す', `持ち物：${n.items.join('、') || 'なし'}`);
+          finishPlan(n); n.cooldown = 0.3; n.impatient = true;
+        }
+      } else if (n.state === 'go') {
+        if (steer(n, dt, 5) < 0.4) {
+          const [a, b] = step(n).stay;
+          n.state = 'use'; n.useStart = t;
+          n.leaveAt = t + a + rnd() * (b - a);         // 遅延付加：一定時間後に「立つ」が成り立つ
+        }
+      } else if (n.state === 'use') {
+        const a = step(n);
+        if (a.meet) for (const k in a.meet) n.needs[k] = Math.max(0, n.needs[k] - a.meet[k] * 0.11 * dt);
+        if (a.work) n.needs['休'] = Math.min(1, n.needs['休'] + 0.02 * dt);
+        if (t >= n.leaveAt) release(n);
+      }
+    }
+    locs.forEach(socialControl);
+  }
+
+  return { era, w, h, locs, npcs, log, stats, step: stepSim, current: step, get t() { return t; } };
+}
+
+/* ---------- 描画と操作（ブラウザでだけ動く） ---------- */
+function boot() {
+  const canvas = document.getElementById('view');
+  const ctx = canvas.getContext('2d');
+  const info = document.getElementById('info');
+  const logEl = document.getElementById('log');
+  const countEl = document.getElementById('count');
+  const countOut = document.getElementById('countOut');
+  const speedBtn = document.getElementById('speed');
+  const debugBtn = document.getElementById('debug');
+  const eraBtns = [...document.querySelectorAll('[data-era]')];
+
+  let eraIndex = 0, portrait = false, sim, speed = 1, showDebug = false, dayNight = true, selected = null, view = { s: 1, ox: 0, oy: 0 };
+
+  function reset() {
+    portrait = canvas.clientHeight > canvas.clientWidth * 1.15;
+    sim = createSim(eraIndex, +countEl.value, 7 + eraIndex, portrait);
+    selected = null; lastKey = ''; lastPaint = 0;
+    cam.cx = sim.w / 2; cam.cy = sim.h / 2; clampCam();
+    document.getElementById('eraName').textContent = sim.era.name;
+    r3Dirty = true;
+    if (mode3d && r3) { r3.build(); r3Dirty = false; }
+  }
+  let mode3d = false, r3 = null, r3Dirty = true;
+
+  function resize() {
+    if (r3) r3.resize();
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = canvas.clientWidth * dpr; canvas.height = canvas.clientHeight * dpr;
+    const p = canvas.clientHeight > canvas.clientWidth * 1.15;
+    if (sim && p !== portrait) reset();
+    const w = p ? H : W, h = p ? W : H;
+    const s = Math.min(canvas.width / w, canvas.height / h) * 0.98;
+    view = { s, base: s, ox: (canvas.width - w * s) / 2, oy: (canvas.height - h * s) / 2, dpr };
+    if (sim) clampCam();
+  }
+  // カメラ：cam.z は拡大率、cam.cx・cam.cy は画面の中央に映す世界の座標
+  const cam = { z: 1, cx: 50, cy: 35, follow: false };
+  const X = x => canvas.width / 2 + (x - cam.cx) * view.s * cam.z,
+    Y = y => canvas.height / 2 + (y - cam.cy) * view.s * cam.z,
+    S = v => v * view.s * cam.z;
+  function clampCam() {
+    cam.z = Math.max(1, Math.min(5, cam.z));
+    const hw = canvas.width / 2 / (view.s * cam.z), hh = canvas.height / 2 / (view.s * cam.z);
+    cam.cx = hw * 2 >= sim.w ? sim.w / 2 : Math.max(hw, Math.min(sim.w - hw, cam.cx));
+    cam.cy = hh * 2 >= sim.h ? sim.h / 2 : Math.max(hh, Math.min(sim.h - hh, cam.cy));
+  }
+  function zoomAt(f, px, py) {   // 画面上の点 (px, py) を動かさずに拡大・縮小する
+    const wx = cam.cx + (px - canvas.width / 2) / (view.s * cam.z), wy = cam.cy + (py - canvas.height / 2) / (view.s * cam.z);
+    cam.z *= f; clampCam();
+    cam.cx = wx - (px - canvas.width / 2) / (view.s * cam.z); cam.cy = wy - (py - canvas.height / 2) / (view.s * cam.z);
+    clampCam();
+  }
+
+  /* ---- 見た目（すべて計算で描く。外部の素材は使わない） ---- */
+  const LOOK = [
+    { ground: '#66703f', ground2: '#7b8350', dirt: '#8f7a56', trees: 34, grass: true,
+      cloth: ['#8a5a3a', '#6e4a2e', '#a0784a', '#5a4630', '#7a6a4a'] },
+    { ground: '#727540', ground2: '#868a4d', dirt: '#9c855c', trees: 22, grass: true,
+      cloth: ['#c9b48a', '#8a6a3a', '#6f7a8a', '#a0603a', '#ddd2bb'] },
+    { ground: '#857c69', ground2: '#978e7a', dirt: '#a99a7c', trees: 8, paved: true,
+      cloth: ['#b0402e', '#2e5a8a', '#d9b44a', '#4a7a4a', '#7a3a7a'] }
+  ];
+  const SKIN = ['#e7c3a0', '#c99a72', '#a8754e', '#f0d2b6', '#8a5a3a'];
+  const HAIR = ['#2a1d14', '#4a2f1d', '#6b4a2a', '#1a1a1a', '#8a6a3a'];
+  const PS = 1.9;   // 人の大きさ（見やすいよう実寸より少し大きく描く）
+
+  let bg = document.createElement('canvas'), bgK = 1;
+  const light = document.createElement('canvas');
+  const smoke = [];
+  const look = new Map();
+
+  function shade(hex, f) {
+    const n = parseInt(hex.slice(1), 16);
+    const c = [n >> 16, (n >> 8) & 255, n & 255].map(v => Math.max(0, Math.min(255, Math.round(v * f))));
+    return '#' + c.map(v => v.toString(16).padStart(2, '0')).join('');
+  }
+  function ell(g, x, y, rx, ry, rot, fill) {
+    g.fillStyle = fill; g.beginPath(); g.ellipse(x, y, Math.max(0.1, rx), Math.max(0.1, ry), rot || 0, 0, 7); g.fill();
+  }
+  function riverPath(l) {
+    // 川は世界の長い辺に沿って流れ、川辺の場所を通る
+    const pts = [], vertical = sim.w >= sim.h;
+    for (let i = 0; i <= 40; i++) {
+      const u = i / 40;
+      if (vertical) { const y = u * sim.h; pts.push([l.x + Math.sin(y * 0.13) * 3 - Math.sin(l.y * 0.13) * 3, y]); }
+      else { const x = u * sim.w; pts.push([x, l.y + Math.sin(x * 0.13) * 3 - Math.sin(l.x * 0.13) * 3]); }
+    }
+    return pts;
+  }
+  function strokePts(g, pen, pts, width, color) {
+    g.strokeStyle = color; g.lineWidth = pen.s(width); g.lineCap = 'round'; g.lineJoin = 'round';
+    g.beginPath(); pts.forEach(([x, y], i) => i ? g.lineTo(pen.x(x), pen.y(y)) : g.moveTo(pen.x(x), pen.y(y))); g.stroke();
+  }
+  function tree(g, pen, x, y, size, rnd) {
+    ell(g, pen.x(x + size * 0.35), pen.y(y + size * 0.4), pen.s(size), pen.s(size * 0.8), 0, 'rgba(10,14,6,.35)');
+    for (let i = 0; i < 4; i++) {
+      const a = rnd() * 7, d = size * 0.35;
+      ell(g, pen.x(x + Math.cos(a) * d), pen.y(y + Math.sin(a) * d), pen.s(size * 0.7), pen.s(size * 0.7), 0, '#3b5429');
+    }
+    ell(g, pen.x(x - size * 0.2), pen.y(y - size * 0.25), pen.s(size * 0.5), pen.s(size * 0.45), 0, '#52703a');
+    ell(g, pen.x(x - size * 0.35), pen.y(y - size * 0.4), pen.s(size * 0.22), pen.s(size * 0.2), 0, 'rgba(160,190,110,.35)');
+  }
+  function building(g, pen, x, y, w, h, roof, kind) {
+    g.fillStyle = 'rgba(10,8,6,.35)'; g.fillRect(pen.x(x - w / 2 + 0.6), pen.y(y - h / 2 + 0.7), pen.s(w), pen.s(h));
+    g.fillStyle = shade(roof, 1.08); g.fillRect(pen.x(x - w / 2), pen.y(y - h / 2), pen.s(w), pen.s(h / 2));
+    g.fillStyle = shade(roof, 0.82); g.fillRect(pen.x(x - w / 2), pen.y(y), pen.s(w), pen.s(h / 2));
+    g.strokeStyle = shade(roof, 0.6); g.lineWidth = Math.max(1, pen.s(0.12));
+    g.beginPath(); g.moveTo(pen.x(x - w / 2), pen.y(y)); g.lineTo(pen.x(x + w / 2), pen.y(y)); g.stroke();
+    g.strokeStyle = shade(roof, kind === 'thatch' ? 0.75 : 0.7); g.lineWidth = Math.max(0.5, pen.s(0.05));
+    const step = kind === 'thatch' ? 0.35 : 0.6;
+    for (let v = y - h / 2 + step; v < y + h / 2; v += step) {
+      if (Math.abs(v - y) < 0.05) continue;
+      g.beginPath(); g.moveTo(pen.x(x - w / 2), pen.y(v)); g.lineTo(pen.x(x + w / 2), pen.y(v)); g.stroke();
+    }
+  }
+
+  // 場所の動かない部分（背景へ一度だけ描く）
+  function locStatic(g, pen, l, rnd) {
+    const x = l.x, y = l.y, r = l.r, P = (a, b) => [pen.x(a), pen.y(b)];
+    switch (l.kind) {
+      case 'fire': {
+        ell(g, ...P(x, y), pen.s(r * 0.85), pen.s(r * 0.7), 0, 'rgba(90,72,48,.75)');
+        ell(g, ...P(x, y), pen.s(1.4), pen.s(1.3), 0, '#3a3330');
+        for (let i = 0; i < 11; i++) { const a = i / 11 * 7; ell(g, ...P(x + Math.cos(a) * 1.75, y + Math.sin(a) * 1.6), pen.s(0.42), pen.s(0.34), a, i % 2 ? '#8d877c' : '#a39d90'); }
+        l.seatList.forEach(st => {
+          const a = Math.atan2(st.y - y, st.x - x);
+          g.save(); g.translate(...P(st.x + Math.cos(a) * 0.9, st.y + Math.sin(a) * 0.9)); g.rotate(a + Math.PI / 2);
+          g.fillStyle = '#6a4a2c'; g.fillRect(-pen.s(1), -pen.s(0.3), pen.s(2), pen.s(0.6));
+          g.fillStyle = '#8a6a44'; g.fillRect(-pen.s(1), -pen.s(0.3), pen.s(2), pen.s(0.18)); g.restore();
+        });
+        break; }
+      case 'water':
+        if (l.id === 'fountain') {
+          ell(g, ...P(x + 0.4, y + 0.5), pen.s(3.6), pen.s(3.6), 0, 'rgba(10,8,6,.3)');
+          ell(g, ...P(x, y), pen.s(3.6), pen.s(3.6), 0, '#bdb5a4');
+          ell(g, ...P(x, y), pen.s(3.0), pen.s(3.0), 0, '#4a7f9a');
+          ell(g, ...P(x, y), pen.s(0.8), pen.s(0.8), 0, '#d8d1c0');
+        }
+        break;
+      case 'bush':
+        for (let i = 0; i < 6; i++) {
+          const bx = x + Math.cos(i * 1.1) * r * 0.45, by = y + Math.sin(i * 1.1) * r * 0.3;
+          ell(g, ...P(bx + 0.4, by + 0.5), pen.s(1.6), pen.s(1.3), 0, 'rgba(10,14,6,.3)');
+          ell(g, ...P(bx, by), pen.s(1.6), pen.s(1.35), 0, '#36502a');
+          ell(g, ...P(bx - 0.4, by - 0.4), pen.s(0.9), pen.s(0.8), 0, '#4c6a36');
+          for (let j = 0; j < 5; j++) ell(g, ...P(bx + (rnd() - 0.5) * 2, by + (rnd() - 0.5) * 1.6), pen.s(0.18), pen.s(0.18), 0, j % 2 ? '#8a2a5a' : '#b04a6a');
+        }
+        break;
+      case 'camp': {
+        ell(g, ...P(x, y), pen.s(r * 0.85), pen.s(r * 0.65), 0, 'rgba(90,72,48,.6)');
+        const tx = x - 1.2, ty = y - 0.8;
+        ell(g, ...P(tx + 0.6, ty + 0.7), pen.s(2.4), pen.s(2.2), 0, 'rgba(10,8,6,.35)');
+        ell(g, ...P(tx, ty), pen.s(2.3), pen.s(2.3), 0, '#b89a72');
+        g.strokeStyle = '#8a7050'; g.lineWidth = Math.max(1, pen.s(0.08));
+        for (let i = 0; i < 8; i++) { const a = i / 8 * 7; g.beginPath(); g.moveTo(...P(tx, ty)); g.lineTo(...P(tx + Math.cos(a) * 2.3, ty + Math.sin(a) * 2.3)); g.stroke(); }
+        ell(g, ...P(tx, ty), pen.s(0.3), pen.s(0.3), 0, '#4a3a2a');
+        g.strokeStyle = '#4a3420'; g.lineWidth = Math.max(1, pen.s(0.18));
+        g.beginPath(); g.moveTo(...P(x + 1.8, y - 2)); g.lineTo(...P(x + 1.8, y + 1.6)); g.stroke();
+        for (let i = 0; i < 3; i++) { g.fillStyle = ['#9a7350', '#8a6040', '#a8835a'][i]; g.fillRect(...P(x + 1.9, y - 1.8 + i * 1.2), pen.s(0.9), pen.s(0.9)); }
+        ell(g, ...P(x + 0.4, y + 1.6), pen.s(0.7), pen.s(0.7), 0, '#7a5a3a');
+        ell(g, ...P(x + 0.4, y + 1.6), pen.s(0.5), pen.s(0.5), 0, '#9a7a52');
+        break; }
+      case 'field': {
+        const w = r * 1.9, h = r * 1.25;
+        g.fillStyle = '#5e4a30'; g.fillRect(...P(x - w / 2, y - h / 2), pen.s(w), pen.s(h));
+        for (let v = y - h / 2 + 0.6; v < y + h / 2; v += 0.9) {
+          g.strokeStyle = '#4a3a24'; g.lineWidth = Math.max(1, pen.s(0.25));
+          g.beginPath(); g.moveTo(...P(x - w / 2 + 0.3, v + 0.3)); g.lineTo(...P(x + w / 2 - 0.3, v + 0.3)); g.stroke();
+          for (let u = x - w / 2 + 0.5; u < x + w / 2 - 0.3; u += 0.45)
+            ell(g, ...P(u + (rnd() - 0.5) * 0.1, v), pen.s(0.2), pen.s(0.28), 0, rnd() < 0.5 ? '#c9b048' : '#b39a38');
+        }
+        g.strokeStyle = '#5a4630'; g.lineWidth = Math.max(1, pen.s(0.12));
+        g.strokeRect(...P(x - w / 2 - 0.4, y - h / 2 - 0.4), pen.s(w + 0.8), pen.s(h + 0.8));
+        for (let u = x - w / 2 - 0.4; u <= x + w / 2 + 0.5; u += 2) { g.fillStyle = '#4a3420'; g.fillRect(...P(u - 0.15, y - h / 2 - 0.55), pen.s(0.3), pen.s(0.3)); g.fillRect(...P(u - 0.15, y + h / 2 + 0.25), pen.s(0.3), pen.s(0.3)); }
+        break; }
+      case 'mill':
+        ell(g, ...P(x, y), pen.s(r * 0.75), pen.s(r * 0.6), 0, 'rgba(90,72,48,.55)');
+        g.fillStyle = 'rgba(10,8,6,.3)'; g.fillRect(...P(x - 1.5, y - 1.3), pen.s(3.4), pen.s(3.2));
+        g.fillStyle = '#8e897d'; g.fillRect(...P(x - 1.8, y - 1.7), pen.s(3.4), pen.s(3.2));
+        ell(g, ...P(x - 0.1, y - 0.1), pen.s(1.35), pen.s(1.35), 0, '#b5b0a5');
+        ell(g, ...P(x - 0.1, y - 0.1), pen.s(0.3), pen.s(0.3), 0, '#4a4640');
+        break;
+      case 'oven':
+        ell(g, ...P(x, y), pen.s(r * 0.8), pen.s(r * 0.6), 0, 'rgba(90,72,48,.55)');
+        ell(g, ...P(x + 0.5, y + 0.6), pen.s(2.1), pen.s(1.9), 0, 'rgba(10,8,6,.35)');
+        ell(g, ...P(x, y), pen.s(2.1), pen.s(1.9), 0, '#8a5a36');
+        ell(g, ...P(x - 0.5, y - 0.5), pen.s(1.2), pen.s(1.0), 0, '#a8744a');
+        ell(g, ...P(x, y + 1.2), pen.s(0.8), pen.s(0.45), 0, '#24160e');
+        for (let i = 0; i < 4; i++) { g.fillStyle = i % 2 ? '#6a4a2c' : '#7a5838'; g.fillRect(...P(x + 2.4, y - 1 + i * 0.5), pen.s(1.6), pen.s(0.4)); }
+        break;
+      case 'well':
+        ell(g, ...P(x + 0.4, y + 0.5), pen.s(1.9), pen.s(1.9), 0, 'rgba(10,8,6,.35)');
+        ell(g, ...P(x, y), pen.s(1.9), pen.s(1.9), 0, '#a39d90');
+        for (let i = 0; i < 10; i++) { const a = i / 10 * 7; ell(g, ...P(x + Math.cos(a) * 1.55, y + Math.sin(a) * 1.55), pen.s(0.4), pen.s(0.3), a, i % 2 ? '#8e887c' : '#b5afa2'); }
+        ell(g, ...P(x, y), pen.s(1.1), pen.s(1.1), 0, '#1f3342');
+        g.fillStyle = '#5a4026'; g.fillRect(...P(x - 2.2, y - 0.2), pen.s(0.4), pen.s(0.4)); g.fillRect(...P(x + 1.8, y - 0.2), pen.s(0.4), pen.s(0.4));
+        g.strokeStyle = '#6a4a2c'; g.lineWidth = Math.max(1, pen.s(0.2)); g.beginPath(); g.moveTo(...P(x - 2, y)); g.lineTo(...P(x + 2, y)); g.stroke();
+        ell(g, ...P(x + 0.6, y + 0.1), pen.s(0.35), pen.s(0.35), 0, '#7a5a3a');
+        break;
+      case 'bench':
+        ell(g, ...P(x, y), pen.s(r * 0.85), pen.s(r * 0.65), 0, 'rgba(120,100,66,.5)');
+        building(g, pen, x, y - r * 0.55 - 2.6, 8, 4.4, '#b89a5a', 'thatch');
+        g.fillStyle = 'rgba(10,8,6,.3)'; g.fillRect(...P(x - 2.6, y - r * 0.55 + 0.1), pen.s(5.4), pen.s(0.8));
+        g.fillStyle = '#7a5a3a'; g.fillRect(...P(x - 2.8, y - r * 0.55 - 0.2), pen.s(5.6), pen.s(0.7));
+        g.fillStyle = '#9a7650'; g.fillRect(...P(x - 2.8, y - r * 0.55 - 0.2), pen.s(5.6), pen.s(0.2));
+        for (let i = 0; i < 3; i++) ell(g, ...P(x - 1 + i * 1.2, y + 0.4), pen.s(0.45), pen.s(0.45), 0, '#8a6a44');
+        break;
+      case 'house':
+        ell(g, ...P(x, y), pen.s(r * 0.85), pen.s(r * 0.65), 0, 'rgba(120,108,90,.45)');
+        { const by = y - r * 0.55 - 2.8;
+        building(g, pen, x, by, 8, 5, l.id === 'tavern' ? '#9a4a32' : '#6f6f78', 'tile');
+        g.fillStyle = '#5a5248'; g.fillRect(...P(x + 2, by - 2), pen.s(0.9), pen.s(0.9));
+        if (l.id === 'tavern') {
+          ell(g, ...P(x - 4.4, by + 2.4), pen.s(0.6), pen.s(0.6), 0, '#c9a24a');
+          for (let i = 0; i < 2; i++) { ell(g, ...P(x - 1.6 + i * 3.2, y + 0.3), pen.s(0.9), pen.s(0.9), 0, '#6a4a2c'); ell(g, ...P(x - 1.6 + i * 3.2, y + 0.3), pen.s(0.7), pen.s(0.7), 0, '#8a6440'); }
+        } else {
+          for (let i = 0; i < 3; i++) { g.fillStyle = '#7a6a52'; g.fillRect(...P(x - 2 + i * 1.3, y + 0.2), pen.s(1), pen.s(1)); g.fillStyle = '#958466'; g.fillRect(...P(x - 2 + i * 1.3, y + 0.2), pen.s(1), pen.s(0.3)); }
+          g.fillStyle = '#4a4440'; g.fillRect(...P(x - 0.8, y - 1.4), pen.s(1.8), pen.s(0.8));
+        } }
+        break;
+      case 'market': {
+        const stripes = [['#b0402e', '#ece2c8'], ['#2e5a8a', '#ece2c8'], ['#c9962a', '#ece2c8']];
+        for (let i = 0; i < 3; i++) {
+          const a = -0.9 + i * 0.9, sx = x + Math.sin(a) * 3.2, sy = y - Math.cos(a) * 2.2;
+          g.save(); g.translate(...P(sx, sy)); g.rotate(a);
+          g.fillStyle = 'rgba(10,8,6,.3)'; g.fillRect(-pen.s(1.3) + pen.s(0.4), -pen.s(0.9) + pen.s(0.5), pen.s(2.6), pen.s(1.8));
+          for (let k = 0; k < 6; k++) { g.fillStyle = stripes[i][k % 2]; g.fillRect(-pen.s(1.3) + k * pen.s(2.6 / 6), -pen.s(0.9), pen.s(2.6 / 6) + 0.5, pen.s(1.8)); }
+          g.restore();
+        }
+        for (let i = 0; i < 5; i++) { const bx = x + (rnd() - 0.5) * 4, by = y + 1 + rnd() * 1.5;
+          ell(g, ...P(bx, by), pen.s(0.55), pen.s(0.55), 0, '#8a6a3a');
+          for (let j = 0; j < 3; j++) ell(g, ...P(bx + (rnd() - 0.5) * 0.5, by + (rnd() - 0.5) * 0.5), pen.s(0.18), pen.s(0.18), 0, ['#c0402a', '#d9a83a', '#6a8a3a'][j]); }
+        break; }
+      case 'temple': {
+        const w = r * 1.7, h = r * 0.95;
+        g.fillStyle = 'rgba(10,8,6,.35)'; g.fillRect(...P(x - w / 2 + 0.7, y - h / 2 + 0.8), pen.s(w), pen.s(h));
+        ['#a39c8b', '#b6af9e', '#cac3b2'].forEach((c, i) => { const d = i * 0.9; g.fillStyle = c; g.fillRect(...P(x - w / 2 + d, y - h / 2 + d * 0.6), pen.s(w - d * 2), pen.s(h - d * 1.2)); });
+        for (let i = 0; i < 6; i++) { const cx = x - w / 2 + 2.6 + i * (w - 5.2) / 5;
+          ell(g, ...P(cx + 0.2, y - h / 2 + 2.2), pen.s(0.5), pen.s(0.5), 0, 'rgba(10,8,6,.3)');
+          ell(g, ...P(cx, y - h / 2 + 2), pen.s(0.5), pen.s(0.5), 0, '#e6dfce'); }
+        break; }
+      default:
+        building(g, pen, x, y - 1, 6, 4, '#8a7a5a', 'tile');
+    }
+  }
+
+  function buildBg() {
+    bgK = Math.min(view.base * 2.5, 3072 / sim.w, 3072 / sim.h);
+    paintGround(bg, bgK, false);
+  }
+  // 地面を描く。groundOnly のときは木と場所を描かず（3Dで立体にするため）、置き場所だけを返す
+  function paintGround(cv, k, groundOnly) {
+    const L = LOOK[ERAS.indexOf(sim.era)];
+    cv.width = Math.ceil(sim.w * k); cv.height = Math.ceil(sim.h * k);
+    const bg = cv, trees = [];
+    const g = cv.getContext('2d'), pen = { x: v => v * k, y: v => v * k, s: v => v * k };
+    const rnd = makeRng(101 + ERAS.indexOf(sim.era));
+    g.fillStyle = L.paved ? shade(L.ground, 0.9) : L.ground; g.fillRect(0, 0, bg.width, bg.height);
+    for (let i = 0; i < 70; i++) {
+      const x = rnd() * sim.w, y = rnd() * sim.h, rr = 4 + rnd() * 10;
+      const gr = g.createRadialGradient(x * k, y * k, 0, x * k, y * k, rr * k);
+      gr.addColorStop(0, rnd() < 0.5 ? 'rgba(255,240,200,.10)' : 'rgba(20,24,8,.14)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = gr; g.fillRect(0, 0, bg.width, bg.height);
+    }
+    if (L.paved) {
+      for (let r = 0, y = 0; y < sim.h; r++, y += 0.62) for (let x = r % 2 ? -0.33 : 0; x < sim.w; x += 0.66) {
+        const f = 0.92 + rnd() * 0.16;
+        g.fillStyle = shade(L.ground2, f);
+        g.beginPath(); g.roundRect ? g.roundRect((x + 0.04) * k, (y + 0.04) * k, 0.58 * k, 0.54 * k, 0.14 * k) : g.rect((x + 0.04) * k, (y + 0.04) * k, 0.58 * k, 0.54 * k); g.fill();
+      }
+      for (let i = 0; i < 14; i++) { const x = rnd() * sim.w, y = rnd() * sim.h;
+        for (let j = 0; j < 30; j++) ell(g, (x + (rnd() - 0.5) * 6) * k, (y + (rnd() - 0.5) * 4) * k, 0.5 * k, 0.4 * k, 0, 'rgba(90,110,60,.35)'); }
+    } else {
+      const n = Math.floor(sim.w * sim.h * 1.4);
+      for (let i = 0; i < n; i++) {
+        const v = rnd();
+        g.fillStyle = v < 0.5 ? 'rgba(30,40,12,.22)' : v < 0.85 ? 'rgba(150,160,90,.18)' : 'rgba(120,100,70,.25)';
+        g.fillRect(rnd() * sim.w * k, rnd() * sim.h * k, (0.12 + rnd() * 0.2) * k, (0.12 + rnd() * 0.2) * k);
+      }
+      g.strokeStyle = 'rgba(40,56,20,.5)'; g.lineWidth = Math.max(0.6, 0.08 * k);
+      for (let i = 0; i < 500; i++) { const x = rnd() * sim.w, y = rnd() * sim.h;
+        g.beginPath(); g.moveTo((x - 0.2) * k, (y - 0.4) * k); g.lineTo(x * k, y * k); g.lineTo((x + 0.25) * k, (y - 0.45) * k); g.stroke(); }
+    }
+    // 踏み固められた道：集落の中心から各場所へ
+    const hub = sim.locs.reduce((a, l) => [a[0] + l.x / sim.locs.length, a[1] + l.y / sim.locs.length], [0, 0]);
+    sim.locs.forEach(l => {
+      const bend = (rnd() - 0.5) * 8, mx = (hub[0] + l.x) / 2 + bend, my = (hub[1] + l.y) / 2 - bend;
+      const pts = []; for (let i = 0; i <= 16; i++) { const u = i / 16;
+        pts.push([(1 - u) * (1 - u) * hub[0] + 2 * u * (1 - u) * mx + u * u * l.x, (1 - u) * (1 - u) * hub[1] + 2 * u * (1 - u) * my + u * u * l.y]); }
+      strokePts(g, pen, pts, 2.6, L.paved ? 'rgba(120,108,90,.45)' : 'rgba(120,100,66,.55)');
+      strokePts(g, pen, pts, 1.2, L.paved ? 'rgba(170,160,140,.35)' : 'rgba(170,148,104,.4)');
+    });
+    const river = sim.locs.find(l => l.id === 'river');
+    if (river) {
+      const pts = riverPath(river);
+      strokePts(g, pen, pts, 8.5, '#7a6a4a');
+      strokePts(g, pen, pts, 6.4, '#2f5a6e');
+      strokePts(g, pen, pts, 3.6, '#3f7590');
+      strokePts(g, pen, pts, 1.2, 'rgba(160,200,215,.25)');
+    }
+    // 木と石：場所や川をよけて置く
+    const clear = (x, y, m) => sim.locs.every(l => Math.hypot(l.x - x, l.y - y) > l.r + m) &&
+      (!river || riverPath(river).every(([px, py]) => Math.hypot(px - x, py - y) > 6));
+    for (let i = 0, placed = 0; i < 400 && placed < L.trees; i++) {
+      const x = 2 + rnd() * (sim.w - 4), y = 2 + rnd() * (sim.h - 4);
+      if (!clear(x, y, 6) || Math.hypot(x - hub[0], y - hub[1]) < 10) continue;
+      const size = 1.6 + rnd() * 1.4;
+      trees.push({ x, y, size });
+      if (groundOnly) { rnd(); rnd(); rnd(); rnd(); } else tree(g, pen, x, y, size, rnd);
+      placed++;
+    }
+    for (let i = 0; i < 30; i++) { const x = rnd() * sim.w, y = rnd() * sim.h;
+      if (!clear(x, y, 2)) continue;
+      ell(g, (x + 0.15) * k, (y + 0.2) * k, 0.45 * k, 0.32 * k, 0, 'rgba(10,8,6,.3)');
+      ell(g, x * k, y * k, 0.45 * k, 0.32 * k, rnd(), '#8e897d'); }
+    if (groundOnly) sim.locs.forEach(l => { if (l.kind !== 'water' && l.kind !== 'field') ell(g, l.x * k, l.y * k, l.r * 0.9 * k, l.r * 0.7 * k, 0, L.paved ? 'rgba(120,108,90,.35)' : 'rgba(110,90,60,.45)'); });
+    else sim.locs.forEach(l => locStatic(g, pen, l, makeRng(7 + l.id.length * 13)));
+    return { trees, hub };
+  }
+
+  // 一日の明るさ：120秒で一巡。夜は暗くなり、火の周りだけ明るい
+  function nightness() {
+    if (!dayNight) return 0;
+    const c = -Math.cos(sim.t / 120 * Math.PI * 2);
+    return Math.max(0, Math.min(1, (c - 0.1) / 0.8)) * 0.62;
+  }
+  function timeLabel() {
+    const p = ((sim.t / 120) % 1 + 1) % 1;
+    return !dayNight ? '' : p < 0.2 || p > 0.8 ? '昼' : p < 0.3 ? '夕方' : p < 0.7 ? '夜' : '明け方';
+  }
+
+  const pen = { x: v => X(v), y: v => Y(v), s: v => S(v) };
+  function locDynamic(l, dt) {
+    const x = X(l.x), y = Y(l.y);
+    if (l.kind === 'fire' || l.kind === 'oven') {
+      const big = l.kind === 'fire', f = 0.85 + Math.sin(sim.t * 11 + l.x) * 0.08 + Math.sin(sim.t * 27) * 0.05;
+      const cx = big ? x : x, cy = big ? y : Y(l.y + 1.1);
+      const gr = ctx.createRadialGradient(cx, cy, 0, cx, cy, S(big ? 6 : 3));
+      gr.addColorStop(0, 'rgba(255,170,70,.35)'); gr.addColorStop(1, 'rgba(255,120,40,0)');
+      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(cx, cy, S(big ? 6 : 3), 0, 7); ctx.fill();
+      const k = big ? 1 : 0.5;
+      ell(ctx, cx, cy, S(1.2 * k) * f, S(1.0 * k) * f, 0, '#d0501e');
+      ell(ctx, cx + S(0.15 * k), cy - S(0.1 * k), S(0.8 * k) * f, S(0.65 * k) * f, 0, '#f08a2a');
+      ell(ctx, cx, cy, S(0.4 * k) * f, S(0.35 * k) * f, 0, '#ffd66a');
+      if (Math.random() < dt * (big ? 6 : 3)) smoke.push({ x: l.x + (Math.random() - 0.5), y: l.y + (big ? 0 : 1.1), r: 0.4, a: 0.16, vx: 0.4 + Math.random() * 0.4, vy: -1.1 });
+    }
+    if (l.kind === 'water' && l.id === 'fountain') {
+      for (let i = 0; i < 3; i++) { const p = (sim.t * 0.5 + i / 3) % 1;
+        ctx.strokeStyle = `rgba(220,240,250,${0.45 * (1 - p)})`; ctx.lineWidth = Math.max(1, S(0.08));
+        ctx.beginPath(); ctx.arc(x, y, S(0.9 + p * 2), 0, 7); ctx.stroke(); }
+    }
+    if (l.id === 'river') {
+      const pts = riverPath(l);
+      ctx.strokeStyle = 'rgba(200,230,240,.35)'; ctx.lineWidth = Math.max(1, S(0.12)); ctx.lineCap = 'round';
+      for (let i = 0; i < 9; i++) { const u = ((sim.t * 0.025 + i / 9) % 1) * (pts.length - 2);
+        const a = pts[Math.floor(u)], b = pts[Math.floor(u) + 1], off = ((i * 37) % 5 - 2) * 0.6;
+        const nx = -(b[1] - a[1]), ny = b[0] - a[0], nl = Math.hypot(nx, ny) || 1;
+        ctx.beginPath(); ctx.moveTo(X(a[0] + nx / nl * off), Y(a[1] + ny / nl * off)); ctx.lineTo(X(b[0] + nx / nl * off), Y(b[1] + ny / nl * off)); ctx.stroke(); }
+    }
+    if (l.kind === 'mill') {
+      const a = sim.t * (sim.npcs.some(n => n.loc === l && n.state === 'use') ? 2 : 0.2);
+      ctx.strokeStyle = '#5a4026'; ctx.lineWidth = Math.max(1.5, S(0.22));
+      ctx.beginPath(); ctx.moveTo(X(l.x - 0.1), Y(l.y - 0.1)); ctx.lineTo(X(l.x - 0.1 + Math.cos(a) * 1.7), Y(l.y - 0.1 + Math.sin(a) * 1.7)); ctx.stroke();
+    }
+  }
+  function drawSmoke(dt) {
+    for (let i = smoke.length - 1; i >= 0; i--) {
+      const p = smoke[i];
+      p.x += p.vx * dt; p.y += p.vy * dt; p.r += dt * 0.5; p.a -= dt * 0.035;
+      if (p.a <= 0) { smoke.splice(i, 1); continue; }
+      ell(ctx, X(p.x), Y(p.y), S(p.r), S(p.r), 0, `rgba(200,195,185,${p.a})`);
+    }
+    if (smoke.length > 120) smoke.splice(0, smoke.length - 120);
+  }
+
+  // 人物：約7頭身の写実寄りの立ち姿。関節でつないだ手足、陰影、縁取り。装いは時代と役目で変わる（すべてオリジナルの意匠）
+  const JOBS = [
+    ['hunter', 'shaman', 'gatherer'],
+    ['farmer', 'apprentice', 'villager', 'farmer'],
+    ['swordsman', 'mage', 'priest', 'merchant', 'guard']
+  ];
+  const JOB_LOOK = {
+    hunter:     { cloth: '#7a5232', legs: '#5a4030', trim: '#5a3a22', fur: true, weapon: 'spear' },
+    shaman:     { cloth: '#6a4a3a', trim: '#c9a24a', robe: true, feathers: true, weapon: 'totem' },
+    gatherer:   { cloth: '#8a6a44', legs: '#6a5034', trim: '#5f7a3a', band: '#5f7a3a', bag: true },
+    farmer:     { cloth: '#7a8a5a', legs: '#5a5040', trim: '#5a4630', strawHat: true, weapon: 'hoe' },
+    apprentice: { cloth: '#3f6a5a', trim: '#c9b48a', robe: true, hood: '#356050', weapon: 'staff' },
+    villager:   { cloth: '#b06a4a', legs: '#5a4636', trim: '#ddd2bb', kerchief: '#ddd2bb' },
+    swordsman:  { cloth: '#3a4a6a', legs: '#2e2a30', trim: '#c9a24a', cape: '#9a2e2a', weapon: 'sword' },
+    mage:       { cloth: '#2e4a8a', trim: '#d9b44a', robe: true, hood: '#24407a', weapon: 'crystalStaff' },
+    priest:     { cloth: '#ece6d6', trim: '#c9a24a', robe: true, circlet: true, weapon: 'rod' },
+    merchant:   { cloth: '#4a7a4a', legs: '#4a3a2a', trim: '#d9b44a', cap: '#7a3a2a', bag: true },
+    guard:      { cloth: '#6a6e78', legs: '#3a3c42', trim: '#a8acb6', helmet: true, cape: '#2e4a7a', weapon: 'spear' }
+  };
+  const INK = 'rgba(22,16,12,.75)';
+  // 人の背の高さ（画面上の画素）。全体表示でも小さくなりすぎないよう下限を置く
+  const personH = () => Math.max(S(3.2), 17 * (view.dpr || 1));
+
+  function limb(g, x, y, a1, l1, a2, l2, w, color, outline) {
+    const kx = x + Math.sin(a1) * l1, ky = y + Math.cos(a1) * l1;
+    const fx = kx + Math.sin(a2) * l2, fy = ky + Math.cos(a2) * l2;
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    const path = () => { g.beginPath(); g.moveTo(x, y); g.lineTo(kx, ky); g.lineTo(fx, fy); g.stroke(); };
+    if (outline) { g.strokeStyle = INK; g.lineWidth = w + outline * 2; path(); }
+    g.strokeStyle = color; g.lineWidth = w; path();
+    return [fx, fy];
+  }
+  function poly(g, pts, fill, outline) {
+    g.beginPath(); pts.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.closePath();
+    g.fillStyle = fill; g.fill();
+    if (outline) { g.strokeStyle = INK; g.lineWidth = outline; g.stroke(); }
+  }
+  function shadedFill(g, x0, x1, color) {
+    const gr = g.createLinearGradient(x0, 0, x1, 0);
+    gr.addColorStop(0, shade(color, 1.18)); gr.addColorStop(0.55, color); gr.addColorStop(1, shade(color, 0.68));
+    return gr;
+  }
+
+  function drawWeapon(g, kind, H, t, ol, fine) {
+    const line = (c, w, x1, y1, x2, y2) => {
+      g.lineCap = 'round';
+      if (ol) { g.strokeStyle = INK; g.lineWidth = H * w + ol * 2; g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke(); }
+      g.strokeStyle = c; g.lineWidth = Math.max(1, H * w); g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke();
+    };
+    const sx = -H * 0.11;
+    switch (kind) {
+      case 'spear': line('#6a4a2c', 0.022, sx, -H * 0.02, sx + H * 0.02, -H * 1.12);
+        poly(g, [[sx + H * 0.02, -H * 1.24], [sx - H * 0.008, -H * 1.1], [sx + H * 0.048, -H * 1.1]], '#c8ccd2', ol); break;
+      case 'staff': line('#7a5a3a', 0.024, sx, -H * 0.01, sx + H * 0.01, -H * 1.02);
+        if (fine) ell(g, sx + H * 0.01, -H * 1.04, H * 0.025, H * 0.025, 0, '#c9b48a'); break;
+      case 'crystalStaff': line('#5a4026', 0.024, sx, -H * 0.01, sx + H * 0.01, -H * 1.02); {
+        const glow = 0.6 + Math.sin(t * 3) * 0.25, cx = sx + H * 0.01, cy = -H * 1.1;
+        ell(g, cx, cy, H * 0.07, H * 0.07, 0, `rgba(120,200,255,${0.3 * glow})`);
+        poly(g, [[cx, cy - H * 0.06], [cx - H * 0.025, cy], [cx, cy + H * 0.05], [cx + H * 0.025, cy]], '#7fd0ff', ol * 0.6);
+        if (fine) poly(g, [[cx, cy - H * 0.05], [cx - H * 0.012, cy], [cx, cy + H * 0.005]], 'rgba(255,255,255,.75)'); }
+        break;
+      case 'rod': line('#c9a24a', 0.018, sx, -H * 0.3, sx + H * 0.01, -H * 0.95);
+        ell(g, sx + H * 0.01, -H * 0.97, H * 0.028, H * 0.028, 0, '#f2e6b0'); break;
+      case 'totem': line('#6a4a2c', 0.024, sx, -H * 0.01, sx + H * 0.01, -H * 1.02);
+        if (fine) for (let i = 0; i < 3; i++) ell(g, sx + H * 0.01 + (i - 1) * H * 0.02, -H * 0.98, H * 0.01, H * 0.035, (i - 1) * 0.5, ['#b04a3a', '#e0d0a0', '#3a6a8a'][i]); break;
+      case 'hoe': line('#7a5a3a', 0.022, sx, -H * 0.01, sx + H * 0.02, -H * 1.0);
+        line('#8a8e94', 0.03, sx + H * 0.02, -H * 1.0, sx + H * 0.1, -H * 0.96); break;
+      case 'sword':   // 背中に斜めに背負う
+        line('#b8bcc4', 0.026, H * 0.06, -H * 0.5, -H * 0.12, -H * 0.98);
+        line('#c9a24a', 0.034, H * 0.02, -H * 0.62, H * 0.1, -H * 0.56); break;
+    }
+  }
+
+  function drawPerson(n, dt) {
+    let st = look.get(n.id);
+    if (!st) { st = { dir: 1, phase: Math.random() * 6 }; look.set(n.id, st); }
+    const sp = Math.hypot(n.vx, n.vy);
+    const walking = sp > 0.3 && n.state !== 'use';
+    if (n.state === 'use' && n.loc && Math.abs(n.loc.x - n.x) > 0.2) st.dir = n.loc.x > n.x ? 1 : -1;
+    else if (walking && Math.abs(n.vx) > 0.15) st.dir = n.vx > 0 ? 1 : -1;
+    if (walking) st.phase += sp * dt * 1.9;
+    const era = ERAS.indexOf(sim.era);
+    const jobs = JOBS[era], J = JOB_LOOK[jobs[n.id % jobs.length]];
+    const skin = SKIN[n.id % 5], hair = HAIR[(n.id * 3) % 5];
+    const cur = sim.current(n);
+    const working = n.state === 'use' && cur && cur.work;
+    const seated = n.state === 'use' && !working;
+    const l = n.loc;
+    const H = personH();
+    const fine = H > 44, ol = Math.max(0.6, H * 0.012);   // 小さいときは細部を省き、縁取りで形を立たせる
+    const x = X(n.x), y = Y(n.y), g = ctx;
+    const s = walking ? Math.sin(st.phase) : 0;
+    const ls = J.robe ? s * 0.3 : s;   // ローブの人は裾の中で小さく歩く
+    let bob = walking ? Math.abs(Math.cos(st.phase)) * H * 0.015 : 0;
+    if (n.state === 'use' && l && l.speaker === n.id) bob += Math.abs(Math.sin(sim.t * 7)) * H * 0.01;
+
+    // 影（日の向きに少し伸ばす）と選択の輪
+    ell(g, x + H * 0.05, y, H * 0.2, H * 0.05, 0, 'rgba(8,6,4,.35)');
+    if (selected === n) {
+      g.strokeStyle = '#4aa3ff'; g.lineWidth = Math.max(1.5, H * 0.02);
+      g.beginPath(); g.ellipse(x, y, H * 0.24, H * 0.075, 0, 0, 7); g.stroke();
+    }
+    g.save(); g.translate(x, y - bob); g.scale(st.dir, 1);
+    const dy = seated ? H * 0.21 : 0;           // 座ると腰が下がる
+    const hipY = -H * 0.49 + dy, shY = -H * 0.8 + dy, headY = -H * 0.905 + dy;
+    const legW = H * (J.robe ? 0.07 : 0.058), armW = H * 0.045;
+    const legC = J.robe ? shade(J.cloth, 0.8) : J.legs || shade(J.cloth, 0.6);
+
+    // マント（いちばん奥）
+    if (J.cape) {
+      const wave = walking ? Math.sin(st.phase * 0.5) * H * 0.03 : Math.sin(sim.t * 1.5 + n.id) * H * 0.01;
+      poly(g, [[-H * 0.06, shY], [H * 0.04, shY], [-H * 0.05 - wave, hipY + H * 0.3 - dy * 0.6], [-H * 0.2 - wave * 2, hipY + H * 0.26 - dy * 0.6]], shade(J.cape, 0.85), ol);
+    }
+    if (J.weapon === 'sword') g.save(), g.translate(0, dy), drawWeapon(g, 'sword', H, sim.t, ol, fine), g.restore();
+    // 奥の腕と脚（暗め）
+    const farArm = working ? -0.3 + Math.sin(sim.t * 5 + n.id) * 0.4 : s * 0.45;
+    limb(g, -H * 0.02, shY + H * 0.02, farArm, H * 0.15, farArm + 0.35, H * 0.14, armW, shade(J.robe ? J.cloth : J.cloth, 0.7), ol);
+    if (seated) {
+      limb(g, -H * 0.02, hipY, 1.45, H * 0.24, 0.15, H * 0.23, legW, shade(legC, 0.75), ol);
+    } else {
+      limb(g, -H * 0.01, hipY, -ls * 0.42, H * 0.25, -ls * 0.42 - (0.12 + Math.max(0, ls) * 0.6), H * 0.24, legW, shade(legC, 0.75), ol);
+    }
+    // 手前の脚
+    if (seated) limb(g, H * 0.02, hipY, 1.5, H * 0.24, 0.1, H * 0.23, legW, legC, ol);
+    else limb(g, H * 0.01, hipY, ls * 0.42, H * 0.25, ls * 0.42 - (0.12 + Math.max(0, -ls) * 0.6), H * 0.24, legW, legC, ol);
+    // 胴（ローブは足もとまで垂れる）
+    if (J.robe) {
+      const hem = seated ? hipY + H * 0.08 : -H * 0.06;
+      const flare = walking ? s * H * 0.02 : 0;
+      poly(g, [[-H * 0.075, shY], [H * 0.065, shY], [H * 0.09 + flare, hem], [-H * 0.11 + flare, hem]], shadedFill(g, -H * 0.11, H * 0.09, J.cloth), ol);
+      if (fine) { g.fillStyle = J.trim; g.fillRect(-H * 0.11 + flare, hem - H * 0.025, H * 0.2, H * 0.02); g.fillRect(-H * 0.008, shY, H * 0.016, hem - shY); }
+      g.fillStyle = shade(J.trim, 0.9); g.fillRect(-H * 0.07, hipY - H * 0.08, H * 0.14, H * 0.02);
+    } else {
+      poly(g, [[-H * 0.08, shY], [H * 0.07, shY], [H * 0.06, hipY - H * 0.06], [H * 0.065, hipY + H * 0.02], [-H * 0.07, hipY + H * 0.02], [-H * 0.07, hipY - H * 0.06]], shadedFill(g, -H * 0.08, H * 0.07, J.cloth), ol);
+      g.fillStyle = J.trim; g.fillRect(-H * 0.07, hipY - H * 0.035, H * 0.135, H * 0.025);
+    }
+    if (J.fur) { ell(g, 0, shY + H * 0.01, H * 0.09, H * 0.03, 0, '#c9b08a'); }
+    if (J.helmet) { g.fillStyle = shade(J.trim, 0.95); g.fillRect(-H * 0.075, shY, H * 0.145, H * 0.1); if (fine) { g.fillStyle = 'rgba(255,255,255,.25)'; g.fillRect(-H * 0.05, shY + H * 0.01, H * 0.03, H * 0.08); } }
+    if (J.bag) { ell(g, -H * 0.08, hipY - H * 0.02, H * 0.04, H * 0.05, 0, '#8a6a3a'); }
+    // 首と頭
+    g.strokeStyle = shade(skin, 0.85); g.lineWidth = H * 0.035; g.beginPath(); g.moveTo(H * 0.005, shY); g.lineTo(H * 0.01, headY + H * 0.05); g.stroke();
+    const hr = H * 0.06;
+    if (J.hood) {
+      ell(g, -H * 0.012, headY, hr * 1.3, hr * 1.35, 0, INK);
+      ell(g, -H * 0.012, headY, hr * 1.22, hr * 1.27, 0, J.hood);
+      ell(g, hr * 0.28, headY + hr * 0.12, hr * 0.68, hr * 0.8, 0, skin);
+      ell(g, hr * 0.05, headY + hr * 0.12, hr * 0.3, hr * 0.8, 0, 'rgba(0,0,0,.18)');
+    } else {
+      ell(g, 0, headY, hr + ol, hr * 1.15 + ol, 0, INK);
+      ell(g, 0, headY, hr, hr * 1.15, 0, skin);
+      ell(g, -hr * 0.35, headY + hr * 0.1, hr * 0.6, hr * 1.0, 0, 'rgba(0,0,0,.12)');   // 頬の陰
+      ell(g, -hr * 0.18, headY - hr * 0.42, hr * 1.05, hr * 0.78, 0, hair);
+      ell(g, -hr * 0.6, headY - hr * 0.05, hr * 0.5, hr * 0.85, 0, hair);
+    }
+    if (J.fur) { ell(g, -hr * 0.1, headY - hr * 0.6, hr * 1.15, hr * 0.62, 0, '#8f6a44'); ell(g, -hr * 0.1, headY - hr * 0.25, hr * 1.12, hr * 0.18, 0, '#c9b08a'); }
+    if (J.band) { g.fillStyle = J.band; g.fillRect(-hr, headY - hr * 0.5, hr * 2, hr * 0.28); }
+    if (J.kerchief) { ell(g, -hr * 0.15, headY - hr * 0.5, hr * 1.1, hr * 0.68, 0, J.kerchief); ell(g, -hr * 1.05, headY + hr * 0.1, hr * 0.28, hr * 0.4, 0.4, J.kerchief); }
+    if (J.feathers) for (let i = 0; i < (fine ? 3 : 1); i++) ell(g, -hr * 0.4 + i * hr * 0.4, headY - hr * 1.4, hr * 0.15, hr * 0.55, (i - 1) * 0.35, ['#c0402a', '#e0c070', '#3a6a8a'][fine ? i : 1]);
+    if (J.strawHat) { ell(g, 0, headY - hr * 0.5, hr * 1.9, hr * 0.42, 0, '#d9c27a'); ell(g, 0, headY - hr * 0.75, hr * 0.85, hr * 0.5, 0, '#c9b06a'); if (fine) { g.fillStyle = '#8a5a3a'; g.fillRect(-hr * 0.85, headY - hr * 0.62, hr * 1.7, hr * 0.15); } }
+    if (J.cap) { ell(g, -hr * 0.05, headY - hr * 0.62, hr * 1.02, hr * 0.55, 0, J.cap); ell(g, hr * 0.8, headY - hr * 0.42, hr * 0.5, hr * 0.15, 0, shade(J.cap, 0.8)); }
+    if (J.circlet) { g.strokeStyle = '#d9b44a'; g.lineWidth = Math.max(1, hr * 0.15); g.beginPath(); g.ellipse(0, headY - hr * 0.35, hr * 1.0, hr * 0.32, 0, 0.1, Math.PI - 0.1); g.stroke(); if (fine) ell(g, hr * 0.3, headY - hr * 0.1, hr * 0.13, hr * 0.13, 0, '#7fd0ff'); }
+    if (J.helmet) { g.fillStyle = '#9aa0aa'; g.beginPath(); g.arc(0, headY - hr * 0.1, hr * 1.12, Math.PI, Math.PI * 2); g.fill(); g.fillStyle = '#c0c4cc'; g.fillRect(-hr * 1.12, headY - hr * 0.15, hr * 2.24, hr * 0.22); }
+    if (fine) {   // 目と鼻（大きく映るときだけ）
+      ell(g, hr * 0.55, headY + hr * 0.05, hr * 0.1, hr * 0.13, 0, '#1a1410');
+      ell(g, hr * 0.98, headY + hr * 0.3, hr * 0.12, hr * 0.1, 0, shade(skin, 0.85));
+    }
+    // 杖・槍（奥の手）
+    if (J.weapon && J.weapon !== 'sword') g.save(), g.translate(0, dy), drawWeapon(g, J.weapon, H, sim.t, ol, fine), g.restore();
+    // 手前の腕と持ち物
+    let nearA = -s * 0.45, nearB = -s * 0.45 + 0.35;
+    if (working) { nearA = -0.6 - Math.abs(Math.sin(sim.t * 5 + n.id)) * 0.9; nearB = nearA + 0.9; }
+    else if (n.items.length) { nearA = 0.25; nearB = 1.35; }
+    else if (n.state === 'use' && l && l.speaker === n.id) { nearA = 0.4 + Math.sin(sim.t * 4) * 0.25; nearB = 1.6; }
+    const [hx, hy] = limb(g, H * 0.02, shY + H * 0.02, nearA, H * 0.15, nearB, H * 0.14, armW, J.cloth, ol);
+    if (n.items.length) {
+      ell(g, hx + H * 0.02, hy - H * 0.015, H * 0.042 + ol, H * 0.042 + ol, 0, INK);
+      ell(g, hx + H * 0.02, hy - H * 0.015, H * 0.042, H * 0.042, 0, ITEM_COLORS[n.items[0]] || '#999');
+    }
+    ell(g, hx, hy, H * 0.024, H * 0.024, 0, skin);
+    g.restore();
+    if (n.items.length > 1) n.items.slice(1).forEach((it, i) => {
+      const ix = x - st.dir * (H * 0.2 + i * H * 0.08);
+      ell(ctx, ix, y - H * 0.02, H * 0.035 + ol, H * 0.03 + ol, 0, INK);
+      ell(ctx, ix, y - H * 0.02, H * 0.035, H * 0.03, 0, ITEM_COLORS[it] || '#999');
+    });
+    if (n.state === 'use' && l && l.speaker === n.id) {
+      const bx = x + H * 0.22, by = y - H * 1.12 + (seated ? H * 0.21 : 0);
+      ell(ctx, bx, by, Math.max(7, H * 0.13), Math.max(4.5, H * 0.08), 0, 'rgba(250,246,236,.95)');
+      for (let i = -1; i <= 1; i++) ell(ctx, bx + i * Math.max(2.5, H * 0.045), by, Math.max(1, H * 0.013), Math.max(1, H * 0.013), 0, '#5a3a22');
+    }
+    if (showDebug) {
+      const bw = Math.max(3, H * 0.05);
+      NEEDS.forEach((k, i) => {
+        ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(x - bw * 2.4 + i * bw * 1.25, y + H * 0.06, bw, H * 0.15);
+        ctx.fillStyle = ['#e0904a', '#5aa6d0', '#8fb05a', '#b07ad0'][i];
+        const h = H * 0.15 * n.needs[k];
+        ctx.fillRect(x - bw * 2.4 + i * bw * 1.25, y + H * 0.21 - h, bw, h);
+      });
+    }
+  }
+
+  function drawLabel(l) {
+    const used = l.seatList.filter(s => s.by !== null).length;
+    const text = showDebug ? `${l.label} ${used}/${l.seats}` : l.label;
+    ctx.font = `${Math.max(11, Math.min(13 + cam.z * 3, S(1.5)))}px system-ui, sans-serif`;
+    const w = ctx.measureText(text).width + 10, x = X(l.x), y = Y(l.y + l.r + 1.2);
+    ctx.fillStyle = 'rgba(20,16,24,.62)';
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x - w / 2, y - 9, w, 18, 9) : ctx.rect(x - w / 2, y - 9, w, 18); ctx.fill();
+    ctx.fillStyle = '#f1e9da'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, x, y + 0.5);
+    if (showDebug) for (const s of l.seatList) {
+      ctx.strokeStyle = s.by === null ? 'rgba(241,233,218,.7)' : '#e0603a'; ctx.lineWidth = 1.5;
+      ctx.strokeRect(X(s.x) - S(0.5), Y(s.y) - S(0.5), S(1), S(1));
+    }
+  }
+
+  function drawLights(night) {
+    if (night <= 0.01) return;
+    if (light.width !== canvas.width || light.height !== canvas.height) { light.width = canvas.width; light.height = canvas.height; }
+    const g = light.getContext('2d');
+    g.globalCompositeOperation = 'source-over';
+    g.clearRect(0, 0, light.width, light.height);
+    g.fillStyle = `rgba(10,14,38,${night})`; g.fillRect(0, 0, light.width, light.height);
+    g.globalCompositeOperation = 'destination-out';
+    const src = [];
+    sim.locs.forEach(l => {
+      if (l.kind === 'fire') src.push([l.x, l.y, 13, 1]);
+      else if (l.kind === 'oven') src.push([l.x, l.y + 1, 6, 0.8]);
+      else if (l.kind === 'house' || l.kind === 'bench') src.push([l.x, l.y, 6, 0.55]);
+      else if (l.kind === 'market' || l.kind === 'temple') src.push([l.x, l.y, 7, 0.6]);
+    });
+    for (const [lx, ly, rad, k] of src) {
+      const flick = 1 + Math.sin(sim.t * 9 + lx) * 0.03;
+      const gr = g.createRadialGradient(X(lx), Y(ly), 0, X(lx), Y(ly), S(rad) * flick);
+      gr.addColorStop(0, `rgba(0,0,0,${k})`); gr.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = gr; g.beginPath(); g.arc(X(lx), Y(ly), S(rad) * flick, 0, 7); g.fill();
+    }
+    ctx.drawImage(light, 0, 0);
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    for (const [lx, ly, rad, k] of src) {
+      const gr = ctx.createRadialGradient(X(lx), Y(ly), 0, X(lx), Y(ly), S(rad * 0.7));
+      gr.addColorStop(0, `rgba(255,150,60,${0.22 * night * k})`); gr.addColorStop(1, 'rgba(255,120,40,0)');
+      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(X(lx), Y(ly), S(rad * 0.7), 0, 7); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  /* ---- AI Graph（観察している人の頭の中） ---- */
+  const $ = id => document.getElementById(id);
+  const whoEl = $('who'), fsmEl = $('fsm'), goalEl = $('goal'), chainEl = $('chain'),
+    bbEl = $('bb'), itemsEl = $('items'), candsEl = $('cands'), followBtn = $('follow'), pauseBtn = $('pause');
+  let follow = true, paused = false;
+  const NEED_COLORS = ['#e0904a', '#5aa6d0', '#8fb05a', '#b07ad0'];
+  const FSM = [['wander', 'ぶらつく'], ['go', '向かう'], ['wait', '待つ'], ['use', '使う']];
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  const chips = (xs, label) => xs && xs.length
+    ? `<div class="chip">${label}：${xs.map(esc).join('、')}</div>` : `<div class="chip none">${label}：なし</div>`;
+
+  // 自動で追う：長い手順を進めている人を優先する
+  function pickObserved() {
+    if (selected && !follow) return;                       // タップで固定した人はそのまま
+    const cur = selected && selected.plan ? selected.plan.length : 0;
+    if (cur >= 3) return;                                   // 長い手順を進めている間は乗り換えない
+    let best = null;
+    for (const n of sim.npcs) {
+      if (!n.plan) continue;
+      const v = n.plan.length * 10 - n.stepIdx;
+      if (!best || v > best.v) best = { n, v };
+    }
+    if (best && best.n.plan.length > cur) { selected = best.n; lastKey = ''; }
+  }
+
+  function card(a, i, n) {
+    const l = sim.locs.find(o => o.id === a.at);
+    const cls = i < n.stepIdx ? 'done' : i === n.stepIdx ? 'now' : 'todo';
+    const result = a.meet
+      ? `<div class="chip">結果：${Object.keys(a.meet).map(k => k + 'が満ちる').join('、')}</div>`
+      : chips(a.add, '結果');
+    let prog = '';
+    if (cls === 'now') {
+      const r = n.state === 'use' ? Math.min(1, (sim.t - n.useStart) / Math.max(0.1, n.leaveAt - n.useStart)) : 0;
+      prog = `<div class="prog"><i style="width:${Math.round(r * 100)}%"></i></div>`;
+    }
+    return `<div class="card ${cls}">${cls === 'now' ? '<span class="tag">実行中</span>' : ''}
+      ${chips(a.pre, '前提')}
+      <div class="act">${esc(a.name)}<small>${esc(l.label)}・${a.stay[0]}〜${a.stay[1]}秒</small></div>
+      ${result}${prog}</div>`;
+  }
+
+  let lastKey = '', lastPaint = 0;
+  function renderEditor(now) {
+    if (now - lastPaint < 150) return;
+    lastPaint = now;
+    pickObserved();
+    const n = selected;
+    if (!n) {
+      whoEl.textContent = '観察する人を探しています';
+      fsmEl.innerHTML = FSM.map(([, j]) => `<span class="pill">${j}</span>`).join('<span class="sep">→</span>');
+      goalEl.innerHTML = '<p class="empty">いま計画を持っている人がいません。少し待つか、人をタップしてください。</p>';
+      chainEl.innerHTML = bbEl.innerHTML = itemsEl.innerHTML = candsEl.innerHTML = '';
+      return;
+    }
+    whoEl.textContent = `人 #${n.id}${follow ? '（自動で追跡中）' : '（固定）'}`;
+    fsmEl.innerHTML = FSM.map(([k, j]) => `<span class="pill${n.state === k ? ' on' : ''}">${j}</span>`).join('<span class="sep">→</span>');
+    if (n.plan) {
+      goalEl.innerHTML = `<span class="goal">目標：<b>${n.need}を満たす</b><small>欲求 ${Math.round(n.needs[n.need] * 100)}・全${n.plan.length}手のうち${n.stepIdx + 1}手目</small></span>`;
+      chainEl.innerHTML = n.plan.map((a, i) => card(a, i, n)).join('<span class="link" aria-hidden="true">→</span>');
+    } else {
+      goalEl.innerHTML = '<span class="goal">目標：<b>なし</b><small>欲求が高まるまでぶらついています</small></span>';
+      chainEl.innerHTML = '';
+    }
+    bbEl.innerHTML = NEEDS.map((k, i) => `<span>${k}</span><span class="meter"><i style="width:${Math.round(n.needs[k] * 100)}%;background:${NEED_COLORS[i]}"></i></span><span>${Math.round(n.needs[k] * 100)}</span>`).join('');
+    itemsEl.innerHTML = '<span style="color:var(--muted)">持ち物：</span>' + (n.items.length
+      ? n.items.map(it => `<span class="item" style="background:${ITEM_COLORS[it] || '#999'}">${esc(it)}</span>`).join('')
+      : '<span style="color:var(--muted)">なし</span>');
+    const key = n.id + ':' + (n.candidates || []).map(c => c.cost).join();
+    if (key !== lastKey) {
+      lastKey = key;
+      const cs = n.plan ? (n.candidates || []) : [];
+      const max = Math.max(1, ...cs.map(c => c.cost));
+      candsEl.innerHTML = cs.length ? cs.map(c => `<div class="cand${c.pick ? ' pick' : ''}">
+        <span>${c.pick ? '✓' : ''}</span><span>${c.steps.map(a => esc(a.name)).join(' → ')}</span>
+        <span class="cost"><i style="width:${Math.round(c.cost / max * 100)}%"></i></span></div>`).join('')
+        : '<p class="empty">計画を立てたときに、ここへ候補が並びます。</p>';
+    }
+  }
+
+  // 集落の側にも、観察している人の道順を描く
+  function drawRoute() {
+    const n = selected;
+    if (!n || !n.plan) return;
+    let px = X(n.x), py = Y(n.y);
+    ctx.save();
+    ctx.lineWidth = Math.max(1.5, S(0.22));
+    ctx.font = `${Math.max(11, S(1.5))}px system-ui, sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (let i = n.stepIdx; i < n.plan.length; i++) {
+      const l = sim.locs.find(o => o.id === n.plan[i].at);
+      const tx = X(l.x), ty = Y(l.y);
+      ctx.strokeStyle = i === n.stepIdx ? 'rgba(74,163,255,.9)' : 'rgba(154,106,216,.75)';
+      ctx.setLineDash(i === n.stepIdx ? [] : [S(0.7), S(0.6)]);
+      ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(tx, ty); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = i === n.stepIdx ? '#4aa3ff' : '#9a6ad8';
+      ctx.beginPath(); ctx.arc(tx, ty - S(l.r) * 0.9, S(1.1), 0, 7); ctx.fill();
+      ctx.fillStyle = '#0b1320'; ctx.fillText(String(i + 1), tx, ty - S(l.r) * 0.9);
+      px = tx; py = ty;
+    }
+    ctx.restore();
+  }
+
+  let bgFor = '';
+  function render(dt) {
+    if (cam.follow && selected) {
+      const k = Math.min(1, (dt || 0.016) * 3);
+      cam.cx += (selected.x - cam.cx) * k; cam.cy += (selected.y - cam.cy) * k; clampCam();
+    }
+    const key = sim.era.name + sim.w + ':' + Math.round(view.s * 10);
+    if (key !== bgFor) { bgFor = key; buildBg(); }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = '#1a1620'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(bg, X(0), Y(0), S(sim.w), S(sim.h));
+    ctx.save(); ctx.beginPath(); ctx.rect(X(0), Y(0), S(sim.w), S(sim.h)); ctx.clip();
+    sim.locs.forEach(l => locDynamic(l, dt));
+    [...sim.npcs].sort((a, b) => a.y - b.y).forEach(n => drawPerson(n, dt));
+    drawSmoke(dt);
+    drawLights(nightness());
+    ctx.restore();
+    drawRoute();
+    sim.locs.forEach(drawLabel);
+    const tl = timeLabel();
+    if (tl) {
+      ctx.font = `${Math.max(11, Math.min(14, S(1.4)))}px system-ui, sans-serif`;
+      ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.fillStyle = 'rgba(241,233,218,.8)';
+      ctx.fillText(tl, X(0) + 8, Y(0) + 6);
+    }
+  }
+
+  let lastLog = '';
+  function renderLog() {
+    const key = sim.log.map(e => e.t.toFixed(2)).join();
+    if (key === lastLog) return;
+    lastLog = key;
+    logEl.innerHTML = sim.log.slice(0, 4).map(e => `<li>${esc(e.pre)} → <b>${esc(e.act)}</b> → ${esc(e.post)}</li>`).join('');
+  }
+
+  let prev = performance.now();
+  function frame(now) {
+    const dt = Math.max(0, Math.min(0.05, (now - prev) / 1000)); prev = now;
+    if (!paused) for (let i = 0; i < speed; i++) sim.step(dt);
+    if (mode3d && r3) r3.render(paused ? 0 : dt * speed); else render(paused ? 0 : dt * speed);
+    renderLog(); renderEditor(now);
+    requestAnimationFrame(frame);
+  }
+
+  eraBtns.forEach(b => b.addEventListener('click', () => {
+    eraIndex = +b.dataset.era;
+    eraBtns.forEach(o => o.setAttribute('aria-pressed', String(o === b)));
+    reset();
+  }));
+  countEl.addEventListener('input', () => { countOut.textContent = countEl.value; reset(); });
+  speedBtn.addEventListener('click', () => { speed = speed === 1 ? 3 : 1; speedBtn.setAttribute('aria-pressed', String(speed === 3)); });
+  debugBtn.addEventListener('click', () => { showDebug = !showDebug; debugBtn.setAttribute('aria-pressed', String(showDebug)); });
+  const nightBtn = document.getElementById('night');
+  nightBtn.addEventListener('click', () => { dayNight = !dayNight; nightBtn.setAttribute('aria-pressed', String(dayNight)); });
+  pauseBtn.addEventListener('click', () => { paused = !paused; pauseBtn.setAttribute('aria-pressed', String(paused)); pauseBtn.textContent = paused ? '再生' : '一時停止'; });
+  followBtn.addEventListener('click', () => { follow = !follow; followBtn.setAttribute('aria-pressed', String(follow)); lastPaint = 0; });
+  // 視点の操作：ドラッグで移動、ホイール・ピンチ・ボタンで拡大縮小。動かさずに離せばタップ
+  const camFollowBtn = $('camFollow');
+  const setCamFollow = v => { cam.follow = v; camFollowBtn.setAttribute('aria-pressed', String(v)); };
+  const pts = new Map();
+  let drag = null;
+  const toCanvas = e => { const r = canvas.getBoundingClientRect(); return [(e.clientX - r.left) * view.dpr, (e.clientY - r.top) * view.dpr]; };
+  canvas.addEventListener('pointerdown', e => {
+    canvas.setPointerCapture(e.pointerId);
+    pts.set(e.pointerId, toCanvas(e));
+    const [px, py] = toCanvas(e);
+    drag = { px, py, moved: pts.size > 1, dist: 0 };
+    if (pts.size === 2) { const [a, b] = [...pts.values()]; drag.dist = Math.hypot(a[0] - b[0], a[1] - b[1]); }
+  });
+  canvas.addEventListener('pointermove', e => {
+    if (!pts.has(e.pointerId) || !drag) return;
+    const prevP = pts.get(e.pointerId), p = toCanvas(e);
+    pts.set(e.pointerId, p);
+    if (pts.size === 2) {
+      const [a, b] = [...pts.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+      if (drag.dist > 0) zoomAt(d / drag.dist, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+      drag.dist = d; drag.moved = true; return;
+    }
+    if (Math.hypot(p[0] - drag.px, p[1] - drag.py) > 8 * view.dpr) drag.moved = true;
+    if (drag.moved) {
+      cam.cx -= (p[0] - prevP[0]) / (view.s * cam.z); cam.cy -= (p[1] - prevP[1]) / (view.s * cam.z);
+      clampCam(); setCamFollow(false); canvas.style.cursor = 'grabbing';
+    }
+  });
+  const endPointer = e => {
+    if (!pts.has(e.pointerId)) return;
+    pts.delete(e.pointerId);
+    canvas.style.cursor = '';
+    if (pts.size || !drag) return;
+    const wasTap = !drag.moved; drag = null;
+    if (!wasTap || e.type === 'pointercancel') return;
+    const [px, py] = toCanvas(e);
+    let best = null, bd = Math.max(personH() * 0.5, 18 * view.dpr);
+    for (const n of sim.npcs) { const dd = Math.hypot(X(n.x) - px, Y(n.y) - personH() * 0.5 - py); if (dd < bd) { bd = dd; best = n; } }
+    if (best) { selected = best; follow = false; } else { follow = true; }
+    followBtn.setAttribute('aria-pressed', String(follow)); lastPaint = 0; lastKey = '';
+  };
+  canvas.addEventListener('pointerup', endPointer);
+  canvas.addEventListener('pointercancel', endPointer);
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    const [px, py] = toCanvas(e);
+    zoomAt(Math.exp(-e.deltaY * 0.0015), px, py);
+  }, { passive: false });
+  $('zoomIn').addEventListener('click', () => mode3d ? r3.zoom(1.4) : zoomAt(1.4, canvas.width / 2, canvas.height / 2));
+  $('zoomOut').addEventListener('click', () => mode3d ? r3.zoom(1 / 1.4) : zoomAt(1 / 1.4, canvas.width / 2, canvas.height / 2));
+  $('camAll').addEventListener('click', () => { cam.z = 1; setCamFollow(false); clampCam(); if (mode3d) r3.resetView(); });
+  // 3D表示：Three.js が読み込めたときだけ使える。2D の操作・観察とは同じ人・同じ状態を共有する
+  const mode3dBtn = $('mode3d'), clockEl = $('clock');
+  function setMode3d(v) {
+    if (v && !r3) {
+      r3 = window.createSettlement3D ? window.createSettlement3D({
+        host: canvas.parentElement, clock: clockEl,
+        getSim: () => sim, getSelected: () => selected, getFollow: () => cam.follow, isDebug: () => showDebug,
+        select: n => { if (n) { selected = n; follow = false; } else follow = true; followBtn.setAttribute('aria-pressed', String(follow)); lastPaint = 0; lastKey = ''; },
+        setFollow: setCamFollow, nightness, timeLabel, paintGround, riverPath, shade,
+        LOOK, JOBS, JOB_LOOK, SKIN, HAIR, ITEM_COLORS, ERAS
+      }) : null;
+      if (!r3) { mode3dBtn.disabled = true; mode3dBtn.title = '3D表示に必要なファイルを読み込めませんでした'; return; }
+    }
+    mode3d = v;
+    mode3dBtn.setAttribute('aria-pressed', String(v));
+    canvas.style.visibility = v ? 'hidden' : 'visible';
+    clockEl.hidden = !v;
+    r3.setVisible(v);
+    if (v && r3Dirty) { r3.build(); r3Dirty = false; }
+  }
+  mode3dBtn.addEventListener('click', () => setMode3d(!mode3d));
+  window.settlementDebug = { get sim() { return sim; } };   // 検証用（画面の操作には使わない）
+  if (!window.THREE) { mode3dBtn.disabled = true; mode3dBtn.title = '3D表示に必要なファイルを読み込めませんでした'; }
+  camFollowBtn.addEventListener('click', () => { setCamFollow(!cam.follow); if (cam.follow && cam.z < 3) cam.z = 3.4; clampCam(); });
+  new ResizeObserver(resize).observe(canvas);
+  window.addEventListener('resize', resize);
+  resize(); reset();
+  if (window.THREE && window.createSettlement3D) { try { setMode3d(true); } catch (e) { console.error(e); setMode3d(false); } }
+  requestAnimationFrame(frame);
+}
+
+if (typeof document !== 'undefined') boot();
+if (typeof module !== 'undefined') module.exports = { createSim, ERAS, NEEDS };
+</script>
+</body>
+</html>
